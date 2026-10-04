@@ -82,6 +82,17 @@ agent-eval run examples/real-models.yaml --out runs/real-comparison
 Config fields, runner options, the task format, the JSONL schema and exit codes are documented
 in [docs/reference.md](docs/reference.md).
 
+
+### Install a release build
+
+Every tagged release carries a wheel, an sdist and `SHA256SUMS.txt`, built and tested by the [release workflow](.github/workflows/release.yml):
+
+```sh
+pip install https://github.com/muhib-karim/agent-eval-harness/releases/download/v1.1.0/agent_eval_harness-1.1.0-py3-none-any.whl
+```
+
+Check the file against `SHA256SUMS.txt` on the [Releases page](https://github.com/muhib-karim/agent-eval-harness/releases/latest).
+
 ## Sample output
 
 Captured from the offline demo on a development machine. Timings will differ on yours.
