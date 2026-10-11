@@ -1,18 +1,28 @@
+<p align="center"><img src="docs/assets/showcase-banner.png" alt="Agent evaluation" width="100%"></p>
+
 # agent-eval-harness
 
 [![CI](https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
 [![Release](https://img.shields.io/github/v/release/muhib-karim/agent-eval-harness)](https://github.com/muhib-karim/agent-eval-harness/releases)
-[![Demo report](https://img.shields.io/badge/demo-live%20report-brightgreen.svg)](https://muhib-karim.github.io/agent-eval-harness/)
+[![Demo report](https://img.shields.io/badge/demo-offline%20mocks-brightgreen.svg)](https://muhib-karim.github.io/agent-eval-harness/)
 
 A CLI and Python library for comparing coding models and coding-agent commands on the same
 tasks. Each attempt writes a Python module. The harness then grades it against pytest files the
 model never saw, and keeps the evidence: raw output, generated source, test log, and a JSONL
 record.
 
-**Live demo:** [the HTML report from the offline demo](https://muhib-karim.github.io/agent-eval-harness/),
+**Offline mock demo (not a live-model benchmark):** [the HTML report from the offline demo](https://muhib-karim.github.io/agent-eval-harness/),
 rebuilt by CI from `main` on every push (raw [results.jsonl](https://muhib-karim.github.io/agent-eval-harness/results.jsonl)).
+
+## Inspect the demo
+
+The demo compares deterministic mock-reference and mock-wrong adapters, not real model providers. Its pass rates and timing must not be cited as live-model performance. Generated code is not sandboxed by the harness; review SECURITY.md before running untrusted output.
+
+![Captured demo report](docs/assets/demo-report.png)
+
+*Screenshot captured from the public demo on 11 October 2026. It is an example report, not a current health monitor.*
 
 ## Problem
 
