@@ -26,7 +26,11 @@ from agent_eval.specs import load_task
 def test_grade_outcomes(
     task_path: Path, workdir: Path, source: str, outcome: str, passed: int, total: int
 ) -> None:
-    task = load_task(task_path).model_copy(update={"timeout_s": 0.7})
+    # Only the infinite loop needs a short deadline; the others keep the fixture's 3 s
+    # so a slow machine doesn't turn a pass/fail/error into a timeout.
+    task = load_task(task_path)
+    if outcome == "timeout":
+        task = task.model_copy(update={"timeout_s": 0.7})
     (workdir / task.entrypoint).write_text(source)
     result = asyncio.run(grade(task, task_path, workdir))
     assert result.outcome == outcome, result.log

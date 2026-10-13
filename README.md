@@ -1,12 +1,17 @@
-<p align="center"><img src="docs/assets/showcase-banner.png" alt="Agent evaluation" width="100%"></p>
+<p align="center"><img src="docs/banner.svg" alt="agent-eval-harness: compare coding models and agent CLIs on the same tasks" width="100%"></p>
+
+<p align="center"><b>Compare coding models and agent CLIs on the same tasks, graded by tests they never see.</b></p>
+
+<p align="center">
+  <a href="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml"><img src="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/muhib-karim/agent-eval-harness" alt="License: MIT"></a>
+  <img src="https://img.shields.io/github/languages/top/muhib-karim/agent-eval-harness" alt="Top language">
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
+  <a href="https://github.com/muhib-karim/agent-eval-harness/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/agent-eval-harness" alt="Release"></a>
+  <a href="https://muhib-karim.github.io/agent-eval-harness/"><img src="https://img.shields.io/badge/demo-offline%20mocks-brightgreen.svg" alt="Demo report (offline mocks)"></a>
+</p>
 
 # agent-eval-harness
-
-[![CI](https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml)
-![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
-[![Release](https://img.shields.io/github/v/release/muhib-karim/agent-eval-harness)](https://github.com/muhib-karim/agent-eval-harness/releases)
-[![Demo report](https://img.shields.io/badge/demo-offline%20mocks-brightgreen.svg)](https://muhib-karim.github.io/agent-eval-harness/)
 
 A CLI and Python library for comparing coding models and coding-agent commands on the same
 tasks. Each attempt writes a Python module. The harness then grades it against pytest files the
@@ -15,6 +20,17 @@ record.
 
 **Offline mock demo (not a live-model benchmark):** [the HTML report from the offline demo](https://muhib-karim.github.io/agent-eval-harness/),
 rebuilt by CI from `main` on every push (raw [results.jsonl](https://muhib-karim.github.io/agent-eval-harness/results.jsonl)).
+
+## Key features
+
+- **Withheld hidden tests.** Pytest files are copied into the workdir only after the model or agent has finished, then removed.
+- **Four built-in runners** (`openai`, `anthropic`, `cli`, `mock`) plus a registry for custom ones. The HTTP adapters use raw `httpx`, with no vendor SDKs.
+- **Isolated grading.** Each attempt is graded in its own `python -I` pytest subprocess with conftest, plugins and config disabled, and results are read from JUnit XML.
+- **Proper statistics.** Pass@k uses the unbiased estimator over repeated attempts and is macro-averaged across tasks.
+- **Honest usage reporting.** Token counts and cost stay `unknown` (null) unless the endpoint reports them.
+- **Evidence kept for every attempt.** Raw output, generated source and test log, plus append-only `results.jsonl` and SHA-256 provenance in `metadata.json`.
+- **Reports** in self-contained HTML (inline SVG), Markdown and JSON.
+- **Six bundled Python tasks** with 125 hidden tests in total, plus an offline mock demo that needs no keys or network.
 
 ## Inspect the demo
 
@@ -199,6 +215,32 @@ The bundled tasks, with hidden test counts from `agent-eval validate-task`:
 - Tasks in languages other than Python.
 - Repository-level tasks graded from a patch (SWE-bench style).
 - Optional cost estimates from a versioned pricing file, labelled separately from reported cost.
+
+## Testing
+
+```sh
+python -m pip install -e '.[dev]'
+ruff check . && ruff format --check .   # lint + formatting
+mypy --strict                           # type-check src/ and tests/
+pytest                                  # 109 tests, branch coverage gate 85%
+python -m build                         # sdist + wheel
+agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
+```
+
+The same commands run in CI on Python 3.11 and 3.12.
+
+## Project structure
+
+```text
+src/agent_eval/        package: cli, engine, grader, process, results, report, specs
+  runners/             Runner protocol + registry, HTTP adapters, CLI and mock runners
+  templates/           Jinja2 HTML report template
+tasks/<id>/            task.yaml, reference.py, hidden_tests.py (six bundled tasks)
+examples/              mock-demo.yaml (offline) and real-models.yaml (env-configured)
+tests/                 pytest suite (no network; HTTP mocked with httpx.MockTransport)
+docs/                  reference.md, sample report, banner and screenshots
+.github/workflows/     ci.yml (checks + demo + Docker), pages.yml (demo report), release.yml
+```
 
 ## Development
 
