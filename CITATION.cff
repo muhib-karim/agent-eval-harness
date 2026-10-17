@@ -4,7 +4,7 @@ title: "agent-eval-harness: reproducible cross-model regression testing for codi
 abstract: >-
   A harness that runs the same coding tasks across models and agent CLIs, grades every attempt
   against withheld tests in an isolated subprocess, keeps per-attempt evidence, and reports
-  pass@k with confidence intervals so that model and version regressions can be measured.
+  unbiased pass@k over repeated attempts so that model and version regressions can be measured.
 type: software
 authors:
   - family-names: Karim

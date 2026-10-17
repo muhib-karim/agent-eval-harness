@@ -32,7 +32,7 @@ withheld tests in an isolated subprocess. These are real API calls, not mocks. C
 and the pytest log for every attempt are committed under
 [`results/2026-10-17-measured/`](results/2026-10-17-measured/).
 
-| Model | pass@1 | pass@3 | Tasks solved 3/3 | Median wall time (s) | Output tokens (108 runs total) |
+| Model | pass@1 | pass@3 | Tasks solved 3/3 | Median wall time (s) | Output tokens (18 runs) |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | gpt-6-sol | 100.0% | 100.0% | 6 / 6 | 10.6 | 15,301 |
 | claude-opus-5-5 | 100.0% | 100.0% | 6 / 6 | 13.5 | 22,204 |
@@ -49,9 +49,9 @@ What the run shows:
 
 - **One withheld test separates the field on `arithmetic`.** Four of six models failed it on
   every attempt, all on the same case: a full-width digit (`"\uff12"`) that must be rejected.
-  Python's `float()` and `str.isdigit()` both accept it, so a parser that leans on them passes
-  30 of 31 tests and still fails the task.
-- **Interval merging is a spec-reading test.** 7 of the 9 failed `intervals` attempts merged
+  Python's `float()` and `str.isdigit()` both accept it, so a parser that leans on them typically
+  passes 30 of 31 tests and still fails the task.
+- **Interval merging is a spec-reading test.** 7 of the 8 failed `intervals` attempts merged
   integer-adjacent ranges (`(0, 1)` and `(2, 3)` became `(0, 3)`). The specification merges only
   overlapping ranges and touching endpoints.
 - **pass@3 above pass@1 means flaky, not wrong.** claude-sonnet-5, deepseek-chat and claude-haiku-4-5
@@ -59,13 +59,17 @@ What the run shows:
 - The two `claude-haiku-4-5` timeouts on `lru_ttl` are generated solutions that did not finish
   inside the task's 5-second grading limit.
 
-Reproduce it with one command once the six endpoint variables named in the config are set
+Reproduce it with one command once the eight endpoint variables named in the config are set
 (`ANTHROPIC_*`, `OPENAI_*`, `DEEPSEEK_*`, `XAI_*`, each a `_BASE_URL` with the API version path
 and an `_API_KEY`):
 
 ```bash
 pip install '.[grade]' && agent-eval run examples/measured-2026-10.yaml --out runs/measured
 ```
+
+Provenance: the run used the 1.2.0 development tree, including the `token_param` option it
+needed for gpt-6-sol. Its `metadata.json` records `harness_version` 1.1.0 because the version
+number was bumped after the run.
 
 Limits of this run: six small Python tasks, three repeats, one day. Read it as a regression
 baseline for these tasks, not as a general ranking of the models.
@@ -163,7 +167,7 @@ in [docs/reference.md](docs/reference.md).
 Every tagged release carries a wheel, an sdist and `SHA256SUMS.txt`, built and tested by the [release workflow](.github/workflows/release.yml):
 
 ```sh
-pip install https://github.com/muhib-karim/agent-eval-harness/releases/download/v1.1.0/agent_eval_harness-1.1.0-py3-none-any.whl
+pip install https://github.com/muhib-karim/agent-eval-harness/releases/download/v1.2.0/agent_eval_harness-1.2.0-py3-none-any.whl
 ```
 
 Check the file against `SHA256SUMS.txt` on the [Releases page](https://github.com/muhib-karim/agent-eval-harness/releases/latest).
@@ -276,7 +280,7 @@ If you use this harness or its results, please cite it using [`CITATION.cff`](CI
 python -m pip install -e '.[dev]'
 ruff check . && ruff format --check .   # lint + formatting
 mypy --strict                           # type-check src/ and tests/
-pytest                                  # 109 tests, branch coverage gate 85%
+pytest                                  # 111 tests, branch coverage gate 85%
 python -m build                         # sdist + wheel
 agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
 ```
