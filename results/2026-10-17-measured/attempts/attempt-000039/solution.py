@@ -1,0 +1,182 @@
+import re
+from typing import Union
+
+def tokenize(text: str) -> list[str]:
+    """
+    Tokenize a mathematical expression into operators, parentheses, and numbers.
+
+    Valid tokens:
+    - Unsigned integers or decimals with digits on BOTH sides of decimal point
+    - Single-character operators: + - * / ( )
+    - Whitespace is ignored
+
+    Raises ValueError for invalid characters or malformed numbers.
+    Returns empty list for empty input.
+    """
+    if not text:
+        return []
+
+    tokens = []
+    i = 0
+
+    while i < len(text):
+        char = text[i]
+
+        # Skip whitespace
+        if char.isspace():
+            i += 1
+            continue
+
+        # Check for operators and parentheses
+        if char in '+-*/()':
+            tokens.append(char)
+            i += 1
+            continue
+
+        # Check for numbers (integers or decimals with digits on both sides of decimal)
+        if char.isdigit():
+            j = i
+            has_decimal = False
+
+            # Read digits before decimal point
+            while j < len(text) and text[j].isdigit():
+                j += 1
+
+            # Check for decimal point
+            if j < len(text) and text[j] == '.':
+                has_decimal = True
+                j += 1
+
+                # Must have at least one digit after decimal point
+                if j >= len(text) or not text[j].isdigit():
+                    raise ValueError(f"Malformed number: decimal point not followed by digits at position {i}")
+
+                # Read digits after decimal point
+                while j < len(text) and text[j].isdigit():
+                    j += 1
+
+            tokens.append(text[i:j])
+            i = j
+            continue
+
+        # Invalid character
+        raise ValueError(f"Invalid character '{char}' at position {i}")
+
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    """
+    Evaluate a mathematical expression with support for:
+    - Parentheses
+    - Unary + and - (including repeated signs)
+    - Binary operators: + - * / with usual precedence
+    - Left-associative binary operators
+
+    Raises ValueError for:
+    - Empty expressions
+    - Adjacent operands
+    - Trailing tokens
+    - Unbalanced parentheses
+    - Malformed numbers
+
+    Raises ZeroDivisionError for division by zero.
+    """
+    tokens = tokenize(text)
+
+    if not tokens:
+        raise ValueError("Empty expression")
+
+    pos = 0
+
+    def peek() -> Union[str, None]:
+        nonlocal pos
+        return tokens[pos] if pos < len(tokens) else None
+
+    def consume() -> str:
+        nonlocal pos
+        token = tokens[pos]
+        pos += 1
+        return token
+
+    def parse_expression() -> float:
+        """Parse a full expression (handles addition and subtraction)"""
+        left = parse_term()
+
+        while peek() in ('+', '-'):
+            op = consume()
+            right = parse_term()
+            if op == '+':
+                left = left + right
+            else:
+                left = left - right
+
+        return left
+
+    def parse_term() -> float:
+        """Parse multiplication and division (higher precedence)"""
+        left = parse_unary()
+
+        while peek() in ('*', '/'):
+            op = consume()
+            right = parse_unary()
+            if op == '*':
+                left = left * right
+            else:
+                if right == 0:
+                    raise ZeroDivisionError("Division by zero")
+                left = left / right
+
+        return left
+
+    def parse_unary() -> float:
+        """Parse unary operators and primary expressions"""
+        # Handle unary + and - (including repeated signs)
+        sign = 1
+        while peek() in ('+', '-'):
+            op = consume()
+            if op == '-':
+                sign *= -1
+
+        value = parse_primary()
+        return sign * value
+
+    def parse_primary() -> float:
+        """Parse primary expressions (numbers and parenthesized expressions)"""
+        token = peek()
+
+        if token is None:
+            raise ValueError("Unexpected end of expression")
+
+        # Handle parentheses
+        if token == '(':
+            consume()  # consume '('
+            value = parse_expression()
+
+            if peek() != ')':
+                raise ValueError("Unbalanced parentheses: missing ')'")
+            consume()  # consume ')'
+            return value
+
+        # Handle closing parenthesis (error - unexpected)
+        if token == ')':
+            raise ValueError("Unexpected ')'")
+
+        # Handle numbers
+        if token[0].isdigit():
+            consume()
+            return float(token)
+
+        # Handle operators where operand expected
+        if token in ('+', '-', '*', '/'):
+            raise ValueError(f"Unexpected operator '{token}'")
+
+        raise ValueError(f"Unexpected token '{token}'")
+
+    result = parse_expression()
+
+    # Check that all tokens were consumed
+    if pos < len(tokens):
+        raise ValueError(f"Trailing tokens after expression: {tokens[pos:]}")
+
+    return result

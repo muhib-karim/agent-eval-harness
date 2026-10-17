@@ -1,0 +1,58 @@
+import re
+
+_VALUES = {
+    "I": 1,
+    "V": 5,
+    "X": 10,
+    "L": 50,
+    "C": 100,
+    "D": 500,
+    "M": 1000,
+}
+
+_TOKENS = (
+    (1000, "M"),
+    (900, "CM"),
+    (500, "D"),
+    (400, "CD"),
+    (100, "C"),
+    (90, "XC"),
+    (50, "L"),
+    (40, "XL"),
+    (10, "X"),
+    (9, "IX"),
+    (5, "V"),
+    (4, "IV"),
+    (1, "I"),
+)
+
+_CANONICAL = re.compile(
+    r"M{0,3}(?:CM|CD|D?C{0,3})"
+    r"(?:XC|XL|L?X{0,3})"
+    r"(?:IX|IV|V?I{0,3})"
+)
+
+
+def to_roman(value: int) -> str:
+    if type(value) is not int or not 1 <= value <= 3999:
+        raise ValueError("value must be an integer from 1 to 3999")
+
+    result = []
+    for amount, numeral in _TOKENS:
+        count, value = divmod(value, amount)
+        result.append(numeral * count)
+    return "".join(result)
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str) or not text or _CANONICAL.fullmatch(text) is None:
+        raise ValueError("text must be a canonical Roman numeral from 1 to 3999")
+
+    total = 0
+    for index, symbol in enumerate(text):
+        value = _VALUES[symbol]
+        if index + 1 < len(text) and value < _VALUES[text[index + 1]]:
+            total -= value
+        else:
+            total += value
+    return total

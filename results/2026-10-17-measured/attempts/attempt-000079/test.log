@@ -1,0 +1,20 @@
+F.......F.................                                               [100%]
+=================================== FAILURES ===================================
+__________________________ test_paths_and_no_mutation __________________________
+_hidden_cw2ksc91/test_000.py:11: in test_paths_and_no_mutation
+    assert get_path(data, "$.users[01].name", "missing") is None
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:66: in get_path
+    tokens = _parse(path)
+             ^^^^^^^^^^^^
+solution.py:24: in _parse
+    raise ValueError("unexpected dot at position %d" % i)
+E   ValueError: unexpected dot at position 0
+_____________________ test_invalid_even_if_missing[$name] ______________________
+_hidden_cw2ksc91/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_cw2ksc91/test_000.py::test_paths_and_no_mutation - ValueError:...
+FAILED _hidden_cw2ksc91/test_000.py::test_invalid_even_if_missing[$name] - Fa...
+2 failed, 24 passed in 1.91s

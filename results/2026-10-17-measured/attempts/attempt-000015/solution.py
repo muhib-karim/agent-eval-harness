@@ -1,0 +1,51 @@
+"""Sliding-window rate limiter keyed by arbitrary hashable keys."""
+
+import math
+import numbers
+from collections import deque
+
+
+class SlidingWindowLimiter:
+    def __init__(self, limit, window_s):
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if isinstance(window_s, bool) or not isinstance(window_s, numbers.Real):
+            raise ValueError("window_s must be a positive finite number")
+        try:
+            w = float(window_s)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("window_s must be a positive finite number")
+        if not math.isfinite(w) or w <= 0:
+            raise ValueError("window_s must be a positive finite number")
+        self._limit = limit
+        self._window = window_s
+        self._history = {}    # key -> deque of accepted timestamps
+        self._last_seen = {}  # key -> last time observed (accepted or denied)
+
+    def allow(self, key, now):
+        if isinstance(now, bool) or not isinstance(now, numbers.Real):
+            raise ValueError("now must be a finite number")
+        try:
+            t = float(now)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("now must be a finite number")
+        if not math.isfinite(t):
+            raise ValueError("now must be a finite number")
+        hash(key)  # raises TypeError for unhashable keys before any mutation
+        last = self._last_seen.get(key)
+        if last is not None and now < last:
+            raise ValueError("time must be nondecreasing per key")
+
+        # Validation passed; now mutate state.
+        self._last_seen[key] = now
+        dq = self._history.get(key)
+        if dq is None:
+            dq = deque()
+            self._history[key] = dq
+        cutoff = now - self._window
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+        if len(dq) < self._limit:
+            dq.append(now)
+            return True
+        return False

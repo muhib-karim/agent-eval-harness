@@ -29,10 +29,16 @@ jobs:
       - run: agent-eval run examples/mock-demo.yaml --out runs/pages-demo
       - name: Assemble site
         run: |
-          mkdir -p site
-          cp runs/pages-demo/report.html site/index.html
-          agent-eval report runs/pages-demo/results.jsonl --format md > site/report.md
-          cp runs/pages-demo/results.jsonl site/results.jsonl
+          mkdir -p site/demo site/measured
+          # Landing page: the measured live-model run committed under results/.
+          agent-eval report results/2026-10-17-measured/results.jsonl --format html --k 1 --k 3 --out site/index.html
+          agent-eval report results/2026-10-17-measured/results.jsonl --format md --k 1 --k 3 > site/measured/report.md
+          agent-eval report results/2026-10-17-measured/results.jsonl --format json --k 1 --k 3 > site/measured/summary.json
+          cp results/2026-10-17-measured/results.jsonl site/measured/results.jsonl
+          # Offline mock demo, rebuilt from main on every push.
+          cp runs/pages-demo/report.html site/demo/index.html
+          agent-eval report runs/pages-demo/results.jsonl --format md > site/demo/report.md
+          cp runs/pages-demo/results.jsonl site/demo/results.jsonl
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

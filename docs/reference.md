@@ -35,7 +35,7 @@ Unknown fields in the config and in built-in runner options are rejected.
 
 | Runner | Options |
 | --- | --- |
-| `openai` | Chat Completions-compatible endpoint. Required `model`, `base_url_env`, `api_key_env`; optional `max_tokens` (4096), `timeout_s` (120), `temperature` (omitted unless set). |
+| `openai` | Chat Completions-compatible endpoint. Required `model`, `base_url_env`, `api_key_env`; optional `max_tokens` (4096), `token_param` (`max_tokens` or `max_completion_tokens`; default `max_tokens`), `timeout_s` (120), `temperature` (omitted unless set). |
 | `anthropic` | Messages API endpoint, version header `2023-06-01`. Same options. |
 | `cli` | Required `command` (argv list or shell-like string); optional `timeout_s` (120). |
 | `mock` | `variant`: `reference` (default) or `wrong`; optional `fixtures`: task id → task-relative Python file. |

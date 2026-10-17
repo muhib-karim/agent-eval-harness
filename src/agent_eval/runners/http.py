@@ -6,7 +6,7 @@ import asyncio
 import math
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from pydantic import Field
@@ -22,6 +22,8 @@ class HTTPOptions(StrictModel):
     timeout_s: PositiveSeconds = 120
     max_tokens: int = Field(default=4096, ge=1)
     temperature: float | None = Field(default=None, ge=0, le=2, allow_inf_nan=False)
+    # Newer OpenAI reasoning models reject ``max_tokens`` and require ``max_completion_tokens``.
+    token_param: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
 
 
 class HTTPRunner:
@@ -50,8 +52,8 @@ class HTTPRunner:
         payload: dict[str, Any] = {
             "model": opts.model,
             "messages": [{"role": "user", "content": generation_prompt(task)}],
-            "max_tokens": opts.max_tokens,
         }
+        payload[opts.token_param] = opts.max_tokens
         if opts.temperature is not None:
             payload["temperature"] = opts.temperature
         endpoint = "messages" if self.anthropic else "chat/completions"

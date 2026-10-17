@@ -1,0 +1,136 @@
+```python
+"""
+solution.py
+
+Implements a small arithmetic tokenizer and evaluator using only the
+Python standard library, without eval/exec.
+
+tokenize(text: str) -> list[str]
+    Splits text into tokens: unsigned integers, decimals with digits on
+    both sides of the decimal point, and the single-character operators
+    + - * / ( ). Whitespace is ignored. Any other character, or a
+    malformed number (e.g. "1.", ".5", "1.2.3"), raises ValueError.
+
+evaluate(text: str) -> float
+    Parses and evaluates the token stream produced by tokenize, with
+    support for parentheses, unary + and - (including repeated signs),
+    standard precedence (unary > * / > + -), and left-associative binary
+    operators. Malformed expressions raise ValueError. Division by zero
+    raises ZeroDivisionError.
+"""
+
+OPERATORS = set("+-*/()")
+
+
+def tokenize(text: str) -> list:
+    tokens = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if c in OPERATORS:
+            tokens.append(c)
+            i += 1
+            continue
+        if c.isdigit():
+            start = i
+            while i < n and text[i].isdigit():
+                i += 1
+            if i < n and text[i] == '.':
+                j = i + 1
+                if j < n and text[j].isdigit():
+                    i = j
+                    while i < n and text[i].isdigit():
+                        i += 1
+                else:
+                    raise ValueError(
+                        "Malformed number near position %d in %r" % (start, text)
+                    )
+            tokens.append(text[start:i])
+            continue
+        raise ValueError("Invalid character %r at position %d" % (c, i))
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+
+    if not tokens:
+        raise ValueError("Empty expression")
+
+    pos = [0]
+
+    def peek():
+        return tokens[pos[0]] if pos[0] < len(tokens) else None
+
+    def advance():
+        tok = peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+        pos[0] += 1
+        return tok
+
+    def parse_expr():
+        val = parse_term()
+        while peek() in ('+', '-'):
+            op = advance()
+            rhs = parse_term()
+            if op == '+':
+                val += rhs
+            else:
+                val -= rhs
+        return val
+
+    def parse_term():
+        val = parse_factor()
+        while peek() in ('*', '/'):
+            op = advance()
+            rhs = parse_factor()
+            if op == '*':
+                val *= rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                val /= rhs
+        return val
+
+    def parse_factor():
+        tok = peek()
+        if tok == '+':
+            advance()
+            return parse_factor()
+        if tok == '-':
+            advance()
+            return -parse_factor()
+        return parse_primary()
+
+    def parse_primary():
+        tok = peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+        if tok == '(':
+            advance()
+            val = parse_expr()
+            if peek() != ')':
+                raise ValueError("Expected closing parenthesis")
+            advance()
+            return val
+        if tok in ('+', '-', '*', '/', ')'):
+            raise ValueError("Unexpected token: %r" % (tok,))
+        try:
+            return float(tok)
+        except ValueError:
+            raise ValueError("Invalid numeric token: %r" % (tok,))
+
+    result = parse_expr()
+
+    if pos[0] != len(tokens):
+        raise ValueError(
+            "Unexpected trailing tokens starting at %r" % (tokens[pos[0]],)
+        )
+
+    return result
+```

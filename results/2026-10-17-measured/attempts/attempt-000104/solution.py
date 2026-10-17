@@ -1,0 +1,26 @@
+import math
+from collections import deque, defaultdict
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if not (isinstance(window_s, (int, float)) and math.isfinite(window_s) and window_s > 0):
+            raise ValueError("window_s must be positive and finite")
+        self.limit = limit
+        self.window_s = window_s
+        self.history = defaultdict(deque)
+        self.last_seen = {}
+
+    def allow(self, key, now: float) -> bool:
+        if not math.isfinite(now) or (key in self.last_seen and now < self.last_seen[key]):
+            raise ValueError("invalid time")
+        self.last_seen[key] = now
+        cutoff = now - self.window_s
+        hist = self.history[key]
+        while hist and hist[0] <= cutoff:
+            hist.popleft()
+        if len(hist) < self.limit:
+            hist.append(now)
+            return True
+        return False

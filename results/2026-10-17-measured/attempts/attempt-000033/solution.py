@@ -1,0 +1,59 @@
+import math
+from collections import deque
+from typing import Any, Deque, Dict, Hashable, Tuple
+
+
+class SlidingWindowLimiter:
+    """
+    A sliding-window rate limiter.
+
+    For each key, at most `limit` calls are allowed within any half-open
+    window (now - window_s, now].
+    """
+
+    def __init__(self, limit: int, window_s: float) -> None:
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise ValueError("limit must be a positive integer (not bool)")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        if isinstance(window_s, bool) or not isinstance(window_s, (int, float)):
+            raise ValueError("window_s must be a positive, finite number")
+        if not math.isfinite(window_s) or window_s <= 0:
+            raise ValueError("window_s must be positive and finite")
+
+        self.limit: int = limit
+        self.window_s: float = float(window_s)
+
+        # Per-key state: (deque of accepted timestamps, last seen time for that key)
+        self._history: Dict[Hashable, Deque[float]] = {}
+        self._last_time: Dict[Hashable, float] = {}
+
+    def allow(self, key: Hashable, now: float) -> bool:
+        if isinstance(now, bool) or not isinstance(now, (int, float)):
+            raise ValueError("now must be a finite real number")
+        now = float(now)
+        if not math.isfinite(now):
+            raise ValueError("now must be finite")
+
+        last_time = self._last_time.get(key)
+        if last_time is not None and now < last_time:
+            raise ValueError("now must be nondecreasing per key across all calls")
+
+        # Validation passed; record this as the last seen time for the key.
+        self._last_time[key] = now
+
+        dq = self._history.get(key)
+        if dq is None:
+            dq = deque()
+            self._history[key] = dq
+
+        threshold = now - self.window_s
+        while dq and dq[0] <= threshold:
+            dq.popleft()
+
+        if len(dq) < self.limit:
+            dq.append(now)
+            return True
+
+        return False

@@ -1,0 +1,26 @@
+# Live-model run used for the measured results table in the README.
+# Each provider is reached through an OpenAI- or Anthropic-compatible endpoint;
+# set the *_BASE_URL (including the API version path) and *_API_KEY variables first.
+models:
+  - name: claude-opus-5-5
+    runner: anthropic
+    options: {model: claude-opus-5-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 180}
+  - name: claude-sonnet-5
+    runner: anthropic
+    options: {model: claude-sonnet-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 180}
+  - name: claude-haiku-4-5
+    runner: anthropic
+    options: {model: claude-haiku-4-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 180}
+  - name: gpt-6-sol
+    runner: openai
+    options: {model: gpt-6-sol, base_url_env: OPENAI_BASE_URL, api_key_env: OPENAI_API_KEY, max_tokens: 16384, token_param: max_completion_tokens, timeout_s: 240}
+  - name: deepseek-chat
+    runner: openai
+    options: {model: deepseek-chat, base_url_env: DEEPSEEK_BASE_URL, api_key_env: DEEPSEEK_API_KEY, max_tokens: 8192, timeout_s: 180}
+  - name: grok-4.3
+    runner: openai
+    options: {model: grok-4.3, base_url_env: XAI_BASE_URL, api_key_env: XAI_API_KEY, max_tokens: 8192, timeout_s: 180}
+tasks:
+  - ../tasks/*/task.yaml
+repeats: 3
+concurrency: 4

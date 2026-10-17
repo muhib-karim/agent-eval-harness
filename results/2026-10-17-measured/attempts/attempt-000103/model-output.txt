@@ -1,0 +1,31 @@
+```python
+import math
+from collections import defaultdict, deque
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError
+        if not isinstance(window_s, (int, float)) or not math.isfinite(window_s) or window_s <= 0:
+            raise ValueError
+        self.limit = limit
+        self.window_s = float(window_s)
+        self._histories: dict[object, deque[float]] = defaultdict(deque)
+        self._last_times: dict[object, float] = {}
+
+    def allow(self, key: object, now: float) -> bool:
+        if not math.isfinite(now):
+            raise ValueError
+        last = self._last_times.get(key)
+        if last is not None and now < last:
+            raise ValueError
+        self._last_times[key] = now
+        dq = self._histories[key]
+        cutoff = now - self.window_s
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+        if len(dq) < self.limit:
+            dq.append(now)
+            return True
+        return False
+```

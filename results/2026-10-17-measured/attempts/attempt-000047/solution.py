@@ -1,0 +1,97 @@
+import time
+import heapq
+from collections import OrderedDict
+
+
+class LRUCache:
+    def __init__(self, capacity: int, ttl: float, clock=time.monotonic):
+        # Validate capacity
+        if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+
+        # Validate ttl
+        if not isinstance(ttl, (int, float)) or ttl <= 0 or ttl != ttl or ttl == float('inf'):
+            raise ValueError("ttl must be positive and finite")
+
+        self.capacity = capacity
+        self.ttl = ttl
+        self.clock = clock
+
+        # OrderedDict to maintain insertion/access order for LRU
+        self.cache = OrderedDict()
+
+        # Dictionary to store expiry times
+        self.expiry = {}
+
+        # Counter for recency tracking
+        self.access_count = 0
+
+        # Dictionary to store access order for each key
+        self.access_order = {}
+
+    def _purge_expired(self):
+        """Remove all expired entries"""
+        current_time = self.clock()
+        expired_keys = [key for key, exp_time in self.expiry.items() 
+                       if current_time >= exp_time]
+        for key in expired_keys:
+            del self.cache[key]
+            del self.expiry[key]
+            del self.access_order[key]
+
+    def _evict_lru(self):
+        """Evict the least recently used live entry"""
+        if not self.cache:
+            return
+
+        # Find the key with the smallest access_order value
+        lru_key = min(self.access_order.keys(), key=lambda k: self.access_order[k])
+        del self.cache[lru_key]
+        del self.expiry[lru_key]
+        del self.access_order[lru_key]
+
+    def put(self, key, value):
+        """Insert or update a key-value pair and reset its expiry"""
+        self._purge_expired()
+
+        current_time = self.clock()
+        expiry_time = current_time + self.ttl
+
+        # Update or insert
+        self.cache[key] = value
+        self.expiry[key] = expiry_time
+
+        # Update access order to mark as most recently used
+        self.access_count += 1
+        self.access_order[key] = self.access_count
+
+        # Check if we exceeded capacity
+        while len(self.cache) > self.capacity:
+            self._evict_lru()
+
+    def get(self, key, default=None):
+        """Get a value and mark it as most recently used without extending TTL"""
+        self._purge_expired()
+
+        if key not in self.cache:
+            return default
+
+        current_time = self.clock()
+
+        # Check if key is expired
+        if current_time >= self.expiry[key]:
+            del self.cache[key]
+            del self.expiry[key]
+            del self.access_order[key]
+            return default
+
+        # Mark as most recently used
+        self.access_count += 1
+        self.access_order[key] = self.access_count
+
+        return self.cache[key]
+
+    def __len__(self):
+        """Return count of live (non-expired) entries"""
+        self._purge_expired()
+        return len(self.cache)

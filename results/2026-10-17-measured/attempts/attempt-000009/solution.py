@@ -1,0 +1,60 @@
+_IDENT_START = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+_IDENT_CHARS = _IDENT_START | set("0123456789")
+_DIGITS = set("0123456789")
+
+
+def _parse(path):
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    tokens = []
+    n = len(path)
+    i = 0
+    allow_bare_ident = True
+    if n > 0 and path[0] == "$":
+        i = 1
+        allow_bare_ident = False
+
+    def parse_ident(j):
+        if j >= n or path[j] not in _IDENT_START:
+            raise ValueError("expected identifier at position %d" % j)
+        k = j + 1
+        while k < n and path[k] in _IDENT_CHARS:
+            k += 1
+        return path[j:k], k
+
+    while i < n:
+        c = path[i]
+        if c == ".":
+            name, i = parse_ident(i + 1)
+            tokens.append(("key", name))
+        elif c == "[":
+            j = i + 1
+            k = j
+            while k < n and path[k] in _DIGITS:
+                k += 1
+            if k == j or k >= n or path[k] != "]":
+                raise ValueError("malformed index at position %d" % i)
+            tokens.append(("index", int(path[j:k])))
+            i = k + 1
+        elif allow_bare_ident and c in _IDENT_START:
+            name, i = parse_ident(i)
+            tokens.append(("key", name))
+        else:
+            raise ValueError("unexpected character %r at position %d" % (c, i))
+        allow_bare_ident = False
+    return tokens
+
+
+def get_path(data, path: str, default=None):
+    tokens = _parse(path)
+    cur = data
+    for kind, val in tokens:
+        if kind == "key":
+            if not isinstance(cur, dict) or val not in cur:
+                return default
+            cur = cur[val]
+        else:
+            if not isinstance(cur, list) or val >= len(cur):
+                return default
+            cur = cur[val]
+    return cur

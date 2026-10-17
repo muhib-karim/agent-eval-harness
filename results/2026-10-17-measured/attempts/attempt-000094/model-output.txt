@@ -1,0 +1,34 @@
+```python
+from collections.abc import Iterable
+
+def merge_intervals(intervals: Iterable) -> list[tuple[int, int]]:
+    if not isinstance(intervals, Iterable):
+        raise ValueError("Input must be iterable")
+    collected = []
+    for item in intervals:
+        if not isinstance(item, Iterable) or isinstance(item, (str, bytes)):
+            raise ValueError("Each interval must be a pair")
+        try:
+            pair = list(item)
+        except Exception:
+            raise ValueError("Each interval must be a pair")
+        if len(pair) != 2:
+            raise ValueError("Each interval must be a pair")
+        start, end = pair
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise ValueError("Endpoints must be integers")
+        if start > end:
+            raise ValueError("Start must be <= end")
+        collected.append((start, end))
+    if not collected:
+        return []
+    collected.sort(key=lambda x: x[0])
+    merged = [collected[0]]
+    for curr in collected[1:]:
+        prev = merged[-1]
+        if prev[1] >= curr[0] - 1:
+            merged[-1] = (prev[0], max(prev[1], curr[1]))
+        else:
+            merged.append(curr)
+    return merged
+```

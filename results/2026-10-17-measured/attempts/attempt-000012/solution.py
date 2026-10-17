@@ -1,0 +1,85 @@
+import math
+import numbers
+import time
+from collections import OrderedDict
+
+_MISSING = object()
+
+
+class LRUCache:
+    def __init__(self, capacity, ttl, clock=time.monotonic):
+        if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+        if isinstance(ttl, bool) or not isinstance(ttl, numbers.Real):
+            raise ValueError("ttl must be a positive finite number")
+        try:
+            ttl_f = float(ttl)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("ttl must be a positive finite number")
+        if not math.isfinite(ttl_f) or ttl_f <= 0:
+            raise ValueError("ttl must be a positive finite number")
+        if not callable(clock):
+            raise ValueError("clock must be callable")
+        self._capacity = capacity
+        self._ttl = ttl
+        self._clock = clock
+        # key -> value, ordered by recency (LRU first)
+        self._data = OrderedDict()
+        # key -> expiry, ordered by expiry (earliest first); since ttl is
+        # constant and clock nondecreasing, insertion/update order == expiry order
+        self._expiry = OrderedDict()
+
+    def _purge(self, now):
+        exp = self._expiry
+        data = self._data
+        while exp:
+            key, expiry = next(iter(exp.items()))
+            if now >= expiry:
+                exp.popitem(last=False)
+                data.pop(key, None)
+            else:
+                break
+
+    def put(self, key, value):
+        hash(key)  # ensure hashable
+        now = self._clock()
+        self._purge(now)
+        expiry = now + self._ttl
+        if key in self._data:
+            self._data[key] = value
+            self._data.move_to_end(key)
+            self._expiry[key] = expiry
+            self._expiry.move_to_end(key)
+        else:
+            self._data[key] = value
+            self._expiry[key] = expiry
+            while len(self._data) > self._capacity:
+                old_key, _ = self._data.popitem(last=False)
+                self._expiry.pop(old_key, None)
+
+    def get(self, key, default=None):
+        now = self._clock()
+        self._purge(now)
+        value = self._data.get(key, _MISSING)
+        if value is _MISSING:
+            return default
+        self._data.move_to_end(key)
+        return value
+
+    def __contains__(self, key):
+        now = self._clock()
+        self._purge(now)
+        return key in self._data
+
+    def __len__(self):
+        now = self._clock()
+        self._purge(now)
+        return len(self._data)
+
+    @property
+    def capacity(self):
+        return self._capacity
+
+    @property
+    def ttl(self):
+        return self._ttl

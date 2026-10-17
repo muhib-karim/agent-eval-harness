@@ -1,0 +1,86 @@
+```python
+import math
+from collections import defaultdict
+
+class SlidingWindowLimiter:
+    """
+    A sliding window rate limiter that tracks requests per key.
+    
+    Each key maintains independent history of accepted request timestamps.
+    Requests within the sliding window are counted toward the limit.
+    """
+    
+    def __init__(self, limit: int, window_s: float):
+        """
+        Initialize the limiter.
+        
+        Args:
+            limit: Maximum number of requests allowed per window (positive integer)
+            window_s: Size of the sliding window in seconds (positive and finite)
+            
+        Raises:
+            ValueError: If limit is not a positive integer or window_s is invalid
+        """
+        # Validate limit
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise ValueError("limit must be a positive integer")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        
+        # Validate window_s
+        if not isinstance(window_s, (int, float)) or isinstance(window_s, bool):
+            raise ValueError("window_s must be positive and finite")
+        if not math.isfinite(window_s) or window_s <= 0:
+            raise ValueError("window_s must be positive and finite")
+        
+        self.limit = limit
+        self.window_s = window_s
+        # Dictionary mapping keys to list of accepted timestamps
+        self.history = defaultdict(list)
+        # Dictionary mapping keys to the last time we checked (for validation)
+        self.last_time = {}
+    
+    def allow(self, key, now: float) -> bool:
+        """
+        Check if a request should be allowed under the rate limit.
+        
+        Args:
+            key: Hashable identifier for the request (e.g., user ID, IP address)
+            now: Current timestamp in seconds
+            
+        Returns:
+            True if the request is allowed, False otherwise
+            
+        Raises:
+            ValueError: If now is not finite or violates nondecreasing time constraint
+        """
+        # Validate now
+        if not isinstance(now, (int, float)) or isinstance(now, bool):
+            raise ValueError("now must be a finite number")
+        if not math.isfinite(now):
+            raise ValueError("now must be a finite number")
+        
+        # Check time ordering constraint per key
+        if key in self.last_time:
+            if now < self.last_time[key]:
+                raise ValueError("time must be nondecreasing per key")
+        
+        # Update last seen time for this key (do this before any state changes)
+        self.last_time[key] = now
+        
+        # Calculate window boundaries
+        window_start = now - self.window_s
+        
+        # Remove timestamps outside the window (older than window_start)
+        # Keep only timestamps in the range (window_start, now]
+        self.history[key] = [ts for ts in self.history[key] if ts > window_start]
+        
+        # Check if we're within the limit
+        if len(self.history[key]) < self.limit:
+            # Accept the request and record the timestamp
+            self.history[key].append(now)
+            return True
+        else:
+            # Deny the request (don't add to history)
+            return False
+```

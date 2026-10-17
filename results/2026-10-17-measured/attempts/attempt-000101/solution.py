@@ -1,0 +1,42 @@
+import time
+from collections import OrderedDict
+
+class LRUCache:
+    def __init__(self, capacity, ttl, clock=time.monotonic):
+        if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+        if not (isinstance(ttl, (int, float)) and ttl > 0 and ttl != float('inf') and ttl != float('-inf')):
+            raise ValueError("ttl must be positive and finite")
+        self.capacity = capacity
+        self.ttl = float(ttl)
+        self.clock = clock
+        self._cache = OrderedDict()
+
+    def _purge_expired(self):
+        now = self.clock()
+        expired = [k for k, (v, exp) in self._cache.items() if now >= exp]
+        for k in expired:
+            del self._cache[k]
+
+    def put(self, key, value):
+        self._purge_expired()
+        now = self.clock()
+        expiry = now + self.ttl
+        if key in self._cache:
+            del self._cache[key]
+        self._cache[key] = (value, expiry)
+        if len(self._cache) > self.capacity:
+            self._cache.popitem(last=False)
+
+    def get(self, key, default=None):
+        self._purge_expired()
+        if key not in self._cache:
+            return default
+        value, expiry = self._cache[key]
+        del self._cache[key]
+        self._cache[key] = (value, expiry)
+        return value
+
+    def __len__(self):
+        self._purge_expired()
+        return len(self._cache)

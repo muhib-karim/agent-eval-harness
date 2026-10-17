@@ -1,0 +1,147 @@
+import re
+
+def get_path(data, path: str, default=None):
+    """
+    Navigate through nested data structures using dot-separated identifiers and bracket indices.
+
+    Rules:
+    - Empty path or '$' returns data
+    - Dot-separated ASCII identifiers: [A-Za-z_][A-Za-z0-9_]*
+    - Zero-based nonnegative bracket indices: [digits]
+    - Keys apply to dicts, indices to lists
+    - Missing keys, out-of-range indices, or type mismatches return default
+    - Present None is returned as None
+    - Malformed syntax raises ValueError
+    - Reject: whitespace, negative indices, quoted keys, wildcards, repeated/trailing dots,
+      identifier immediately after bracket without dot
+    """
+
+    # Normalize path
+    if path == '' or path == '$':
+        return data
+
+    # Check for whitespace
+    if any(c.isspace() for c in path):
+        raise ValueError("Whitespace not allowed in path")
+
+    # Remove leading $ if present
+    if path.startswith('$'):
+        path = path[1:]
+        if path == '':
+            return data
+
+    # Tokenize the path
+    tokens = []
+    i = 0
+
+    while i < len(path):
+        if path[i] == '.':
+            # Dot separator
+            i += 1
+            # Check for repeated dots or trailing dot
+            if i >= len(path):
+                raise ValueError("Trailing dot not allowed")
+            if path[i] == '.':
+                raise ValueError("Repeated dots not allowed")
+            if path[i] == '[':
+                raise ValueError("Dot must be followed by identifier")
+
+            # Parse identifier
+            if not (path[i].isalpha() or path[i] == '_'):
+                raise ValueError(f"Invalid identifier start: {path[i]}")
+
+            start = i
+            while i < len(path) and (path[i].isalnum() or path[i] == '_'):
+                i += 1
+
+            identifier = path[start:i]
+            tokens.append(('key', identifier))
+
+        elif path[i] == '[':
+            # Bracket index
+            i += 1
+            start = i
+
+            # Parse digits
+            if i >= len(path) or not path[i].isdigit():
+                raise ValueError("Expected digits after [")
+
+            while i < len(path) and path[i].isdigit():
+                i += 1
+
+            if i >= len(path) or path[i] != ']':
+                raise ValueError("Expected ] after index")
+
+            index_str = path[start:i]
+            index = int(index_str)
+
+            # Check for negative index (leading zeros are allowed)
+            if index_str.startswith('-'):
+                raise ValueError("Negative indices not allowed")
+
+            i += 1  # Skip ]
+
+            tokens.append(('index', index))
+
+            # After ], must have . or end of string
+            if i < len(path) and path[i] != '.':
+                raise ValueError("Identifier must follow bracket with dot")
+
+        elif path[0] == '[':
+            # Starting with bracket
+            start = i
+            i += 1
+
+            if i >= len(path) or not path[i].isdigit():
+                raise ValueError("Expected digits after [")
+
+            while i < len(path) and path[i].isdigit():
+                i += 1
+
+            if i >= len(path) or path[i] != ']':
+                raise ValueError("Expected ] after index")
+
+            index_str = path[start+1:i]
+            index = int(index_str)
+
+            i += 1  # Skip ]
+
+            tokens.append(('index', index))
+
+            # After ], must have . or end of string
+            if i < len(path) and path[i] != '.':
+                raise ValueError("Identifier must follow bracket with dot")
+
+        elif path[i].isalpha() or path[i] == '_':
+            # Identifier at start or after error
+            start = i
+            while i < len(path) and (path[i].isalnum() or path[i] == '_'):
+                i += 1
+
+            identifier = path[start:i]
+            tokens.append(('key', identifier))
+
+        else:
+            raise ValueError(f"Invalid character in path: {path[i]}")
+
+    # Navigate through data using tokens
+    current = data
+
+    for token_type, token_value in tokens:
+        if token_type == 'key':
+            # Must be a dict
+            if not isinstance(current, dict):
+                return default
+            if token_value not in current:
+                return default
+            current = current[token_value]
+
+        elif token_type == 'index':
+            # Must be a list
+            if not isinstance(current, list):
+                return default
+            if token_value < 0 or token_value >= len(current):
+                return default
+            current = current[token_value]
+
+    return current

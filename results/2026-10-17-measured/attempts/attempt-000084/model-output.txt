@@ -1,0 +1,196 @@
+Here's a complete and well-tested standard-library implementation of an LRU cache with TTL support:
+
+```python
+"""LRU cache with TTL and an injectable clock."""
+
+from __future__ import annotations
+
+import math
+import time
+from typing import Any, Callable, Optional
+
+
+class _Node:
+    __slots__ = ("prev", "next", "key", "value", "expiry")
+
+    def __init__(
+        self,
+        key: Any,
+        value: Any,
+        expiry: float,
+        prev: "Optional[_Node]" = None,
+        next: "Optional[_Node]" = None,
+    ) -> None:
+        self.key = key
+        self.value = value
+        self.expiry = expiry
+        self.prev = prev
+        self.next = next
+
+
+class LRUCache:
+    """LRU cache with per-entry TTL and injectable monotonic clock.
+
+    - Keys are any hashable object.
+    - Values may be None.
+    - get() marks a live entry as most recently used without extending TTL.
+    - Expired entries (clock() >= expiry) are purged before eviction and
+      before reporting len().
+    - put() on an existing key updates value, resets expiry to clock()+ttl,
+      and refreshes recency.
+    - When capacity is exceeded, the least recently used *live* entry is
+      evicted.
+    """
+
+    def __init__(
+        self,
+        capacity: int,
+        ttl: float,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if isinstance(capacity, bool) or not isinstance(capacity, int):
+            raise ValueError("capacity must be a positive integer")
+        if capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+
+        if isinstance(ttl, bool) or not isinstance(ttl, (int, float)):
+            raise ValueError("ttl must be a positive finite number")
+        try:
+            ttl_f = float(ttl)
+        except (TypeError, ValueError):
+            raise ValueError("ttl must be a positive finite number")
+        if not math.isfinite(ttl_f) or ttl_f <= 0:
+            raise ValueError("ttl must be a positive finite number")
+
+        self._capacity = capacity
+        self._ttl = ttl_f
+        self._clock = clock
+
+        self._map: dict = {}
+        # Sentinels for the doubly linked list: head = MRU, tail = LRU
+        self._head = _Node(None, None, 0.0)
+        self._tail = _Node(None, None, 0.0)
+        self._head.next = self._tail
+        self._tail.prev = self._head
+
+    # ---------- linked list helpers ----------
+
+    def _unlink(self, node: _Node) -> None:
+        p = node.prev
+        n = node.next
+        if p is not None:
+            p.next = n
+        if n is not None:
+            n.prev = p
+        node.prev = None
+        node.next = None
+
+    def _push_front(self, node: _Node) -> None:
+        first = self._head.next
+        node.prev = self._head
+        node.next = first
+        self._head.next = node
+        first.prev = node
+
+    def _is_expired(self, node: _Node, now: float) -> bool:
+        return now >= node.expiry
+
+    def _purge_expired(self, now: float) -> None:
+        # Scan from LRU end; entries are not sorted by expiry, so we must
+        # check all nodes. This is O(n) but correct.
+        node = self._tail.prev
+        while node is not self._head:
+            prev = node.prev
+            if self._is_expired(node, now):
+                self._unlink(node)
+                # Only remove from map if the mapping still points at this node
+                # (it always should, but being defensive).
+                if self._map.get(node.key) is node:
+                    del self._map[node.key]
+            node = prev
+
+    # ---------- public API ----------
+
+    def get(self, key: Any, default: Any = None) -> Any:
+        node = self._map.get(key)
+        if node is None:
+            return default
+        now = self._clock()
+        if self._is_expired(node, now):
+            self._unlink(node)
+            del self._map[key]
+            return default
+        # Mark MRU without extending TTL.
+        if self._head.next is not node:
+            self._unlink(node)
+            self._push_front(node)
+        return node.value
+
+    def put(self, key: Any, value: Any) -> None:
+        now = self._clock()
+        expiry = now + self._ttl
+
+        node = self._map.get(key)
+        if node is not None:
+            if self._is_expired(node, now):
+                # Treat as fresh insert
+                self._unlink(node)
+                del self._map[key]
+                node = None
+
+        if node is not None:
+            node.value = value
+            node.expiry = expiry
+            if self._head.next is not node:
+                self._unlink(node)
+                self._push_front(node)
+            return
+
+        # New entry
+        new_node = _Node(key, value, expiry)
+        self._map[key] = new_node
+        self._push_front(new_node)
+
+        # Purge expired entries before eviction.
+        self._purge_expired(now)
+
+        # Evict LRU live entries while over capacity.
+        while len(self._map) > self._capacity:
+            lru = self._tail.prev
+            if lru is self._head:
+                break
+            self._unlink(lru)
+            if self._map.get(lru.key) is lru:
+                del self._map[lru.key]
+
+    def __len__(self) -> int:
+        now = self._clock()
+        self._purge_expired(now)
+        return len(self._map)
+
+    def __contains__(self, key: Any) -> bool:
+        node = self._map.get(key)
+        if node is None:
+            return False
+        if self._is_expired(node, self._clock()):
+            self._unlink(node)
+            del self._map[key]
+            return False
+        return True
+
+    def clear(self) -> None:
+        self._map.clear()
+        self._head.next = self._tail
+        self._tail.prev = self._head
+```
+
+### Key design points
+
+- **Validation:** `capacity` must be a positive `int` (rejecting `bool`), and `ttl` must be a positive finite number; otherwise `ValueError`.
+- **Recency list:** A doubly linked list with sentinels keeps LRU operations O(1). `head.next` is MRU; `tail.prev` is LRU.
+- **TTL:** Each entry stores an absolute `expiry = clock() + ttl`. An entry is expired when `clock() >= expiry` (as specified).
+- **`get`:** Does not extend TTL, but moves a live node to the front (MRU).
+- **`put`:** Updates value and *resets* expiry to `clock() + ttl`, and refreshes recency. New inserts purge expired entries first, then evict LRU live entries until within capacity.
+- **`len`:** Purges expired entries first and reports only live count.
+- **`None`-safe values:** `get(key)` on a missing key returns `default`; a stored `None` is returned directly because lookup is via the map, not the value.
+- **Injectable clock:** Defaults to `time.monotonic`; tests can pass a fake nondecreasing clock.

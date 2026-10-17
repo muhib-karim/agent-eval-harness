@@ -1,0 +1,48 @@
+import time
+from collections import OrderedDict
+
+class LRUCache:
+    def __init__(self, capacity: int, ttl: float, clock=time.monotonic):
+        if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity <= 0:
+            raise ValueError
+        if not (isinstance(ttl, (int, float)) and ttl > 0 and ttl < float('inf')):
+            raise ValueError
+        self.capacity = capacity
+        self.ttl = ttl
+        self.clock = clock
+        self._data = {}
+        self._order = OrderedDict()
+
+    def _purge(self):
+        now = self.clock()
+        expired = [k for k, (_, exp) in list(self._data.items()) if now >= exp]
+        for k in expired:
+            del self._data[k]
+            self._order.pop(k, None)
+
+    def __len__(self):
+        self._purge()
+        return len(self._data)
+
+    def get(self, key, default=None):
+        self._purge()
+        if key not in self._data:
+            return default
+        self._order.move_to_end(key)
+        return self._data[key][0]
+
+    def put(self, key, value):
+        self._purge()
+        now = self.clock()
+        expiry = now + self.ttl
+        if key in self._data:
+            self._data[key] = (value, expiry)
+            self._order.move_to_end(key)
+        else:
+            if len(self._data) >= self.capacity:
+                if self._order:
+                    lru = next(iter(self._order))
+                    del self._order[lru]
+                    del self._data[lru]
+            self._data[key] = (value, expiry)
+            self._order[key] = None

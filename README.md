@@ -8,7 +8,8 @@
   <img src="https://img.shields.io/github/languages/top/muhib-karim/agent-eval-harness" alt="Top language">
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
   <a href="https://github.com/muhib-karim/agent-eval-harness/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/agent-eval-harness" alt="Release"></a>
-  <a href="https://muhib-karim.github.io/agent-eval-harness/"><img src="https://img.shields.io/badge/demo-offline%20mocks-brightgreen.svg" alt="Demo report (offline mocks)"></a>
+  <a href="https://muhib-karim.github.io/agent-eval-harness/"><img src="https://img.shields.io/badge/results-measured%2017%20Oct%202026-brightgreen.svg" alt="Measured results, 17 Oct 2026"></a>
+  <a href="CITATION.cff"><img src="https://img.shields.io/badge/cite-CITATION.cff-blue.svg" alt="Cite this repository"></a>
 </p>
 
 # agent-eval-harness
@@ -18,8 +19,56 @@ tasks. Each attempt writes a Python module. The harness then grades it against p
 model never saw, and keeps the evidence: raw output, generated source, test log, and a JSONL
 record.
 
-**Offline mock demo (not a live-model benchmark):** [the HTML report from the offline demo](https://muhib-karim.github.io/agent-eval-harness/),
-rebuilt by CI from `main` on every push (raw [results.jsonl](https://muhib-karim.github.io/agent-eval-harness/results.jsonl)).
+**Results dashboard:** [measured live-model report](https://muhib-karim.github.io/agent-eval-harness/)
+([summary JSON](https://muhib-karim.github.io/agent-eval-harness/measured/summary.json),
+[raw attempts](results/2026-10-17-measured/)). The offline mock demo is kept separately at
+[/demo/](https://muhib-karim.github.io/agent-eval-harness/demo/).
+
+## Measured results (live models, 17 October 2026)
+
+Six models, the six bundled tasks, three repeats each: 108 attempts, every one graded against
+withheld tests in an isolated subprocess. These are real API calls, not mocks. Config:
+[`examples/measured-2026-10.yaml`](examples/measured-2026-10.yaml). Raw output, generated source
+and the pytest log for every attempt are committed under
+[`results/2026-10-17-measured/`](results/2026-10-17-measured/).
+
+| Model | pass@1 | pass@3 | Tasks solved 3/3 | Median wall time (s) | Output tokens (108 runs total) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| gpt-6-sol | 100.0% | 100.0% | 6 / 6 | 10.6 | 15,301 |
+| claude-opus-5-5 | 100.0% | 100.0% | 6 / 6 | 13.5 | 22,204 |
+| claude-sonnet-5 | 72.2% | 83.3% | 4 / 6 | 20.3 | 50,167 |
+| deepseek-chat | 61.1% | 66.7% | 3 / 6 | 5.2 | 11,789 |
+| grok-4.3 | 50.0% | 50.0% | 3 / 6 | 14.9 | 7,328 |
+| claude-haiku-4-5 | 44.4% | 66.7% | 2 / 6 | 10.7 | 16,681 |
+
+pass@k is the unbiased estimator over n = 3 attempts per task, macro-averaged over tasks.
+Wall time covers generation plus grading. Cost is shown as unknown in the generated report
+because the endpoints did not return it; the harness does not guess prices.
+
+What the run shows:
+
+- **One withheld test separates the field on `arithmetic`.** Four of six models failed it on
+  every attempt, all on the same case: a full-width digit (`"\uff12"`) that must be rejected.
+  Python's `float()` and `str.isdigit()` both accept it, so a parser that leans on them passes
+  30 of 31 tests and still fails the task.
+- **Interval merging is a spec-reading test.** 7 of the 9 failed `intervals` attempts merged
+  integer-adjacent ranges (`(0, 1)` and `(2, 3)` became `(0, 3)`). The specification merges only
+  overlapping ranges and touching endpoints.
+- **pass@3 above pass@1 means flaky, not wrong.** claude-sonnet-5, deepseek-chat and claude-haiku-4-5
+  solve some tasks on only one or two attempts in three; a single-sample comparison would hide that.
+- The two `claude-haiku-4-5` timeouts on `lru_ttl` are generated solutions that did not finish
+  inside the task's 5-second grading limit.
+
+Reproduce it with one command once the six endpoint variables named in the config are set
+(`ANTHROPIC_*`, `OPENAI_*`, `DEEPSEEK_*`, `XAI_*`, each a `_BASE_URL` with the API version path
+and an `_API_KEY`):
+
+```bash
+pip install '.[grade]' && agent-eval run examples/measured-2026-10.yaml --out runs/measured
+```
+
+Limits of this run: six small Python tasks, three repeats, one day. Read it as a regression
+baseline for these tasks, not as a general ranking of the models.
 
 ## Key features
 
@@ -194,6 +243,11 @@ The bundled tasks, with hidden test counts from `agent-eval validate-task`:
 - **Every run gets a new directory with provenance.** Runs never overwrite each other, and
   `metadata.json` stores SHA-256 hashes of the config, task specs, tests and references. JSONL is
   flushed after each attempt, so an interrupted run keeps its completed rows.
+
+## Citation
+
+If you use this harness or its results, please cite it using [`CITATION.cff`](CITATION.cff)
+(GitHub's "Cite this repository" button renders it as APA or BibTeX).
 
 ## Limitations
 

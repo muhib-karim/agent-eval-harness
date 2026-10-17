@@ -1,0 +1,81 @@
+import re
+
+
+_TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\]')
+
+
+def _parse(path):
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    if path == '' or path == '$':
+        return []
+    s = path[1:] if path.startswith('$') else path
+    if s == '':
+        raise ValueError("malformed path")
+    tokens = []
+    i = 0
+    n = len(s)
+    prev_type = None  # 'ident', 'index', 'start'
+    expect_first = True
+    while i < n:
+        c = s[i]
+        if c == '.':
+            if prev_type != 'ident' and not (prev_type == 'index'):
+                raise ValueError("unexpected dot at position %d" % i)
+            # dot must follow an identifier or an index; but then next must be identifier
+            if prev_type == 'dot':
+                raise ValueError("repeated dot at position %d" % i)
+            if i + 1 >= n:
+                raise ValueError("trailing dot")
+            prev_type = 'dot'
+            i += 1
+            continue
+        if c == '[':
+            m = re.match(r'\[([0-9]+)\]', s[i:])
+            if not m:
+                raise ValueError("malformed index at position %d" % i)
+            idx_str = m.group(1)
+            tokens.append(('index', int(idx_str)))
+            i += m.end()
+            prev_type = 'index'
+            expect_first = False
+            continue
+        if c.isalpha() or c == '_':
+            m = re.match(r'[A-Za-z_][A-Za-z0-9_]*', s[i:])
+            if not m:
+                raise ValueError("malformed identifier at position %d" % i)
+            ident = m.group(0)
+            if prev_type == 'index':
+                raise ValueError("identifier immediately after bracket without dot")
+            if prev_type == 'dot':
+                pass
+            elif prev_type is not None and prev_type != 'start' and prev_type != 'dot':
+                raise ValueError("unexpected identifier at position %d" % i)
+            tokens.append(('ident', ident))
+            i += len(ident)
+            prev_type = 'ident'
+            expect_first = False
+            continue
+        raise ValueError("unexpected character %r at position %d" % (c, i))
+    if prev_type == 'dot':
+        raise ValueError("trailing dot")
+    return tokens
+
+
+def get_path(data, path: str, default=None):
+    tokens = _parse(path)
+    cur = data
+    for kind, val in tokens:
+        if kind == 'ident':
+            if not isinstance(cur, dict):
+                return default
+            if val not in cur:
+                return default
+            cur = cur[val]
+        else:  # index
+            if not isinstance(cur, list):
+                return default
+            if val >= len(cur):
+                return default
+            cur = cur[val]
+    return cur

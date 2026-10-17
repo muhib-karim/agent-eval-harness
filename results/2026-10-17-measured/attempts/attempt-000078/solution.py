@@ -1,0 +1,29 @@
+def merge_intervals(intervals):
+    result = []
+    for pair in intervals:
+        try:
+            length = len(pair)
+        except TypeError:
+            raise ValueError("each interval must be a pair of integers")
+        if length != 2:
+            raise ValueError("each interval must be a pair of integers")
+        start, end = pair
+        for value in (start, end):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError("endpoints must be integers")
+        if start > end:
+            raise ValueError("start must not be greater than end")
+        result.append((start, end))
+
+    result.sort()
+
+    merged = []
+    for start, end in result:
+        if merged and start <= merged[-1][1]:
+            prev_start, prev_end = merged[-1]
+            if end > prev_end:
+                merged[-1] = (prev_start, end)
+        else:
+            merged.append((start, end))
+
+    return merged

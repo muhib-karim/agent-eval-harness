@@ -1,0 +1,109 @@
+```python
+import re
+
+def tokenize(text: str) -> list[str]:
+    tokens = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+        elif c in '+-*/()':
+            tokens.append(c)
+            i += 1
+        elif c.isdigit():
+            j = i
+            while j < n and text[j].isdigit():
+                j += 1
+            if j < n and text[j] == '.':
+                k = j + 1
+                while k < n and text[k].isdigit():
+                    k += 1
+                if k > j + 1:
+                    tokens.append(text[i:k])
+                    i = k
+                else:
+                    raise ValueError(f"Malformed number at position {j}")
+            else:
+                tokens.append(text[i:j])
+                i = j
+        else:
+            raise ValueError(f"Invalid character {c!r} at position {i}")
+    return tokens
+
+
+class _Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.pos = 0
+
+    def peek(self):
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos]
+        return None
+
+    def advance(self):
+        tok = self.tokens[self.pos]
+        self.pos += 1
+        return tok
+
+    def parse(self):
+        if not self.tokens:
+            raise ValueError("Empty expression")
+        value = self.expr()
+        if self.pos != len(self.tokens):
+            raise ValueError("Trailing tokens")
+        return value
+
+    def expr(self):
+        value = self.term()
+        while self.peek() in ('+', '-'):
+            op = self.advance()
+            rhs = self.term()
+            if op == '+':
+                value += rhs
+            else:
+                value -= rhs
+        return value
+
+    def term(self):
+        value = self.factor()
+        while self.peek() in ('*', '/'):
+            op = self.advance()
+            rhs = self.factor()
+            if op == '*':
+                value *= rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("Division by zero")
+                value /= rhs
+        return value
+
+    def factor(self):
+        sign = 1
+        while self.peek() in ('+', '-'):
+            if self.advance() == '-':
+                sign = -sign
+        tok = self.peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+        if tok == '(':
+            self.advance()
+            value = self.expr()
+            if self.peek() != ')':
+                raise ValueError("Unbalanced parentheses")
+            self.advance()
+            return sign * value
+        if tok == ')':
+            raise ValueError("Unexpected ')'")
+        if tok[0].isdigit():
+            self.advance()
+            return sign * float(tok)
+        raise ValueError(f"Unexpected token {tok!r}")
+
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    return _Parser(tokens).parse()
+```

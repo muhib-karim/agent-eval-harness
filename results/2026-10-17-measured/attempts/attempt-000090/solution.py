@@ -1,0 +1,69 @@
+def to_roman(value: int) -> str:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("value must be an integer")
+    if value < 1 or value > 3999:
+        raise ValueError("value must be in range 1..3999")
+
+    numerals = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ]
+
+    result = []
+    remaining = value
+    for amount, symbol in numerals:
+        count = remaining // amount
+        if count:
+            result.append(symbol * count)
+            remaining -= amount * count
+    return "".join(result)
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str):
+        raise ValueError("text must be a string")
+    if not text:
+        raise ValueError("empty input")
+
+    values = {
+        "I": 1,
+        "V": 5,
+        "X": 10,
+        "L": 50,
+        "C": 100,
+        "D": 500,
+        "M": 1000,
+    }
+
+    if any(ch not in values for ch in text):
+        raise ValueError("invalid Roman numeral")
+
+    # Parse with subtraction rule.
+    total = 0
+    prev = 0
+    for ch in reversed(text):
+        cur = values[ch]
+        if cur < prev:
+            total -= cur
+        else:
+            total += cur
+            prev = cur
+
+    # Validate by canonical round-trip and range.
+    if total < 1 or total > 3999:
+        raise ValueError("out of range")
+    if to_roman(total) != text:
+        raise ValueError("noncanonical Roman numeral")
+
+    return total

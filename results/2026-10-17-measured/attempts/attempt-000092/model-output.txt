@@ -1,0 +1,120 @@
+```python
+import re
+
+def tokenize(text: str) -> list[str]:
+    if not text:
+        return []
+    tokens = []
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch.isspace():
+            i += 1
+            continue
+        if ch in '+-*/()':
+            tokens.append(ch)
+            i += 1
+            continue
+        if ch.isdigit():
+            start = i
+            while i < n and text[i].isdigit():
+                i += 1
+            if i < n and text[i] == '.':
+                i += 1
+                if i < n and text[i].isdigit():
+                    while i < n and text[i].isdigit():
+                        i += 1
+                    tokens.append(text[start:i])
+                else:
+                    raise ValueError("Malformed number")
+            else:
+                tokens.append(text[start:i])
+            continue
+        raise ValueError("Invalid character")
+    return tokens
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    pos = 0
+
+    def peek():
+        return tokens[pos] if pos < len(tokens) else None
+
+    def consume(expected=None):
+        nonlocal pos
+        if pos >= len(tokens):
+            raise ValueError("Unexpected end of expression")
+        tok = tokens[pos]
+        if expected is not None and tok != expected:
+            raise ValueError("Unexpected token")
+        pos += 1
+        return tok
+
+    def parse_expr():
+        val = parse_term()
+        while True:
+            tok = peek()
+            if tok in ('+', '-'):
+                consume()
+                right = parse_term()
+                if tok == '+':
+                    val += right
+                else:
+                    val -= right
+            else:
+                break
+        return val
+
+    def parse_term():
+        val = parse_factor()
+        while True:
+            tok = peek()
+            if tok in ('*', '/'):
+                consume()
+                right = parse_factor()
+                if tok == '*':
+                    val *= right
+                else:
+                    if right == 0:
+                        raise ZeroDivisionError("Division by zero")
+                    val /= right
+            else:
+                break
+        return val
+
+    def parse_factor():
+        sign = 1
+        while True:
+            tok = peek()
+            if tok == '+':
+                consume()
+            elif tok == '-':
+                consume()
+                sign = -sign
+            else:
+                break
+        val = parse_atom()
+        return sign * val
+
+    def parse_atom():
+        tok = peek()
+        if tok is None:
+            raise ValueError("Empty expression")
+        if tok == '(':
+            consume('(')
+            val = parse_expr()
+            consume(')')
+            return val
+        if re.fullmatch(r'\d+(\.\d+)?', tok):
+            consume()
+            return float(tok)
+        raise ValueError("Unexpected token")
+
+    if not tokens:
+        raise ValueError("Empty expression")
+    result = parse_expr()
+    if pos < len(tokens):
+        raise ValueError("Trailing tokens")
+    return result
+```

@@ -1,0 +1,92 @@
+def tokenize(text: str) -> list[str]:
+    tokens: list[str] = []
+    i = 0
+
+    while i < len(text):
+        char = text[i]
+
+        if char.isspace():
+            i += 1
+        elif char in "+-*/()":
+            tokens.append(char)
+            i += 1
+        elif "0" <= char <= "9":
+            start = i
+            while i < len(text) and "0" <= text[i] <= "9":
+                i += 1
+
+            if i < len(text) and text[i] == ".":
+                i += 1
+                if i == len(text) or not ("0" <= text[i] <= "9"):
+                    raise ValueError("malformed number")
+                while i < len(text) and "0" <= text[i] <= "9":
+                    i += 1
+
+            tokens.append(text[start:i])
+        else:
+            raise ValueError(f"invalid character: {char!r}")
+
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    position = 0
+
+    def parse_expression() -> float:
+        nonlocal position
+        value = parse_term()
+        while position < len(tokens) and tokens[position] in ("+", "-"):
+            operator = tokens[position]
+            position += 1
+            right = parse_term()
+            value = value + right if operator == "+" else value - right
+        return value
+
+    def parse_term() -> float:
+        nonlocal position
+        value = parse_unary()
+        while position < len(tokens) and tokens[position] in ("*", "/"):
+            operator = tokens[position]
+            position += 1
+            right = parse_unary()
+            value = value * right if operator == "*" else value / right
+        return value
+
+    def parse_unary() -> float:
+        nonlocal position
+        sign = 1
+        while position < len(tokens) and tokens[position] in ("+", "-"):
+            if tokens[position] == "-":
+                sign = -sign
+            position += 1
+        value = parse_primary()
+        return value if sign == 1 else -value
+
+    def parse_primary() -> float:
+        nonlocal position
+        if position >= len(tokens):
+            raise ValueError("expected an operand")
+
+        token = tokens[position]
+        position += 1
+
+        if token == "(":
+            value = parse_expression()
+            if position >= len(tokens) or tokens[position] != ")":
+                raise ValueError("unbalanced parentheses")
+            position += 1
+            return value
+
+        if "0" <= token[0] <= "9":
+            return float(token)
+
+        raise ValueError("expected an operand")
+
+    if not tokens:
+        raise ValueError("empty expression")
+
+    result = parse_expression()
+    if position != len(tokens):
+        raise ValueError("unexpected trailing token")
+    return result

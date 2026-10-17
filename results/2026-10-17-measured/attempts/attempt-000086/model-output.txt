@@ -1,0 +1,75 @@
+Here's the implementation of `SlidingWindowLimiter` using only the Python standard library:
+
+```python
+import math
+from collections import deque
+
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        # Validate limit: must be a positive integer, not bool
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        # Validate window_s: must be positive and finite
+        if not isinstance(window_s, (int, float)) or isinstance(window_s, bool):
+            raise ValueError("window_s must be a positive finite number")
+        if not math.isfinite(window_s) or window_s <= 0:
+            raise ValueError("window_s must be a positive finite number")
+
+        self.limit = limit
+        self.window_s = float(window_s)
+
+        # Per-key state:
+        #   timestamps: deque of accepted call timestamps (sorted, since nondecreasing)
+        #   last_time: last time seen (accepted or denied) for this key
+        self._timestamps = {}
+        self._last_time = {}
+
+    def allow(self, key, now: float) -> bool:
+        # Validate time
+        if not isinstance(now, (int, float)) or isinstance(now, bool):
+            raise ValueError("now must be a finite number")
+        if not math.isfinite(now):
+            raise ValueError("now must be a finite number")
+
+        # Check per-key nondecreasing invariant
+        if key in self._last_time:
+            if now < self._last_time[key]:
+                raise ValueError("time must be nondecreasing per key")
+
+        # Update last_time only after validation passes
+        self._last_time[key] = now
+
+        # Get or create deque for this key
+        if key in self._timestamps:
+            timestamps = self._timestamps[key]
+        else:
+            timestamps = deque()
+            self._timestamps[key] = timestamps
+
+        # Discard accepted timestamps <= now - window_s
+        cutoff = now - self.window_s
+        while timestamps and timestamps[0] <= cutoff:
+            timestamps.popleft()
+
+        # Check capacity
+        if len(timestamps) < self.limit:
+            timestamps.append(now)
+            return True
+        else:
+            return False
+```
+
+### Key design decisions
+
+1. **Validation order**: `limit` and `window_s` are validated first in `__init__`. For `allow`, the time is validated **before** mutating any state for that key, satisfying "raise ValueError on invalid time without changing state."
+
+2. **Per-key ordered history**: a `deque` holds accepted timestamps. Because the per-key clock is enforced nondecreasing, timestamps stay sorted, so we can prune from the left (`<= now - window_s`) in amortized O(1).
+
+3. **Denied calls count toward monotonicity**: `self._last_time[key]` is updated for *every* valid call (accepted or denied), so a later call with a smaller time raises `ValueError` — as required. This update happens only after all validation passes.
+
+4. **Window boundary**: the interval is `(now - window_s, now]`, so we pop timestamps `<= now - window_s` (strictly older or exactly on the cutoff are excluded).
+
+5. **New keys / negative times**: a key absent from `_last_time` accepts any finite `now`, including negative values. No real clock is read.
+
+6. **Booleans rejected**: `isinstance(x, bool)` checks reject `True`/`False` where numeric types are expected, since `bool` is a subclass of `int`.

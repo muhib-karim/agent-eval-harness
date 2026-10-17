@@ -1,0 +1,82 @@
+```python
+import math
+from collections import defaultdict
+
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        # Validate limit
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise ValueError("limit must be a positive integer")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        
+        # Validate window_s
+        if not isinstance(window_s, (int, float)) or isinstance(window_s, bool):
+            raise ValueError("window_s must be positive and finite")
+        if window_s <= 0 or not math.isfinite(window_s):
+            raise ValueError("window_s must be positive and finite")
+        
+        self.limit = limit
+        self.window_s = window_s
+        # Store timestamps for each key
+        self.history = defaultdict(list)
+        # Store the last time we saw each key (for monotonicity check)
+        self.last_time = {}
+    
+    def allow(self, key, now: float) -> bool:
+        # Validate now
+        if not isinstance(now, (int, float)) or isinstance(now, bool):
+            raise ValueError("now must be finite")
+        if not math.isfinite(now):
+            raise ValueError("now must be finite")
+        
+        # Check time monotonicity per key
+        if key in self.last_time:
+            if now < self.last_time[key]:
+                raise ValueError("Time must be nondecreasing per key")
+        
+        # Update last time for this key (before any potential state change on error)
+        self.last_time[key] = now
+        
+        # Calculate the window start time
+        window_start = now - self.window_s
+        
+        # Remove timestamps outside the window (timestamps <= window_start)
+        self.history[key] = [ts for ts in self.history[key] if ts > window_start]
+        
+        # Check if we can accept this call
+        if len(self.history[key]) < self.limit:
+            self.history[key].append(now)
+            return True
+        else:
+            return False
+```
+
+The implementation:
+
+1. **Initialization validation**: 
+   - Ensures `limit` is a positive integer (not a bool, which is technically an int subclass in Python)
+   - Ensures `window_s` is positive and finite
+
+2. **Per-key independent history**: 
+   - Uses `defaultdict(list)` to maintain separate timestamp lists for each hashable key
+   - Uses `last_time` dict to track monotonicity per key
+
+3. **Time validation and monotonicity**:
+   - Validates that `now` is finite
+   - Checks that time is nondecreasing per key before any state changes
+   - Updates `last_time[key]` to allow monotonicity checking on future calls
+
+4. **Sliding window logic**:
+   - Calculates `window_start = now - window_s`
+   - Discards all timestamps `<= window_start` (outside the window)
+   - Accepts the call if fewer than `limit` timestamps exist in the window
+   - Appends the new timestamp on acceptance
+   - Denies without consuming capacity or modifying history
+
+5. **Edge cases**:
+   - New keys can start at any finite time (including negative)
+   - Equal timestamps are allowed
+   - Denied calls don't consume capacity and don't modify history
+   - All validation errors are raised without changing state

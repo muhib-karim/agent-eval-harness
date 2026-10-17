@@ -1,0 +1,77 @@
+```python
+import re
+
+
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_INDEX = re.compile(r"\[([0-9]+)\]")
+
+
+def get_path(data, path: str, default=None):
+    if path == "" or path == "$":
+        return data
+
+    parts = []
+    pos = 0
+    length = len(path)
+    require_identifier = False
+
+    if path.startswith("$"):
+        pos = 1
+        if pos < length and path[pos] == ".":
+            pos += 1
+            require_identifier = True
+        elif pos >= length or path[pos] != "[":
+            raise ValueError("Malformed path")
+
+    if pos >= length:
+        raise ValueError("Malformed path")
+
+    # Parse the entire path before looking up any value.
+    while pos < length:
+        if not require_identifier and path[pos] == "[":
+            match = _INDEX.match(path, pos)
+            if match is None:
+                raise ValueError("Malformed path")
+            parts.append(("index", match.group(1)))
+        else:
+            match = _IDENTIFIER.match(path, pos)
+            if match is None:
+                raise ValueError("Malformed path")
+            parts.append(("key", match.group()))
+
+        pos = match.end()
+        if pos == length:
+            break
+
+        if path[pos] == ".":
+            pos += 1
+            if pos == length:
+                raise ValueError("Malformed path")
+            require_identifier = True
+        elif path[pos] == "[":
+            require_identifier = False
+        else:
+            raise ValueError("Malformed path")
+
+    value = data
+    for kind, component in parts:
+        if kind == "key":
+            if not isinstance(value, dict) or component not in value:
+                return default
+            value = value[component]
+        else:
+            if not isinstance(value, list):
+                return default
+
+            # Normalize leading zeroes and reject oversized indices before
+            # converting, including indices longer than Python's int limit.
+            digits = component.lstrip("0") or "0"
+            if len(digits) > len(str(len(value))):
+                return default
+            index = int(digits)
+            if index >= len(value):
+                return default
+            value = value[index]
+
+    return value
+```

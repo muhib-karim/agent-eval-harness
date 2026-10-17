@@ -1,0 +1,111 @@
+def to_roman(value: int) -> str:
+    """Convert an integer (1-3999) to Roman numerals."""
+    if isinstance(value, bool):
+        raise ValueError("bool is not allowed")
+    if not isinstance(value, int):
+        raise ValueError("value must be an integer")
+    if not (1 <= value <= 3999):
+        raise ValueError("value must be between 1 and 3999")
+
+    val_to_roman = [
+        (1000, 'M'),
+        (900, 'CM'),
+        (500, 'D'),
+        (400, 'CD'),
+        (100, 'C'),
+        (90, 'XC'),
+        (50, 'L'),
+        (40, 'XL'),
+        (10, 'X'),
+        (9, 'IX'),
+        (5, 'V'),
+        (4, 'IV'),
+        (1, 'I'),
+    ]
+
+    result = []
+    for arabic, roman in val_to_roman:
+        count = value // arabic
+        if count:
+            result.append(roman * count)
+            value -= arabic * count
+
+    return ''.join(result)
+
+
+def from_roman(text: str) -> int:
+    """Convert Roman numerals to an integer (1-3999)."""
+    if not isinstance(text, str):
+        raise ValueError("input must be a string")
+    if not text:
+        raise ValueError("input cannot be empty")
+    if text != text.upper():
+        raise ValueError("input must be uppercase")
+    if any(c in text for c in ' \t\n\r\f\v'):
+        raise ValueError("input contains whitespace")
+
+    roman_to_val = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    for char in text:
+        if char not in roman_to_val:
+            raise ValueError(f"unknown symbol: {char}")
+
+    canonical_patterns = {
+        'I': ('I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'),
+        'X': ('X', 'XX', 'XXX', 'XL', 'L', 'LX', 'LXX', 'LXXX', 'XC'),
+        'C': ('C', 'CC', 'CCC', 'CD', 'D', 'DC', 'DCC', 'DCCC', 'CM'),
+        'M': ('M', 'MM', 'MMM'),
+    }
+
+    i = 0
+    result = 0
+    prev_val = float('inf')
+
+    while i < len(text):
+        char = text[i]
+        val = roman_to_val[char]
+
+        if val > prev_val:
+            raise ValueError(f"invalid subtractive form at position {i}")
+
+        if i + 1 < len(text):
+            next_char = text[i + 1]
+            next_val = roman_to_val[next_char]
+
+            if next_val > val:
+                subtractive_pair = char + next_char
+
+                if char == 'I' and next_char not in ('V', 'X'):
+                    raise ValueError(f"invalid subtractive form: {subtractive_pair}")
+                elif char == 'X' and next_char not in ('L', 'C'):
+                    raise ValueError(f"invalid subtractive form: {subtractive_pair}")
+                elif char == 'C' and next_char not in ('D', 'M'):
+                    raise ValueError(f"invalid subtractive form: {subtractive_pair}")
+                elif char not in ('I', 'X', 'C'):
+                    raise ValueError(f"invalid subtractive form: {subtractive_pair}")
+
+                result += next_val - val
+                prev_val = next_val
+                i += 2
+                continue
+
+        result += val
+        prev_val = val
+        i += 1
+
+    if not (1 <= result <= 3999):
+        raise ValueError("value out of range")
+
+    normalized = to_roman(result)
+    if normalized != text:
+        raise ValueError("not in canonical form")
+
+    return result

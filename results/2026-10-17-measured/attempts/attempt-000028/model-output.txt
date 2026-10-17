@@ -1,0 +1,87 @@
+```python
+import time
+import math
+from collections import OrderedDict
+
+
+class LRUCache:
+    """
+    A simple LRU cache with per-entry TTL expiration.
+
+    - capacity: maximum number of live entries (positive int, not bool)
+    - ttl: time-to-live for entries in seconds (positive, finite number)
+    - clock: a callable returning the current time (nondecreasing), used
+      for testability. Defaults to time.monotonic.
+    """
+
+    def __init__(self, capacity: int, ttl: float, clock=time.monotonic):
+        if isinstance(capacity, bool) or not isinstance(capacity, int):
+            raise ValueError("capacity must be a positive integer (not bool)")
+        if capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+
+        if isinstance(ttl, bool) or not isinstance(ttl, (int, float)):
+            raise ValueError("ttl must be a positive, finite number")
+        if not math.isfinite(ttl) or ttl <= 0:
+            raise ValueError("ttl must be positive and finite")
+
+        self.capacity = capacity
+        self.ttl = float(ttl)
+        self.clock = clock
+
+        # key -> (value, expiry_time)
+        # OrderedDict preserves insertion/move order; the first item
+        # (leftmost) is considered the least recently used.
+        self._data: "OrderedDict[object, tuple]" = OrderedDict()
+
+    def _purge_expired(self):
+        now = self.clock()
+        # Collect expired keys first to avoid mutating dict while iterating.
+        expired_keys = [
+            k for k, (_, expiry) in self._data.items() if now >= expiry
+        ]
+        for k in expired_keys:
+            del self._data[k]
+
+    def put(self, key, value):
+        # Purge expired entries before potential eviction.
+        self._purge_expired()
+
+        expiry = self.clock() + self.ttl
+
+        if key in self._data:
+            # Remove existing entry so re-insertion places it at the end
+            # (most recently used position).
+            del self._data[key]
+
+        self._data[key] = (value, expiry)
+        self._data.move_to_end(key)  # mark as most recently used
+
+        # Evict least recently used entries if over capacity.
+        while len(self._data) > self.capacity:
+            self._data.popitem(last=False)
+
+    def get(self, key, default=None):
+        # Purge expired entries before lookup.
+        self._purge_expired()
+
+        if key not in self._data:
+            return default
+
+        value, expiry = self._data[key]
+        now = self.clock()
+        if now >= expiry:
+            # Expired right at access time (shouldn't normally happen
+            # since we just purged, but guard for safety).
+            del self._data[key]
+            return default
+
+        # Mark as most recently used without extending TTL.
+        self._data.move_to_end(key)
+        return value
+
+    def __len__(self):
+        # Purge expired entries before counting.
+        self._purge_expired()
+        return len(self._data)
+```

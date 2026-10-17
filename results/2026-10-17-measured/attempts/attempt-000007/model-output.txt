@@ -1,0 +1,90 @@
+```python
+import string
+
+_ID_START = set(string.ascii_letters + "_")
+_ID_CHARS = set(string.ascii_letters + string.digits + "_")
+_DIGITS = set(string.digits)
+
+
+def _parse(path):
+    """Parse a path string into a list of ('key', str) / ('index', int) tokens.
+
+    Raises ValueError on malformed syntax.
+    """
+    tokens = []
+    n = len(path)
+    i = 0
+    has_root = False
+
+    if path.startswith("$"):
+        has_root = True
+        i = 1
+        if i == n:
+            return tokens
+
+    def read_ident(pos):
+        if pos >= n or path[pos] not in _ID_START:
+            raise ValueError("expected identifier at position %d in %r" % (pos, path))
+        j = pos + 1
+        while j < n and path[j] in _ID_CHARS:
+            j += 1
+        return path[pos:j], j
+
+    def read_index(pos):
+        # path[pos] == '['
+        j = pos + 1
+        start = j
+        while j < n and path[j] in _DIGITS:
+            j += 1
+        if j == start:
+            raise ValueError("expected digits in brackets at position %d in %r" % (pos, path))
+        if j >= n or path[j] != "]":
+            raise ValueError("expected ']' at position %d in %r" % (j, path))
+        return int(path[start:j]), j + 1
+
+    first = True
+    while i < n:
+        c = path[i]
+        if c == "[":
+            idx, i = read_index(i)
+            tokens.append(("index", idx))
+        elif c == ".":
+            if first and not has_root:
+                raise ValueError("path may not start with '.': %r" % path)
+            name, i = read_ident(i + 1)
+            tokens.append(("key", name))
+        else:
+            if first and not has_root:
+                name, i = read_ident(i)
+                tokens.append(("key", name))
+            else:
+                raise ValueError("unexpected character %r at position %d in %r" % (c, i, path))
+        first = False
+
+    return tokens
+
+
+def get_path(data, path: str, default=None):
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    if path == "" or path == "$":
+        return data
+
+    tokens = _parse(path)
+
+    current = data
+    for kind, value in tokens:
+        if kind == "key":
+            if not isinstance(current, dict):
+                return default
+            if value not in current:
+                return default
+            current = current[value]
+        else:
+            if not isinstance(current, list):
+                return default
+            if value < 0 or value >= len(current):
+                return default
+            current = current[value]
+    return current
+```

@@ -1,0 +1,9 @@
+..........F..                                                            [100%]
+=================================== FAILURES ===================================
+_____________________________ test_invalid[value3] _____________________________
+_hidden_4ev87eld/test_000.py:31: in test_invalid
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_4ev87eld/test_000.py::test_invalid[value3] - Failed: DID NOT R...
+1 failed, 12 passed in 1.96s

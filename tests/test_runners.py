@@ -207,3 +207,32 @@ def test_mock_custom_fixture(task_path: Path, workdir: Path) -> None:
     runner = MockRunner({"fixtures": {"answer": "custom.py"}}, task_path=task_path)
     result = asyncio.run(runner.generate(load_task(task_path), workdir))
     assert result.raw_output == "value = 123\n"
+
+
+@pytest.mark.parametrize("token_param", ["max_tokens", "max_completion_tokens"])
+def test_http_token_param(
+    token_param: str, task_path: Path, workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEST_KEY", "secret-value")
+    monkeypatch.setenv("TEST_BASE", BASE)
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        body = {"choices": [{"message": {"content": "def answer():\n    return 42\n"}}]}
+        return httpx.Response(200, json=body)
+
+    runner = HTTPRunner(
+        {
+            "model": "test-model",
+            "base_url_env": "TEST_BASE",
+            "api_key_env": "TEST_KEY",
+            "max_tokens": 321,
+            "token_param": token_param,
+        },
+        transport=httpx.MockTransport(handler),
+    )
+    asyncio.run(runner.generate(load_task(task_path), workdir))
+    assert seen[token_param] == 321
+    other = {"max_tokens", "max_completion_tokens"} - {token_param}
+    assert not other & seen.keys()

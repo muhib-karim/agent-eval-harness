@@ -1,0 +1,73 @@
+import re
+
+_ROMAN_NUMERALS = [
+    (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+    (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+    (10, "X"), (9, "IX"), (5, "V"), (4, "IV"),
+    (1, "I"),
+]
+
+_ROMAN_REGEX = re.compile(
+    r"^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$"
+)
+
+
+def to_roman(value: int) -> str:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("value must be an int")
+    if not (1 <= value <= 3999):
+        raise ValueError("value must be in range 1..3999")
+
+    result = []
+    remaining = value
+    for num, symbol in _ROMAN_NUMERALS:
+        if remaining <= 0:
+            break
+        count, remaining = divmod(remaining, num)
+        result.append(symbol * count)
+    return "".join(result)
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str):
+        raise ValueError("text must be a str")
+    if text == "":
+        raise ValueError("text must be nonempty")
+
+    match = _ROMAN_REGEX.match(text)
+    if not match or match.group(0) != text:
+        raise ValueError("text is not a valid canonical Roman numeral")
+
+    value = 0
+    index = 0
+    length = len(text)
+    # Map two-character and one-character tokens using greedy parsing
+    symbol_values = {
+        "I": 1, "V": 5, "X": 10, "L": 50,
+        "C": 100, "D": 500, "M": 1000,
+    }
+
+    i = 0
+    total = 0
+    while i < length:
+        if i + 1 < length:
+            two_char = text[i:i+2]
+            two_values = {
+                "CM": 900, "CD": 400,
+                "XC": 90, "XL": 40,
+                "IX": 9, "IV": 4,
+            }
+            if two_char in two_values:
+                total += two_values[two_char]
+                i += 2
+                continue
+        char = text[i]
+        if char not in symbol_values:
+            raise ValueError("text contains invalid characters")
+        total += symbol_values[char]
+        i += 1
+
+    if not (1 <= total <= 3999):
+        raise ValueError("resulting value out of range")
+
+    return total

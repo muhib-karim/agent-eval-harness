@@ -1,0 +1,124 @@
+def to_roman(value: int) -> str:
+    """Convert an integer (1-3999) to uppercase canonical Roman numerals."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("Input must be an integer (not bool)")
+    if not (1 <= value <= 3999):
+        raise ValueError("Input must be between 1 and 3999")
+
+    # Mapping of values to Roman numerals in descending order
+    # Includes subtractive forms: IV, IX, XL, XC, CD, CM
+    val_to_roman = [
+        (1000, 'M'),
+        (900, 'CM'),
+        (500, 'D'),
+        (400, 'CD'),
+        (100, 'C'),
+        (90, 'XC'),
+        (50, 'L'),
+        (40, 'XL'),
+        (10, 'X'),
+        (9, 'IX'),
+        (5, 'V'),
+        (4, 'IV'),
+        (1, 'I'),
+    ]
+
+    result = ''
+    for val, numeral in val_to_roman:
+        count = value // val
+        result += numeral * count
+        value -= val * count
+
+    return result
+
+
+def from_roman(text: str) -> int:
+    """Convert uppercase canonical Roman numerals (1-3999) to an integer."""
+    if not isinstance(text, str):
+        raise ValueError("Input must be a string")
+    if not text:
+        raise ValueError("Input must be nonempty")
+    if text != text.upper():
+        raise ValueError("Input must be uppercase")
+    if any(c in text for c in ' \t\n\r'):
+        raise ValueError("Input must not contain whitespace")
+
+    # Valid Roman numeral characters
+    valid_chars = set('IVXLCDM')
+    if not all(c in valid_chars for c in text):
+        raise ValueError("Input contains invalid characters")
+
+    # Mapping of Roman numerals to values
+    roman_to_val = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    # Define canonical subtractive forms
+    canonical_subtractive = {'IV', 'IX', 'XL', 'XC', 'CD', 'CM'}
+
+    # Define valid repetition counts for each numeral (non-subtractive position)
+    # I, X, C, M can repeat up to 3 times
+    # V, L, D cannot repeat
+    can_repeat_3 = {'I', 'X', 'C', 'M'}
+    cannot_repeat = {'V', 'L', 'D'}
+
+    # Parse and validate the Roman numeral string
+    result = 0
+    i = 0
+    prev_val = float('inf')
+
+    while i < len(text):
+        # Check for two-character subtractive form
+        if i + 1 < len(text):
+            two_char = text[i:i+2]
+            if two_char in canonical_subtractive:
+                val = roman_to_val[two_char[1]] - roman_to_val[two_char[0]]
+                # Subtractive form value must be less than previous value
+                if val >= prev_val:
+                    raise ValueError("Invalid Roman numeral form")
+                result += val
+                prev_val = val
+                i += 2
+                continue
+
+        # Single character
+        char = text[i]
+        val = roman_to_val[char]
+
+        # Value should not increase (except for subtractive forms already handled)
+        if val > prev_val:
+            raise ValueError("Invalid Roman numeral form")
+
+        # Check for invalid repetitions
+        if i + 1 < len(text) and text[i+1] == char:
+            if char in cannot_repeat:
+                raise ValueError(f"Character {char} cannot repeat")
+            # Check if it repeats more than 3 times
+            repeat_count = 1
+            j = i + 1
+            while j < len(text) and text[j] == char:
+                repeat_count += 1
+                j += 1
+            if repeat_count > 3:
+                raise ValueError(f"Character {char} repeats more than 3 times")
+
+        result += val
+        prev_val = val
+        i += 1
+
+    # Validate the result is in range 1-3999
+    if not (1 <= result <= 3999):
+        raise ValueError("Roman numeral value out of range (1-3999)")
+
+    # Verify it's canonical by converting back
+    canonical = to_roman(result)
+    if canonical != text:
+        raise ValueError("Input is not in canonical form")
+
+    return result

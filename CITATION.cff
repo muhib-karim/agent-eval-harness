@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use agent-eval-harness in your work, please cite it as below."
+title: "agent-eval-harness: reproducible cross-model regression testing for coding models and agents"
+abstract: >-
+  A harness that runs the same coding tasks across models and agent CLIs, grades every attempt
+  against withheld tests in an isolated subprocess, keeps per-attempt evidence, and reports
+  pass@k with confidence intervals so that model and version regressions can be measured.
+type: software
+authors:
+  - family-names: Karim
+    given-names: Muhib
+repository-code: "https://github.com/muhib-karim/agent-eval-harness"
+url: "https://muhib-karim.github.io/agent-eval-harness/"
+license: MIT
+version: 1.2.0
+date-released: "2026-10-18"
+keywords:
+  - llm-evaluation
+  - code-generation
+  - regression-testing
+  - benchmarking
+  - pass-at-k

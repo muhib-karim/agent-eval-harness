@@ -2,6 +2,15 @@
 
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — 2026-10-18
+
+- First measured live-model run: six models, six tasks, three repeats (108 attempts), committed
+  with every attempt's evidence under `results/2026-10-17-measured/` and summarised in the README.
+- HTTP runner option `token_param` (`max_tokens` or `max_completion_tokens`) for OpenAI-compatible
+  models that reject `max_tokens`.
+- The GitHub Pages site now leads with the measured report; the offline mock demo moved to `/demo/`.
+- `CITATION.cff`.
+
 ## 1.1.0 — 2026-10-03
 
 - Result loading rejects impossible records: `tests_passed` greater than `tests_total`, and

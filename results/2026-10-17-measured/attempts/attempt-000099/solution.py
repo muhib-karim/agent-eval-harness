@@ -1,0 +1,60 @@
+import re
+
+def get_path(data, path: str, default=None):
+    if not path or path == '$':
+        return data
+    if not isinstance(path, str):
+        raise ValueError("Malformed path")
+    # Reject whitespace
+    if re.search(r'\s', path):
+        raise ValueError("Malformed path")
+    # Tokenize
+    tokens = []
+    i = 0
+    n = len(path)
+    if path[i] == '$':
+        i += 1
+    while i < n:
+        if path[i] == '.':
+            if i == 0 or path[i-1] == '.' or (i+1 < n and path[i+1] == '.'):
+                raise ValueError("Malformed path")
+            i += 1
+            if i >= n:
+                raise ValueError("Malformed path")
+            # Expect identifier
+            match = re.match(r'[A-Za-z_][A-Za-z0-9_]*', path[i:])
+            if not match:
+                raise ValueError("Malformed path")
+            tokens.append(('key', match.group(0)))
+            i += match.end()
+            # Optional brackets after key
+            while i < n and path[i] == '[':
+                match = re.match(r'\[([0-9]+)\]', path[i:])
+                if not match:
+                    raise ValueError("Malformed path")
+                idx = int(match.group(1))
+                tokens.append(('idx', idx))
+                i += match.end()
+        elif path[i] == '[':
+            match = re.match(r'\[([0-9]+)\]', path[i:])
+            if not match:
+                raise ValueError("Malformed path")
+            idx = int(match.group(1))
+            tokens.append(('idx', idx))
+            i += match.end()
+        else:
+            raise ValueError("Malformed path")
+    # Now traverse
+    current = data
+    for typ, val in tokens:
+        if typ == 'key':
+            if isinstance(current, dict) and val in current:
+                current = current[val]
+            else:
+                return default
+        else:  # idx
+            if isinstance(current, list) and 0 <= val < len(current):
+                current = current[val]
+            else:
+                return default
+    return current

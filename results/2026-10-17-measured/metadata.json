@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "harness_version": "1.1.0",
+  "python_version": "3.11.6",
+  "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+  "started_at": "2026-10-17T18:36:57.825960+00:00",
+  "task_hashes": {
+    "arithmetic": {
+      "./tasks/arithmetic/task.yaml": "8abc7a9fa77852a85864ab1bc6c4c6f2222b3fd813d18e50cba01a9daf1b90e4",
+      "./tasks/arithmetic/hidden_tests.py": "20510d6124978567ece6e782fc0e9ec10979e4ce005e92c21d77dd98ee8dad67",
+      "./tasks/arithmetic/reference.py": "6d349f2ed65bdcfa5131db5dc6f601acc31fca72288a5a1dcd3f5b4396e19651"
+    },
+    "intervals": {
+      "./tasks/intervals/task.yaml": "4132817804d9dcea007c6352b9addc4f074eb19901f14377b66d27bbe1b91670",
+      "./tasks/intervals/hidden_tests.py": "7c5136a57e6f2a77f31920eea6136a9ef2eea786c32a0ce7d4d90b34331fb5c4",
+      "./tasks/intervals/reference.py": "d15b1ab32592d5006c5a8535c5e11497713610d38877cd2f516206ed94925831"
+    },
+    "json_path": {
+      "./tasks/json_path/task.yaml": "a2b5c11d7ae10c029c1ea5a65215cce188f4d891ae55883f8981ac163b5b42df",
+      "./tasks/json_path/hidden_tests.py": "b2c8a8daa8ef0c95e119215f1f36b7f2a7443ca2ea8861e84273790307977f2c",
+      "./tasks/json_path/reference.py": "53d81052d448f8e8abcdcccc11e2a55db07e5ebdf9452c2677c8388f200ccf36"
+    },
+    "lru_ttl": {
+      "./tasks/lru_ttl/task.yaml": "d7e36d40b11bde474a16bc73d31635e9ec16d2412a394be7d7637ece24bba158",
+      "./tasks/lru_ttl/hidden_tests.py": "ee049a1cd0471da1440098968fa86cba7483b4416ebf0c75561e42284cddf4ce",
+      "./tasks/lru_ttl/reference.py": "a80b2f11c84e824408225dafa8e1604c1ad444531ae2278f1e0a4b16c7fb1929"
+    },
+    "rate_limiter": {
+      "./tasks/rate_limiter/task.yaml": "f5746369ea284b5bbee65b93ec0754febbccc1e0a59c93fd9c498680be0fa90f",
+      "./tasks/rate_limiter/hidden_tests.py": "5523fe5dbe53d4b97a70971c70fde8c60c778ec69a882317f34b8d000fb56234",
+      "./tasks/rate_limiter/reference.py": "c4a735b02ea3184db6f554d249431492a7f99048b894982da4a1584f4ad7c2fc"
+    },
+    "roman": {
+      "./tasks/roman/task.yaml": "819c367cb1716471e5bb4366b3a0aed16d14a9174f37c0ed5e8d2565786e19a3",
+      "./tasks/roman/hidden_tests.py": "936d0bb42e97ad533826e9a794b13461f8d1c5d80bae853481b5341fef90c0eb",
+      "./tasks/roman/reference.py": "dae99117d0cf1b85b05f98e3b9de3172c2d8728e63640b3ddf4cdaa3c5e634f1"
+    }
+  },
+  "config_sha256": "20f39e61125e7a21110e1c37e19fa8fb2f034242cab723c7eb979ae0f1b98df2"
+}

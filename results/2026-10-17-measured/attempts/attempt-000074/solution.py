@@ -1,0 +1,117 @@
+import re
+
+_TOKEN_RE = re.compile(r'\d+(?:\.\d+)?|[-+*/()]')
+
+def tokenize(text: str) -> list[str]:
+    tokens = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if c.isdigit() or c == '.':
+            m = _TOKEN_RE.match(text, i)
+            if not m:
+                raise ValueError(f"Invalid character at position {i}: {c!r}")
+            tok = m.group(0)
+            # Validate: integer part and fractional part must both exist for decimals
+            if '.' in tok:
+                # must be digits '.' digits
+                if not re.fullmatch(r'\d+\.\d+', tok):
+                    raise ValueError(f"Malformed number: {tok!r}")
+            else:
+                if not tok.isdigit():
+                    raise ValueError(f"Malformed number: {tok!r}")
+            tokens.append(tok)
+            i = m.end()
+        elif c in '+-*/()':
+            tokens.append(c)
+            i += 1
+        else:
+            raise ValueError(f"Invalid character at position {i}: {c!r}")
+    return tokens
+
+
+class _Parser:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.pos = 0
+
+    def peek(self):
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos]
+        return None
+
+    def next(self):
+        tok = self.peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+        self.pos += 1
+        return tok
+
+    def parse(self):
+        if not self.tokens:
+            raise ValueError("Empty expression")
+        val = self.parse_expr()
+        if self.pos != len(self.tokens):
+            raise ValueError(f"Unexpected token: {self.peek()!r}")
+        return val
+
+    def parse_expr(self):
+        val = self.parse_term()
+        while self.peek() in ('+', '-'):
+            op = self.next()
+            rhs = self.parse_term()
+            if op == '+':
+                val = val + rhs
+            else:
+                val = val - rhs
+        return val
+
+    def parse_term(self):
+        val = self.parse_unary()
+        while self.peek() in ('*', '/'):
+            op = self.next()
+            rhs = self.parse_unary()
+            if op == '*':
+                val = val * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("Division by zero")
+                val = val / rhs
+        return val
+
+    def parse_unary(self):
+        tok = self.peek()
+        if tok == '+':
+            self.next()
+            return self.parse_unary()
+        if tok == '-':
+            self.next()
+            return -self.parse_unary()
+        return self.parse_atom()
+
+    def parse_atom(self):
+        tok = self.peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+        if tok == '(':
+            self.next()
+            val = self.parse_expr()
+            if self.peek() != ')':
+                raise ValueError("Unbalanced parentheses")
+            self.next()
+            return val
+        if tok == ')':
+            raise ValueError("Unexpected ')'")
+        if tok[0].isdigit():
+            self.next()
+            return float(tok)
+        raise ValueError(f"Unexpected token: {tok!r}")
+
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    return _Parser(tokens).parse()

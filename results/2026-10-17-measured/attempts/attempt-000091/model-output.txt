@@ -1,0 +1,133 @@
+```python
+import re
+
+def tokenize(text: str) -> list[str]:
+    if not text:
+        return []
+    tokens = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if c in '+-*/()':
+            tokens.append(c)
+            i += 1
+            continue
+        if c.isdigit():
+            start = i
+            while i < n and text[i].isdigit():
+                i += 1
+            if i < n and text[i] == '.':
+                i += 1
+                if i >= n or not text[i].isdigit():
+                    raise ValueError("malformed number")
+                while i < n and text[i].isdigit():
+                    i += 1
+            num_str = text[start:i]
+            tokens.append(num_str)
+            continue
+        raise ValueError("invalid character")
+    # Validate no malformed decimals like ending with .
+    # But logic above prevents it
+    return tokens
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    if not tokens:
+        raise ValueError("empty expression")
+    
+    # Parser using shunting-yard to RPN then evaluate
+    def precedence(op):
+        if op in ('+', '-'):
+            return 1
+        if op in ('*', '/'):
+            return 2
+        return 0
+    
+    output = []
+    ops = []
+    i = 0
+    prev_token = None
+    while i < len(tokens):
+        tok = tokens[i]
+        if re.match(r'^\d+(\.\d+)?$', tok):
+            if prev_token and re.match(r'^\d+(\.\d+)?$', prev_token):
+                raise ValueError("adjacent operands")
+            output.append(tok)
+            prev_token = tok
+        elif tok in '+-':
+            # Check for unary
+            if prev_token is None or prev_token in '+-*/(':
+                # Unary
+                if tok == '-':
+                    output.append('0')
+                    ops.append('-')  # unary minus as binary -
+                # unary + does nothing
+            else:
+                while ops and ops[-1] != '(' and precedence(ops[-1]) >= precedence(tok):
+                    output.append(ops.pop())
+                ops.append(tok)
+            prev_token = tok
+        elif tok in '*/':
+            if prev_token is None or prev_token in '+-*/(':
+                raise ValueError("invalid expression")
+            while ops and ops[-1] != '(' and precedence(ops[-1]) >= precedence(tok):
+                output.append(ops.pop())
+            ops.append(tok)
+            prev_token = tok
+        elif tok == '(':
+            if prev_token and re.match(r'^\d+(\.\d+)?$', prev_token):
+                raise ValueError("invalid expression")
+            ops.append(tok)
+            prev_token = tok
+        elif tok == ')':
+            if not ops or prev_token in '+-*/(':
+                raise ValueError("unbalanced parentheses")
+            while ops and ops[-1] != '(':
+                output.append(ops.pop())
+            if not ops or ops[-1] != '(':
+                raise ValueError("unbalanced parentheses")
+            ops.pop()
+            prev_token = tok
+        else:
+            raise ValueError("invalid token")
+        i += 1
+    
+    while ops:
+        if ops[-1] == '(':
+            raise ValueError("unbalanced parentheses")
+        output.append(ops.pop())
+    
+    if not output:
+        raise ValueError("empty expression")
+    
+    # Evaluate RPN
+    stack = []
+    for tok in output:
+        if re.match(r'^\d+(\.\d+)?$', tok):
+            stack.append(float(tok))
+        elif tok in '+-*/':
+            if len(stack) < 2:
+                raise ValueError("invalid expression")
+            b = stack.pop()
+            a = stack.pop()
+            if tok == '+':
+                stack.append(a + b)
+            elif tok == '-':
+                stack.append(a - b)
+            elif tok == '*':
+                stack.append(a * b)
+            elif tok == '/':
+                if b == 0:
+                    raise ZeroDivisionError
+                stack.append(a / b)
+        else:
+            raise ValueError("invalid expression")
+    
+    if len(stack) != 1:
+        raise ValueError("invalid expression")
+    return stack[0]
+```

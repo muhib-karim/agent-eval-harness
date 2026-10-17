@@ -1,0 +1,85 @@
+def to_roman(value: int) -> str:
+    """Convert an integer (1-3999) to uppercase Roman numerals."""
+    if isinstance(value, bool):
+        raise ValueError("bool is not accepted")
+    if not isinstance(value, int):
+        raise ValueError("value must be an integer")
+    if value < 1 or value > 3999:
+        raise ValueError("value must be between 1 and 3999")
+
+    val_to_roman = [
+        (1000, 'M'),
+        (900, 'CM'),
+        (500, 'D'),
+        (400, 'CD'),
+        (100, 'C'),
+        (90, 'XC'),
+        (50, 'L'),
+        (40, 'XL'),
+        (10, 'X'),
+        (9, 'IX'),
+        (5, 'V'),
+        (4, 'IV'),
+        (1, 'I'),
+    ]
+
+    result = []
+    for num, numeral in val_to_roman:
+        count = value // num
+        if count:
+            result.append(numeral * count)
+            value -= num * count
+
+    return ''.join(result)
+
+
+def from_roman(text: str) -> int:
+    """Convert uppercase Roman numeral string to integer (1-3999)."""
+    if not isinstance(text, str):
+        raise ValueError("text must be a string")
+    if not text:
+        raise ValueError("text must be nonempty")
+    if text != text.upper():
+        raise ValueError("text must contain only uppercase letters")
+
+    roman_to_val = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    valid_patterns = {
+        'IV', 'IX', 'XL', 'XC', 'CD', 'CM',
+        'I', 'V', 'X', 'L', 'C', 'D', 'M'
+    }
+
+    for char in text:
+        if char not in roman_to_val:
+            raise ValueError("text contains invalid Roman numeral characters")
+
+    result = 0
+    i = 0
+
+    while i < len(text):
+        if i + 1 < len(text):
+            two_char = text[i:i+2]
+            if two_char in {'IV', 'IX', 'XL', 'XC', 'CD', 'CM'}:
+                result += roman_to_val[two_char[1]] - roman_to_val[two_char[0]]
+                i += 2
+                continue
+
+        result += roman_to_val[text[i]]
+        i += 1
+
+    if result < 1 or result > 3999:
+        raise ValueError("text represents a value outside the range 1-3999")
+
+    canonical = to_roman(result)
+    if text != canonical:
+        raise ValueError("text is not a canonical Roman numeral")
+
+    return result

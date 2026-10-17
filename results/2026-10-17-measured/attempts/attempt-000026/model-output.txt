@@ -1,0 +1,135 @@
+```python
+"""
+solution.py
+
+Implementation of get_path(data, path, default=None).
+
+Path syntax
+-----------
+    path := '' | '$' | ['$'] segment*
+
+    segment := '.' IDENT        (not allowed to be the very first thing
+                                  unless it is the very first segment of
+                                  the whole path, i.e. no leading '$' and
+                                  no leading '.')
+             | '[' DIGITS ']'
+
+    IDENT   := [A-Za-z_][A-Za-z0-9_]*
+    DIGITS  := [0-9]+            (no sign, leading zeroes allowed)
+
+Only the very first segment of a path that does **not** start with '$'
+may be a bare identifier (no leading dot).  Everything else that is a
+key access must be introduced with a dot.  Index accesses are always
+introduced with '[' and never need (or allow) a preceding dot.
+
+Any deviation from this grammar (whitespace, quotes, wildcards,
+negative numbers, repeated/trailing dots, an identifier directly after
+a ']' without an intervening dot, etc.) raises ValueError -- this is
+checked purely syntactically, before any lookups happen, so even a
+malformed path that "would" fail to find data anyway still raises.
+
+Semantic rules
+--------------
+* Dict keys are only applied to dict values; list indices are only
+  applied to list values.
+* A missing key, an out of range index, or a type mismatch (e.g. using
+  a key on a list) causes `default` to be returned (verbatim, i.e. the
+  exact object passed in, no copy).
+* If the located value is present and equals None, None is returned
+  (this is distinct from "missing").
+* `data` is never mutated.
+"""
+
+import re
+from typing import Any
+
+_IDENT_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+
+def get_path(data: Any, path: str, default: Any = None) -> Any:
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+
+    if path == '' or path == '$':
+        return data
+
+    tokens = _parse_path(path)
+
+    result = data
+    for kind, value in tokens:
+        if kind == 'key':
+            if isinstance(result, dict) and value in result:
+                result = result[value]
+            else:
+                return default
+        else:  # kind == 'index'
+            if isinstance(result, list) and 0 <= value < len(result):
+                result = result[value]
+            else:
+                return default
+
+    return result
+
+
+def _parse_path(path: str):
+    """
+    Parse `path` into a list of tokens of the form:
+        ('key', <str>)
+        ('index', <int>)
+
+    Raises ValueError on any syntactic violation.
+    """
+    tokens = []
+    n = len(path)
+    i = 0
+
+    if path[0] == '$':
+        i = 1
+
+    first = True  # True only until the first token has been consumed
+
+    while i < n:
+        c = path[i]
+
+        if c == '.':
+            i += 1
+            m = _IDENT_RE.match(path, i)
+            if not m or m.start() != i:
+                raise ValueError(f"Malformed path at position {i}: expected identifier")
+            ident = m.group(0)
+            i += len(ident)
+            tokens.append(('key', ident))
+            first = False
+
+        elif c == '[':
+            i += 1
+            start = i
+            while i < n and path[i].isdigit():
+                i += 1
+            if i == start:
+                raise ValueError(f"Malformed path at position {start}: expected digits")
+            digits = path[start:i]
+            if i >= n or path[i] != ']':
+                raise ValueError(f"Malformed path at position {i}: expected ']'")
+            i += 1
+            tokens.append(('index', int(digits)))
+            first = False
+
+        else:
+            # A bare identifier is only legal as the very first segment
+            # of a path that does not start with '$'.
+            if first and path[0] != '$':
+                m = _IDENT_RE.match(path, i)
+                if not m or m.start() != i:
+                    raise ValueError(f"Malformed path at position {i}: expected identifier")
+                ident = m.group(0)
+                i += len(ident)
+                tokens.append(('key', ident))
+                first = False
+            else:
+                raise ValueError(
+                    f"Malformed path at position {i}: unexpected character {c!r}"
+                )
+
+    return tokens
+```

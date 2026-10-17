@@ -1,0 +1,176 @@
+"""
+solution.py
+
+A small arithmetic expression tokenizer and evaluator implemented using only
+the Python standard library (no eval/exec).
+
+Supported tokens:
+    - ASCII unsigned integers:            123
+    - decimals with digits on BOTH sides: 12.34   (but NOT ".5" or "5.")
+    - single-character operators:         + - * / ( )
+
+Whitespace is ignored. Any other character, or a malformed numeric literal,
+raises ValueError.
+
+The evaluator supports parentheses, unary + and - (including repeated
+signs, e.g. "--5" or "+-5"), the usual operator precedence
+(*, / bind tighter than +, -), and left-associative binary operators.
+Division by zero raises ZeroDivisionError. Malformed expressions
+(empty input, adjacent operands, trailing tokens, unbalanced parentheses,
+etc.) raise ValueError.
+"""
+
+from typing import List, Optional
+
+
+def tokenize(text: str) -> List[str]:
+    """Tokenize `text` into a list of token strings.
+
+    Tokens are: ASCII unsigned integers, decimals with digits on both
+    sides of the decimal point, and the single-character operators
+    + - * / ( ). Whitespace is ignored. Any other character or a
+    malformed numeric literal raises ValueError.
+    """
+    tokens: List[str] = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        c = text[i]
+
+        if c.isspace():
+            i += 1
+            continue
+
+        if c in '+-*/()':
+            tokens.append(c)
+            i += 1
+            continue
+
+        if c.isdigit():
+            start = i
+            # consume integer part
+            while i < n and text[i].isdigit():
+                i += 1
+            # optional decimal part -- must have a digit before and after
+            if i < n and text[i] == '.':
+                j = i + 1
+                if j < n and text[j].isdigit():
+                    i = j
+                    while i < n and text[i].isdigit():
+                        i += 1
+                else:
+                    raise ValueError(
+                        f"Malformed number starting at position {start}: "
+                        f"{text[start:i+1]!r}"
+                    )
+            tokens.append(text[start:i])
+            continue
+
+        raise ValueError(f"Invalid character {c!r} at position {i}")
+
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    """Evaluate the arithmetic expression `text` and return a float.
+
+    Supports +, -, *, /, parentheses, and unary +/- (including repeated
+    signs). Raises ValueError for malformed expressions and
+    ZeroDivisionError for division by zero.
+    """
+    tokens = tokenize(text)
+    pos = 0
+    length = len(tokens)
+
+    def peek() -> Optional[str]:
+        return tokens[pos] if pos < length else None
+
+    def advance() -> str:
+        nonlocal pos
+        tok = tokens[pos]
+        pos += 1
+        return tok
+
+    def parse_expression() -> float:
+        value = parse_term()
+        while peek() in ('+', '-'):
+            op = advance()
+            rhs = parse_term()
+            if op == '+':
+                value = value + rhs
+            else:
+                value = value - rhs
+        return value
+
+    def parse_term() -> float:
+        value = parse_factor()
+        while peek() in ('*', '/'):
+            op = advance()
+            rhs = parse_factor()
+            if op == '*':
+                value = value * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / rhs
+        return value
+
+    def parse_factor() -> float:
+        tok = peek()
+        if tok == '+' or tok == '-':
+            advance()
+            val = parse_factor()
+            return val if tok == '+' else -val
+        return parse_primary()
+
+    def parse_primary() -> float:
+        tok = peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+
+        if tok == '(':
+            advance()
+            val = parse_expression()
+            if peek() != ')':
+                raise ValueError("Expected closing parenthesis")
+            advance()
+            return val
+
+        if tok == ')':
+            raise ValueError("Unexpected closing parenthesis")
+
+        if tok in ('+', '-', '*', '/'):
+            raise ValueError(f"Unexpected operator {tok!r}")
+
+        # must be a number token
+        try:
+            return float(tok)
+        except ValueError:
+            raise ValueError(f"Invalid number token {tok!r}")
+
+    if length == 0:
+        raise ValueError("Empty expression")
+
+    result = parse_expression()
+
+    if pos != length:
+        raise ValueError(
+            f"Unexpected trailing tokens starting at {tokens[pos]!r}"
+        )
+
+    return result
+
+
+if __name__ == "__main__":
+    # simple manual sanity checks
+    examples = [
+        "1 + 2 * 3",
+        "(1 + 2) * 3",
+        "--5",
+        "+-5",
+        "3.14 * 2",
+        "10 / 4",
+    ]
+    for ex in examples:
+        print(ex, "=>", evaluate(ex))

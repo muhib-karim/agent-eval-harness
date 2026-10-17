@@ -1,0 +1,30 @@
+F....F..F..............F..                                               [100%]
+=================================== FAILURES ===================================
+__________________________ test_paths_and_no_mutation __________________________
+_hidden_hmmx80ae/test_000.py:12: in test_paths_and_no_mutation
+    assert get_path(data, "_x2[0][0].y") == 3
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:88: in get_path
+    raise ValueError("Identifier must follow bracket with dot")
+E   ValueError: Identifier must follow bracket with dot
+__________________________ test_default[users[0][0]] ___________________________
+_hidden_hmmx80ae/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:88: in get_path
+    raise ValueError("Identifier must follow bracket with dot")
+E   ValueError: Identifier must follow bracket with dot
+_____________________ test_invalid_even_if_missing[$name] ______________________
+_hidden_hmmx80ae/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+______________________ test_invalid_even_if_missing[\xe9] ______________________
+_hidden_hmmx80ae/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_hmmx80ae/test_000.py::test_paths_and_no_mutation - ValueError:...
+FAILED _hidden_hmmx80ae/test_000.py::test_default[users[0][0]] - ValueError: ...
+FAILED _hidden_hmmx80ae/test_000.py::test_invalid_even_if_missing[$name] - Fa...
+FAILED _hidden_hmmx80ae/test_000.py::test_invalid_even_if_missing[\xe9] - Fai...
+4 failed, 22 passed in 2.23s

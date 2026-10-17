@@ -1,0 +1,9 @@
+.......................F..                                               [100%]
+=================================== FAILURES ===================================
+______________________ test_invalid_even_if_missing[\xe9] ______________________
+_hidden_ausp6fei/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_ausp6fei/test_000.py::test_invalid_even_if_missing[\xe9] - Fai...
+1 failed, 25 passed in 1.82s

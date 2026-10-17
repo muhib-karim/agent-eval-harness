@@ -1,0 +1,60 @@
+import re
+from typing import Dict
+
+_ROMAN_MAP = [
+    (1000, 'M'),
+    (900, 'CM'),
+    (500, 'D'),
+    (400, 'CD'),
+    (100, 'C'),
+    (90, 'XC'),
+    (50, 'L'),
+    (40, 'XL'),
+    (10, 'X'),
+    (9, 'IX'),
+    (5, 'V'),
+    (4, 'IV'),
+    (1, 'I'),
+]
+
+_ROMAN_DICT: Dict[str, int] = {
+    'M': 1000, 'CM': 900, 'D': 500, 'CD': 400,
+    'C': 100, 'XC': 90, 'L': 50, 'XL': 40,
+    'X': 10, 'IX': 9, 'V': 5, 'IV': 4, 'I': 1,
+}
+
+_ROMAN_REGEX = re.compile(
+    r'^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$'
+)
+
+
+def to_roman(value: int) -> str:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError
+    if not 1 <= value <= 3999:
+        raise ValueError
+    result = ''
+    for num, roman in _ROMAN_MAP:
+        while value >= num:
+            result += roman
+            value -= num
+    return result
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str):
+        raise ValueError
+    if not _ROMAN_REGEX.match(text):
+        raise ValueError
+    value = 0
+    i = 0
+    while i < len(text):
+        if i + 1 < len(text) and text[i:i + 2] in _ROMAN_DICT:
+            value += _ROMAN_DICT[text[i:i + 2]]
+            i += 2
+        else:
+            value += _ROMAN_DICT[text[i]]
+            i += 1
+    if not 1 <= value <= 3999:
+        raise ValueError
+    return value

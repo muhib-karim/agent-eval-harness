@@ -1,0 +1,62 @@
+FFFFFF..............F...F.                                               [100%]
+=================================== FAILURES ===================================
+__________________________ test_paths_and_no_mutation __________________________
+_hidden_hes6i52q/test_000.py:10: in test_paths_and_no_mutation
+    assert get_path(data, "users[0].name") == "first"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:63: in get_path
+    raise ValueError("Malformed path")
+E   ValueError: Malformed path
+___________________________ test_default[missing.a] ____________________________
+_hidden_hes6i52q/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:63: in get_path
+    raise ValueError("Malformed path")
+E   ValueError: Malformed path
+_________________________ test_default[users[9].name] __________________________
+_hidden_hes6i52q/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:63: in get_path
+    raise ValueError("Malformed path")
+E   ValueError: Malformed path
+___________________________ test_default[users.name] ___________________________
+_hidden_hes6i52q/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:63: in get_path
+    raise ValueError("Malformed path")
+E   ValueError: Malformed path
+________________________ test_default[users[0].name[0]] ________________________
+_hidden_hes6i52q/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:63: in get_path
+    raise ValueError("Malformed path")
+E   ValueError: Malformed path
+__________________________ test_default[users[0][0]] ___________________________
+_hidden_hes6i52q/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:63: in get_path
+    raise ValueError("Malformed path")
+E   ValueError: Malformed path
+____________________ test_invalid_even_if_missing[$.a.[0]] _____________________
+_hidden_hes6i52q/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+______________________ test_invalid_even_if_missing[[0]x] ______________________
+_hidden_hes6i52q/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_hes6i52q/test_000.py::test_paths_and_no_mutation - ValueError:...
+FAILED _hidden_hes6i52q/test_000.py::test_default[missing.a] - ValueError: Ma...
+FAILED _hidden_hes6i52q/test_000.py::test_default[users[9].name] - ValueError...
+FAILED _hidden_hes6i52q/test_000.py::test_default[users.name] - ValueError: M...
+FAILED _hidden_hes6i52q/test_000.py::test_default[users[0].name[0]] - ValueEr...
+FAILED _hidden_hes6i52q/test_000.py::test_default[users[0][0]] - ValueError: ...
+FAILED _hidden_hes6i52q/test_000.py::test_invalid_even_if_missing[$.a.[0]] - ...
+FAILED _hidden_hes6i52q/test_000.py::test_invalid_even_if_missing[[0]x] - Fai...
+8 failed, 18 passed in 1.95s

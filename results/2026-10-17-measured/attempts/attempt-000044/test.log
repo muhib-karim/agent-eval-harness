@@ -1,0 +1,57 @@
+FFFFFF..............F.....                                               [100%]
+=================================== FAILURES ===================================
+__________________________ test_paths_and_no_mutation __________________________
+_hidden_kbsptuu0/test_000.py:10: in test_paths_and_no_mutation
+    assert get_path(data, "users[0].name") == "first"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:109: in get_path
+    raise ValueError(f"Unexpected character: {path[i]}")
+E   ValueError: Unexpected character: u
+___________________________ test_default[missing.a] ____________________________
+_hidden_kbsptuu0/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:109: in get_path
+    raise ValueError(f"Unexpected character: {path[i]}")
+E   ValueError: Unexpected character: m
+_________________________ test_default[users[9].name] __________________________
+_hidden_kbsptuu0/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:109: in get_path
+    raise ValueError(f"Unexpected character: {path[i]}")
+E   ValueError: Unexpected character: u
+___________________________ test_default[users.name] ___________________________
+_hidden_kbsptuu0/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:109: in get_path
+    raise ValueError(f"Unexpected character: {path[i]}")
+E   ValueError: Unexpected character: u
+________________________ test_default[users[0].name[0]] ________________________
+_hidden_kbsptuu0/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:109: in get_path
+    raise ValueError(f"Unexpected character: {path[i]}")
+E   ValueError: Unexpected character: u
+__________________________ test_default[users[0][0]] ___________________________
+_hidden_kbsptuu0/test_000.py:25: in test_default
+    assert get_path({"users": [{"name": "text"}]}, path, marker) is marker
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+solution.py:109: in get_path
+    raise ValueError(f"Unexpected character: {path[i]}")
+E   ValueError: Unexpected character: u
+____________________ test_invalid_even_if_missing[$.a.[0]] _____________________
+_hidden_kbsptuu0/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_kbsptuu0/test_000.py::test_paths_and_no_mutation - ValueError:...
+FAILED _hidden_kbsptuu0/test_000.py::test_default[missing.a] - ValueError: Un...
+FAILED _hidden_kbsptuu0/test_000.py::test_default[users[9].name] - ValueError...
+FAILED _hidden_kbsptuu0/test_000.py::test_default[users.name] - ValueError: U...
+FAILED _hidden_kbsptuu0/test_000.py::test_default[users[0].name[0]] - ValueEr...
+FAILED _hidden_kbsptuu0/test_000.py::test_default[users[0][0]] - ValueError: ...
+FAILED _hidden_kbsptuu0/test_000.py::test_invalid_even_if_missing[$.a.[0]] - ...
+7 failed, 19 passed in 2.13s

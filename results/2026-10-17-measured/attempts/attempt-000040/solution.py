@@ -1,0 +1,67 @@
+def merge_intervals(intervals):
+    """
+    Merge overlapping and touching intervals.
+
+    Args:
+        intervals: An iterable of pairs of integer endpoints
+
+    Returns:
+        A sorted list of disjoint closed intervals as tuples
+
+    Raises:
+        ValueError: If a pair has wrong length, non-integer endpoints, or start > end
+    """
+    # Convert to list to allow multiple iterations and check for empty input
+    interval_list = list(intervals)
+
+    if not interval_list:
+        return []
+
+    # Validate and convert all intervals to tuples
+    validated_intervals = []
+    for interval in interval_list:
+        # Check if it's iterable and has exactly 2 elements
+        try:
+            interval_tuple = tuple(interval)
+        except TypeError:
+            raise ValueError("Interval must be iterable")
+
+        if len(interval_tuple) != 2:
+            raise ValueError(f"Interval must have exactly 2 endpoints, got {len(interval_tuple)}")
+
+        start, end = interval_tuple
+
+        # Check that endpoints are integers (bool is a subclass of int, so explicitly reject it)
+        if isinstance(start, bool) or isinstance(end, bool):
+            raise ValueError("Endpoints must be integers, not booleans")
+
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise ValueError("Endpoints must be integers")
+
+        # Check that start <= end
+        if start > end:
+            raise ValueError(f"Start endpoint {start} cannot be greater than end endpoint {end}")
+
+        validated_intervals.append((start, end))
+
+    # Sort intervals by start point, then by end point
+    sorted_intervals = sorted(validated_intervals)
+
+    # Merge overlapping and touching intervals
+    merged = []
+    current_start, current_end = sorted_intervals[0]
+
+    for start, end in sorted_intervals[1:]:
+        # If current interval overlaps or touches the next interval, merge them
+        if start <= current_end + 1:
+            # Extend the current interval
+            current_end = max(current_end, end)
+        else:
+            # No overlap, save the current interval and start a new one
+            merged.append((current_start, current_end))
+            current_start, current_end = start, end
+
+    # Don't forget to add the last interval
+    merged.append((current_start, current_end))
+
+    return merged
