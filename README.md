@@ -19,60 +19,21 @@ tasks. Each attempt writes a Python module. The harness then grades it against p
 model never saw, and keeps the evidence: raw output, generated source, test log, and a JSONL
 record.
 
-**Results dashboard:** [measured live-model report](https://muhib-karim.github.io/agent-eval-harness/)
+**Latest measured run (17 October 2026):** six models × six tasks × three repeats, 108 graded
+attempts, pass@1 from 44.4% to 100% ([table and findings](#measured-results-live-models-17-october-2026)).
+Full [measured live-model report](https://muhib-karim.github.io/agent-eval-harness/)
 ([summary JSON](https://muhib-karim.github.io/agent-eval-harness/measured/summary.json),
 [raw attempts](results/2026-10-17-measured/)). The offline mock demo is kept separately at
 [/demo/](https://muhib-karim.github.io/agent-eval-harness/demo/).
 
-## Measured results (live models, 17 October 2026)
+## Why it exists
 
-Six models, the six bundled tasks, three repeats each: 108 attempts, every one graded against
-withheld tests in an isolated subprocess. These are real API calls, not mocks. Config:
-[`examples/measured-2026-10.yaml`](examples/measured-2026-10.yaml). Raw output, generated source
-and the pytest log for every attempt are committed under
-[`results/2026-10-17-measured/`](results/2026-10-17-measured/).
-
-| Model | pass@1 | pass@3 | Tasks solved 3/3 | Median wall time (s) | Output tokens (18 runs) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| gpt-6-sol | 100.0% | 100.0% | 6 / 6 | 10.6 | 15,301 |
-| claude-opus-5-5 | 100.0% | 100.0% | 6 / 6 | 13.5 | 22,204 |
-| claude-sonnet-5 | 72.2% | 83.3% | 4 / 6 | 20.3 | 50,167 |
-| deepseek-chat | 61.1% | 66.7% | 3 / 6 | 5.2 | 11,789 |
-| grok-4.3 | 50.0% | 50.0% | 3 / 6 | 14.9 | 7,328 |
-| claude-haiku-4-5 | 44.4% | 66.7% | 2 / 6 | 10.7 | 16,681 |
-
-pass@k is the unbiased estimator over n = 3 attempts per task, macro-averaged over tasks.
-Wall time covers generation plus grading. Cost is shown as unknown in the generated report
-because the endpoints did not return it; the harness does not guess prices.
-
-What the run shows:
-
-- **One withheld test separates the field on `arithmetic`.** Four of six models failed it on
-  every attempt, all on the same case: a full-width digit (`"\uff12"`) that must be rejected.
-  Python's `float()` and `str.isdigit()` both accept it, so a parser that leans on them typically
-  passes 30 of 31 tests and still fails the task.
-- **Interval merging is a spec-reading test.** 7 of the 8 failed `intervals` attempts merged
-  integer-adjacent ranges (`(0, 1)` and `(2, 3)` became `(0, 3)`). The specification merges only
-  overlapping ranges and touching endpoints.
-- **pass@3 above pass@1 means flaky, not wrong.** claude-sonnet-5, deepseek-chat and claude-haiku-4-5
-  solve some tasks on only one or two attempts in three; a single-sample comparison would hide that.
-- The two `claude-haiku-4-5` timeouts on `lru_ttl` are generated solutions that did not finish
-  inside the task's 5-second grading limit.
-
-Reproduce it with one command once the eight endpoint variables named in the config are set
-(`ANTHROPIC_*`, `OPENAI_*`, `DEEPSEEK_*`, `XAI_*`, each a `_BASE_URL` with the API version path
-and an `_API_KEY`):
-
-```bash
-pip install '.[grade]' && agent-eval run examples/measured-2026-10.yaml --out runs/measured
-```
-
-Provenance: the run used the 1.2.0 development tree, including the `token_param` option it
-needed for gpt-6-sol. Its `metadata.json` records `harness_version` 1.1.0 because the version
-number was bumped after the run.
-
-Limits of this run: six small Python tasks, three repeats, one day. Read it as a regression
-baseline for these tasks, not as a general ranking of the models.
+Comparing models by reading a few of their answers gives results you can't reproduce, and
+people tend to believe the answer that looks most convincing. Evaluation scripts written in a
+hurry add other problems: tests left in the agent's workspace, a single sample reported as
+"pass@k", and missing token counts shown as zero. This project handles those cases explicitly.
+Tests are copied in only after generation. Pass@k uses the unbiased estimator over repeated
+attempts. Usage and cost stay `unknown` unless the endpoint reports them.
 
 ## Key features
 
@@ -85,24 +46,7 @@ baseline for these tasks, not as a general ranking of the models.
 - **Reports** in self-contained HTML (inline SVG), Markdown and JSON.
 - **Six bundled Python tasks** with 125 hidden tests in total, plus an offline mock demo that needs no keys or network.
 
-## Inspect the demo
-
-The demo compares deterministic mock-reference and mock-wrong adapters, not real model providers. Its pass rates and timing must not be cited as live-model performance. Generated code is not sandboxed by the harness; review SECURITY.md before running untrusted output.
-
-![Captured demo report](docs/assets/demo-report.png)
-
-*Screenshot captured from the public demo on 11 October 2026. It is an example report, not a current health monitor.*
-
-## Problem
-
-Comparing models by reading a few of their answers gives results you can't reproduce, and
-people tend to believe the answer that looks most convincing. Evaluation scripts written in a
-hurry add other problems: tests left in the agent's workspace, a single sample reported as
-"pass@k", and missing token counts shown as zero. This project handles those cases explicitly.
-Tests are copied in only after generation. Pass@k uses the unbiased estimator over repeated
-attempts. Usage and cost stay `unknown` unless the endpoint reports them.
-
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
@@ -161,7 +105,6 @@ agent-eval run examples/real-models.yaml --out runs/real-comparison
 Config fields, runner options, the task format, the JSONL schema and exit codes are documented
 in [docs/reference.md](docs/reference.md).
 
-
 ### Install a release build
 
 Every tagged release carries a wheel, an sdist and `SHA256SUMS.txt`, built and tested by the [release workflow](.github/workflows/release.yml):
@@ -172,7 +115,65 @@ pip install https://github.com/muhib-karim/agent-eval-harness/releases/download/
 
 Check the file against `SHA256SUMS.txt` on the [Releases page](https://github.com/muhib-karim/agent-eval-harness/releases/latest).
 
-## Sample output
+## Measured results (live models, 17 October 2026)
+
+Six models, the six bundled tasks, three repeats each: 108 attempts, every one graded against
+withheld tests in an isolated subprocess. These are real API calls, not mocks. Config:
+[`examples/measured-2026-10.yaml`](examples/measured-2026-10.yaml). Raw output, generated source
+and the pytest log for every attempt are committed under
+[`results/2026-10-17-measured/`](results/2026-10-17-measured/).
+
+| Model | pass@1 | pass@3 | Tasks solved 3/3 | Median wall time (s) | Output tokens (18 runs) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| gpt-6-sol | 100.0% | 100.0% | 6 / 6 | 10.6 | 15,301 |
+| claude-opus-5-5 | 100.0% | 100.0% | 6 / 6 | 13.5 | 22,204 |
+| claude-sonnet-5 | 72.2% | 83.3% | 4 / 6 | 20.3 | 50,167 |
+| deepseek-chat | 61.1% | 66.7% | 3 / 6 | 5.2 | 11,789 |
+| grok-4.3 | 50.0% | 50.0% | 3 / 6 | 14.9 | 7,328 |
+| claude-haiku-4-5 | 44.4% | 66.7% | 2 / 6 | 10.7 | 16,681 |
+
+pass@k is the unbiased estimator over n = 3 attempts per task, macro-averaged over tasks.
+Wall time covers generation plus grading. Cost is shown as unknown in the generated report
+because the endpoints did not return it; the harness does not guess prices.
+
+What the run shows:
+
+- **One withheld test separates the field on `arithmetic`.** Four of six models failed it on
+  every attempt, all on the same case: a full-width digit (`"\uff12"`) that must be rejected.
+  Python's `float()` and `str.isdigit()` both accept it, so a parser that leans on them typically
+  passes 30 of 31 tests and still fails the task.
+- **Interval merging is a spec-reading test.** 7 of the 8 failed `intervals` attempts merged
+  integer-adjacent ranges (`(0, 1)` and `(2, 3)` became `(0, 3)`). The specification merges only
+  overlapping ranges and touching endpoints.
+- **pass@3 above pass@1 means flaky, not wrong.** claude-sonnet-5, deepseek-chat and claude-haiku-4-5
+  solve some tasks on only one or two attempts in three; a single-sample comparison would hide that.
+- The two `claude-haiku-4-5` timeouts on `lru_ttl` are generated solutions that did not finish
+  inside the task's 5-second grading limit.
+
+Reproduce it with one command once the eight endpoint variables named in the config are set
+(`ANTHROPIC_*`, `OPENAI_*`, `DEEPSEEK_*`, `XAI_*`, each a `_BASE_URL` with the API version path
+and an `_API_KEY`):
+
+```bash
+pip install '.[grade]' && agent-eval run examples/measured-2026-10.yaml --out runs/measured
+```
+
+Provenance: the run used the 1.2.0 development tree, including the `token_param` option it
+needed for gpt-6-sol. Its `metadata.json` records `harness_version` 1.1.0 because the version
+number was bumped after the run.
+
+Limits of this run: six small Python tasks, three repeats, one day. Read it as a regression
+baseline for these tasks, not as a general ranking of the models.
+
+## Offline demo
+
+The demo compares deterministic mock-reference and mock-wrong adapters, not real model providers. Its pass rates and timing must not be cited as live-model performance. Generated code is not sandboxed by the harness; review [SECURITY.md](SECURITY.md) before running untrusted output.
+
+![Captured demo report](docs/assets/demo-report.png)
+
+*Screenshot captured from the public demo on 11 October 2026. It is an example report, not a current health monitor.*
+
+### Sample output
 
 Captured from the offline demo on a development machine. Timings will differ on yours.
 
@@ -248,11 +249,6 @@ The bundled tasks, with hidden test counts from `agent-eval validate-task`:
   `metadata.json` stores SHA-256 hashes of the config, task specs, tests and references. JSONL is
   flushed after each attempt, so an interrupted run keeps its completed rows.
 
-## Citation
-
-If you use this harness or its results, please cite it using [`CITATION.cff`](CITATION.cff)
-(GitHub's "Cite this repository" button renders it as APA or BibTeX).
-
 ## Limitations
 
 - **No sandbox.** Generated code runs as your user with full filesystem and network access. Run
@@ -274,7 +270,7 @@ If you use this harness or its results, please cite it using [`CITATION.cff`](CI
 - Repository-level tasks graded from a patch (SWE-bench style).
 - Optional cost estimates from a versioned pricing file, labelled separately from reported cost.
 
-## Testing
+## Testing and development
 
 ```sh
 python -m pip install -e '.[dev]'
@@ -285,7 +281,15 @@ python -m build                         # sdist + wheel
 agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
 ```
 
-The same commands run in CI on Python 3.11 and 3.12.
+The Makefile wraps the same steps: `make install`, `make lint typecheck test`, `make demo`.
+
+[CI](.github/workflows/ci.yml) runs the checks on every push on Python 3.11 and 3.12 and builds
+the sdist and wheel. It also runs the offline demo from a non-editable install and uploads its
+HTML report, then builds the Docker image and runs the demo inside it with `--network none`.
+[`pages.yml`](.github/workflows/pages.yml) publishes the GitHub Pages site.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Project structure
 
@@ -294,24 +298,18 @@ src/agent_eval/        package: cli, engine, grader, process, results, report, s
   runners/             Runner protocol + registry, HTTP adapters, CLI and mock runners
   templates/           Jinja2 HTML report template
 tasks/<id>/            task.yaml, reference.py, hidden_tests.py (six bundled tasks)
-examples/              mock-demo.yaml (offline) and real-models.yaml (env-configured)
+examples/              mock-demo.yaml (offline), real-models.yaml and measured-2026-10.yaml (env-configured)
+results/               committed evidence for the 17 October 2026 measured run
 tests/                 pytest suite (no network; HTTP mocked with httpx.MockTransport)
 docs/                  reference.md, sample report, banner and screenshots
-.github/workflows/     ci.yml (checks + demo + Docker), pages.yml (demo report), release.yml
+.github/workflows/     ci.yml (checks + demo + Docker), pages.yml (Pages site), release.yml
 ```
 
-## Development
+## Citation
 
-```sh
-make install                  # venv + editable install with dev extras
-make lint typecheck test      # ruff check/format, mypy --strict, pytest with branch coverage
-make demo
-```
+If you use this harness or its results, please cite it using [`CITATION.cff`](CITATION.cff)
+(GitHub's "Cite this repository" button renders it as APA or BibTeX).
 
-The test suite (pytest with branch coverage, gate 85% in `pyproject.toml`) runs in CI on every push.
-CI (`.github/workflows/ci.yml`) runs these checks on Python 3.11 and 3.12 and builds the sdist
-and wheel. It also runs the offline demo from a non-editable install and uploads its HTML
-report, publishes that report to GitHub Pages, then builds the Docker image and runs the demo inside it with `--network none`.
+## License
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
-[CHANGELOG.md](CHANGELOG.md). MIT licensed.
+MIT. See [LICENSE](LICENSE).
