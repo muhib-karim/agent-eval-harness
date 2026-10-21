@@ -22,7 +22,7 @@ from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
 from agent_eval.runners import create_runner
 from agent_eval.runners.base import Generation, Runner, RunnerError
-from agent_eval.runners.local import MockOptions
+from agent_eval.runners.local import CLIOptions, MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
 
@@ -62,6 +62,12 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
         for name, value in model.options.items()
         if name == "api_key_env" and isinstance(value, str) and os.environ.get(value)
     ]
+    # Credentials forwarded to agent CLIs; short values are skipped to avoid redacting noise.
+    for model in config.models:
+        if model.runner == "cli":
+            for name in CLIOptions.model_validate(model.options).passthrough_names():
+                if len(os.environ.get(name, "")) >= 8:
+                    secrets.append(os.environ[name])
 
     def redact(value: str) -> str:
         for secret in sorted(secrets, key=len, reverse=True):
