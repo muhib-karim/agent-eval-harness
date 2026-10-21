@@ -7,10 +7,12 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -24,12 +26,22 @@ from agent_eval.runners.local import MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
 
-async def validate_task(path: Path) -> Grade:
-    task = load_task(path, require_reference=True)
+async def validate_task(path: Path, reference: Path | None = None) -> Grade:
+    """Grade a reference solution: the task's own ``reference`` file or an external one."""
+    task = load_task(path, require_reference=reference is None)
+    source = task_file(path, task.reference) if reference is None else reference
     with tempfile.TemporaryDirectory(prefix="agent-eval-validate-") as directory:
         workdir = Path(directory)
-        (workdir / task.entrypoint).write_bytes(task_file(path, task.reference).read_bytes())
+        (workdir / task.entrypoint).write_bytes(source.read_bytes())
         return await grade(task, path, workdir)
+
+
+def _resolve_options(runner: str, options: dict[str, Any], base: Path) -> dict[str, Any]:
+    """Make the mock runner's ``reference_dir`` relative to the config, not the CWD."""
+    reference_dir = options.get("reference_dir")
+    if runner == "mock" and isinstance(reference_dir, str):
+        return {**options, "reference_dir": str((base / reference_dir).resolve())}
+    return options
 
 
 async def run_config(config_path: Path, out: Path) -> list[Attempt]:
@@ -39,9 +51,10 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
     # Validate every runner before creating a run directory or starting any generation.
     jobs: list[tuple[str, str, Path, TaskSpec, int, Runner]] = []
     for model in config.models:
+        options = _resolve_options(model.runner, model.options, config_path.parent)
         for task_path, task in tasks:
             for repeat in range(1, config.repeats + 1):
-                runner = create_runner(model.runner, model.options, task_path=task_path)
+                runner = create_runner(model.runner, options, task_path=task_path)
                 jobs.append((model.name, model.runner, task_path, task, repeat, runner))
     secrets = [
         os.environ[value]
@@ -65,13 +78,20 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
         sources = [path, *(task_file(path, name) for name in task.hidden_tests)]
+        if task.starter is not None:
+            sources.append(task_file(path, task.starter))
         if (path.parent / task.reference).is_file():
             sources.append(task_file(path, task.reference))
         for model in config.models:
             if model.runner == "mock":
-                options = MockOptions.model_validate(model.options)
-                if options.variant == "reference" and task.id in options.fixtures:
-                    sources.append(task_file(path, options.fixtures[task.id]))
+                mock = MockOptions.model_validate(
+                    _resolve_options(model.runner, model.options, config_path.parent)
+                )
+                reference = mock.reference_file(task.id)
+                if mock.variant == "reference" and task.id in mock.fixtures:
+                    sources.append(task_file(path, mock.fixtures[task.id]))
+                elif mock.variant == "reference" and reference and reference.is_file():
+                    sources.append(reference)
         hashes[task.id] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     metadata = {
         "schema_version": "1.0",
@@ -104,6 +124,10 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
                 with tempfile.TemporaryDirectory(prefix="agent-eval-") as directory:
                     workdir = Path(directory)
                     try:
+                        if task.starter is not None:
+                            shutil.copyfile(
+                                task_file(task_path, task.starter), workdir / task.entrypoint
+                            )
                         generated = await runner.generate(task, workdir)
                         generation_end = time.perf_counter()
                         graded = await grade(task, task_path, workdir)

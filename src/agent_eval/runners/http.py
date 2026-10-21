@@ -11,7 +11,13 @@ from typing import Any, Literal
 import httpx
 from pydantic import Field
 
-from agent_eval.runners.base import Generation, RunnerError, extract_code, generation_prompt
+from agent_eval.runners.base import (
+    Generation,
+    RunnerError,
+    extract_code,
+    generation_prompt,
+    starter_source,
+)
 from agent_eval.specs import PositiveSeconds, StrictModel, TaskSpec
 
 
@@ -51,7 +57,9 @@ class HTTPRunner:
         )
         payload: dict[str, Any] = {
             "model": opts.model,
-            "messages": [{"role": "user", "content": generation_prompt(task)}],
+            "messages": [
+                {"role": "user", "content": generation_prompt(task, starter_source(task, workdir))}
+            ],
         }
         payload[opts.token_param] = opts.max_tokens
         if opts.temperature is not None:

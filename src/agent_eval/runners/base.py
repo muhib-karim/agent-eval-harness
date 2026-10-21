@@ -70,8 +70,23 @@ def _language(info: str) -> str:
     return words[0].lstrip(".").lower() if words else ""
 
 
-def generation_prompt(task: TaskSpec) -> str:
+def generation_prompt(task: TaskSpec, starter_source: str | None = None) -> str:
+    if starter_source is None:
+        return (
+            f"Implement this Python task in {task.entrypoint}. "
+            "Use only the Python standard library.\n"
+            "Return the complete source code in a single Python code block.\n\n" + task.prompt
+        )
     return (
-        f"Implement this Python task in {task.entrypoint}. Use only the Python standard library.\n"
-        "Return the complete source code in a single Python code block.\n\n" + task.prompt
+        f"Fix the bug described below in {task.entrypoint}. Use only the Python standard library.\n"
+        "Return the complete fixed module in a single Python code block.\n\n"
+        f"{task.prompt}\n\nCurrent {task.entrypoint}:\n\n```python\n{starter_source}```\n"
     )
+
+
+def starter_source(task: TaskSpec, workdir: Path) -> str | None:
+    """The bug-fix starter the engine placed at the entrypoint, if the task has one."""
+    if task.starter is None:
+        return None
+    path = workdir / task.entrypoint
+    return path.read_text(encoding="utf-8") if path.is_file() else None

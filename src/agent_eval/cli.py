@@ -45,6 +45,9 @@ def parser() -> argparse.ArgumentParser:
     listing.add_argument("patterns", nargs="*", default=["tasks/*/task.yaml"])
     validate = sub.add_parser("validate-task", help="grade a task's reference implementation")
     validate.add_argument("path", type=Path)
+    validate.add_argument(
+        "--reference", type=Path, help="solution file to grade instead of the task's reference"
+    )
     return root
 
 
@@ -104,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
             for path, task in discover_tasks(args.patterns, Path.cwd()):
                 print(f"{task.id}\t{task.title}\t{path}")
         else:
-            result = asyncio.run(validate_task(args.path))
+            result = asyncio.run(validate_task(args.path, args.reference))
             print(f"{result.outcome}: {result.passed}/{result.total} tests passed")
             if result.outcome != "pass":
                 print(result.log, file=sys.stderr)

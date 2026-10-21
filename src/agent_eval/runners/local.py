@@ -41,10 +41,12 @@ class CLIRunner:
 
     async def generate(self, task: TaskSpec, workdir: Path) -> Generation:
         prompt_file = workdir / "_agent_prompt.txt"
-        prompt_file.write_text(
-            f"Write your Python implementation to {task.entrypoint}.\n\n{task.prompt}",
-            encoding="utf-8",
+        instruction = (
+            f"Fix the bug described below in {task.entrypoint}, which is in this directory."
+            if task.starter
+            else f"Write your Python implementation to {task.entrypoint}."
         )
+        prompt_file.write_text(f"{instruction}\n\n{task.prompt}", encoding="utf-8")
         args = [
             part.format(
                 prompt_file=str(prompt_file), workdir=str(workdir), entrypoint=task.entrypoint
@@ -67,6 +69,14 @@ class CLIRunner:
 class MockOptions(StrictModel):
     variant: Literal["reference", "wrong"] = "reference"
     fixtures: dict[str, str] = Field(default_factory=dict)
+    # Directory of ``<task_id>.py`` solutions kept outside the task directories.
+    # The engine resolves a relative path against the run config's directory.
+    reference_dir: str | None = None
+
+    def reference_file(self, task_id: str) -> Path | None:
+        if self.reference_dir is None:
+            return None
+        return Path(self.reference_dir) / f"{task_id}.py"
 
 
 class MockRunner:
@@ -80,8 +90,13 @@ class MockRunner:
                 "# Deliberately wrong offline fixture.\n"
                 "def __getattr__(name):\n    return lambda *args, **kwargs: None\n"
             )
+        elif task.id in self.options.fixtures:
+            code = task_file(self.task_path, self.options.fixtures[task.id]).read_text("utf-8")
+        elif (reference := self.options.reference_file(task.id)) is not None:
+            if not reference.is_file():
+                raise RunnerError(f"no reference solution for task {task.id}")
+            code = reference.read_text(encoding="utf-8")
         else:
-            filename = self.options.fixtures.get(task.id, task.reference)
-            code = task_file(self.task_path, filename).read_text(encoding="utf-8")
+            code = task_file(self.task_path, task.reference).read_text(encoding="utf-8")
         (workdir / task.entrypoint).write_text(code, encoding="utf-8")
         return Generation(code)

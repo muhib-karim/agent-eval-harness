@@ -25,6 +25,8 @@ class TaskSpec(StrictModel):
     entrypoint: str
     hidden_tests: list[str] = Field(min_length=1)
     reference: str = "reference.py"
+    # Bug-fix tasks ship the code to repair. It is placed at the entrypoint before generation.
+    starter: str | None = None
     timeout_s: PositiveSeconds = 10
     tags: list[str] = Field(default_factory=list)
     # Groups tasks in the per-category breakdown; reports call missing ones "uncategorized".
@@ -97,6 +99,8 @@ def load_task(path: Path, *, require_reference: bool = False) -> TaskSpec:
         raise ValueError("hidden_tests contains duplicates")
     for filename in spec.hidden_tests:
         task_file(path, filename)
+    if spec.starter is not None:
+        task_file(path, spec.starter)
     if require_reference:
         task_file(path, spec.reference)
     return spec
