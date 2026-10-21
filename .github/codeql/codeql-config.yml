@@ -1,0 +1,13 @@
+name: agent-eval-harness CodeQL config
+
+# Evaluation data is not project code, so it is not scanned:
+# - results/**: modules written by the evaluated models, plus replies and test logs, committed
+#   byte-for-byte as evidence of each measured run. Alerts there describe what a model wrote,
+#   and the files must not be edited to silence them.
+# - tasks/*/starter.py: the deliberately buggy modules that bug-fix tasks ask a model to repair.
+# - runs/**: local run output (git-ignored), listed in case a scan runs on a working tree.
+# The harness itself, the hidden tests and the reference solutions stay in scope.
+paths-ignore:
+  - results/**
+  - runs/**
+  - tasks/*/starter.py
