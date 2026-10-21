@@ -27,6 +27,11 @@ def parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="execute a run and write results plus an HTML report")
     run.add_argument("config", type=Path)
     run.add_argument("--out", type=Path)
+    run.add_argument(
+        "--resume",
+        action="store_true",
+        help="continue an interrupted run in --out, running only unrecorded attempts",
+    )
     report = sub.add_parser("report", help="render saved attempts")
     report.add_argument("results", type=Path)
     report.add_argument("--format", choices=["md", "html", "json"], default="md")
@@ -84,8 +89,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         if args.command == "run":
+            if args.resume and args.out is None:
+                raise ValueError("--resume needs --out")
             out = args.out or Path("runs") / datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-            attempts = asyncio.run(run_config(args.config, out))
+            attempts = asyncio.run(run_config(args.config, out, resume=args.resume))
             passed = sum(row.outcome == "pass" for row in attempts)
             print(
                 f"Completed {len(attempts)} attempts; {passed} passed. "
