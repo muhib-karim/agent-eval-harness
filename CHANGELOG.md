@@ -29,6 +29,12 @@ All notable changes are recorded here. The format follows
   `{prompt}` placeholder, `isolate_home` for an empty private `HOME`, and token/cost parsing from
   Claude Code's JSON output. Tested with a fake CLI.
 - Mock runner `reference_dir` option; `agent-eval validate-task --reference PATH`.
+- `agent-eval run --resume` continues an interrupted run: it requires an unchanged config and task
+  hashes, keeps every recorded attempt (errors included) and runs only the missing ones.
+- Second measured run, 21 October 2026: six models × 16 tasks × three repeats (288 attempts)
+  under `results/2026-10-21-measured/`, with reports and a `METHODOLOGY.md` that records model
+  selection and every failure. The README and the Pages landing page show it; the 17 October run
+  stays published under `/history/2026-10-17/`.
 - CI quality gates: named ruff lint/format and strict mypy steps, coverage summary and artifact
   (gate stays at 85%), a gitleaks job, a CodeQL workflow and Dependabot for pip and GitHub
   Actions.
@@ -44,6 +50,9 @@ All notable changes are recorded here. The format follows
   `tests/fixtures/reference/<task_id>.py`; the offline demo reads them through `reference_dir`.
 - The results JSONL gains an optional `category` field. The change is additive: older result
   files still load (as `uncategorized`) and `schema_version` stays `"1.0"`.
+- README rewritten around the new run: badges, a Showcase screenshot of the new report, a task
+  catalogue and an updated architecture diagram. The release install line includes the `grade`
+  extra, which grading needs. `docs/sample-report.md` now shows the 16-task demo.
 - `results/2026-10-17-measured/report.md` regenerated from the unchanged `results.jsonl` with
   the new statistics; no measured value changed.
 
