@@ -1,6 +1,6 @@
 # Handoff: agent-eval-harness v1.3.0
 
-Branch `upgrade/v1.3.0`: 26 commits on top of `main` (d44e4e1), all authored and committed as
+Branch `upgrade/v1.3.0`: 31 commits on top of `main` (d44e4e1), all authored and committed as
 Muhib Karim. Work was done in five slices by Claude Code with model **claude-opus-5-5**. Item
 status: [TASKS.md](TASKS.md). Release text: [RELEASE_NOTES_v1.3.0.md](RELEASE_NOTES_v1.3.0.md).
 
@@ -91,6 +91,33 @@ change only a Markdown file and the tag-triggered release workflow.
 - The agent-CLI presets against the real claude / codex / opencode binaries (tested with a fake
   CLI only).
 
+## Slice 6: CodeQL on PR #3
+
+The PR's CodeQL check reported new alerts, nearly all in `results/*/attempts/*/solution.py`
+(model-written code, including the only high, `py/redos`, and the only error, `py/syntax-error`).
+Commits 669f84e..7deebb1:
+
+- `.github/codeql/codeql-config.yml` with `paths-ignore` for `results/**`, `runs/**` and
+  `tasks/*/starter.py`, wired into `codeql.yml` via `config-file`. The reason is documented in
+  CONTRIBUTING ("Code scanning") and the README. Recorded outputs stay byte-for-byte.
+- Fixed in harness code: `py/multiple-definition` (engine.py, a dead `generation_end`
+  initialiser), `py/implicit-string-concatenation-in-list` (grader.py, now a named constant),
+  `py/ineffectual-statement` ×2 (runners/base.py, protocol bodies are now docstrings) and one more in
+  `tests/test_grader.py` (bare `await` replaced by `asyncio.wait_for`). No behaviour change.
+- Left on purpose, because editing would break the measured run's hashes and each finding is
+  intended or a false positive (reasons in CONTRIBUTING): `tasks/undo_buffer/hidden_tests.py`
+  unreachable-statement (false positive: `pytest.raises` swallows the exception);
+  `tasks/fix_binary_search/hidden_tests.py` missing-equals and raise-in-special-method (the
+  read-counting `Probe` is never compared, and its `__iter__` raises on purpose to enforce
+  O(log n)); `tasks/ledger/hidden_tests.py` catch-base-exception (thread errors are collected and
+  asserted empty). These are warning/note severity. If the check still flags them, dismiss them
+  in the code-scanning UI as "used in tests" or "false positive".
+- Verified: no file under `tasks/` or `examples/` changed; all 36 task-file hashes and the config
+  hash in `results/2026-10-21-measured/metadata.json` still match. ruff and `ruff format
+  --check` are clean; `mypy --strict` reports no issues in 29 files; pytest gives 229 passed with
+  98.94% coverage; gitleaks on `d44e4e1..HEAD` and the tree finds no leaks. Not verified
+  locally: the CodeQL run itself with the new config (runs on push).
+
 ## Remaining issues and follow-ups
 
 - **Extraction rule.** Replies with several Python blocks are joined (documented). For
@@ -110,8 +137,8 @@ change only a Markdown file and the tag-triggered release workflow.
 
 ## For the coordinator
 
-1. Push `upgrade/v1.3.0` (two new commits after 4e48f9b, plus this handoff commit) and confirm
-   CI, CodeQL and gitleaks are green on the new head.
+1. Push `upgrade/v1.3.0` (the slice 6 commits after ebceb83) and confirm CI, CodeQL and gitleaks
+   are green on the new head.
 2. Open the PR to `main` and merge after review.
 3. Tag `v1.3.0` on the merge commit. The release workflow builds and tests the wheel and sdist,
    writes `SHA256SUMS.txt`, and publishes `RELEASE_NOTES_v1.3.0.md` as the release body. The
