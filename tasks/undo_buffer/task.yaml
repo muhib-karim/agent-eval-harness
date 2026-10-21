@@ -1,0 +1,25 @@
+id: undo_buffer
+title: Text buffer with undo, redo and grouped edits
+category: stateful
+prompt: |
+  Implement class TextBuffer(text: str = "") with:
+  - text property (read-only str) with the current contents;
+  - insert(index: int, s: str) inserts s before position index (0 <= index <= len(text));
+  - delete(start: int, end: int) removes text[start:end] (0 <= start <= end <= len(text));
+  - undo() -> bool reverts the most recent edit or group; returns False if nothing to undo;
+  - redo() -> bool re-applies the most recently undone edit or group; False if none;
+  - group() is a context manager: all edits inside one `with buf.group():` block undo and
+    redo as a single step. Nested groups merge into the outermost one. A group containing
+    no effective edits records nothing. If the block raises, its edits are rolled back,
+    nothing is recorded and the exception propagates.
+  Out-of-range or reversed positions, non-int positions (bool is invalid) or a non-str s
+  raise ValueError without changing state. Inserting "" or deleting an empty range is a
+  no-op that records nothing and does not clear redo history. Any other new edit clears
+  the redo history. Undo history is unbounded.
+entrypoint: solution.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- undo
+- context-managers

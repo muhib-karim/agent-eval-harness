@@ -1,0 +1,31 @@
+id: ledger
+title: Thread-safe account ledger
+category: stateful
+prompt: |
+  Implement a thread-safe in-memory ledger.
+
+  class InsufficientFunds(ValueError) and class Ledger with:
+  - open(account: str, balance: int = 0): create an account. Account ids are non-empty
+    str; balance is a non-negative int (bool invalid). Opening an existing account, or
+    invalid arguments, raise ValueError.
+  - balance(account) -> int; unknown account raises KeyError.
+  - deposit(account, amount) and withdraw(account, amount): amount is a positive int
+    (bool invalid) else ValueError; unknown account raises KeyError; a withdrawal that
+    would make the balance negative raises InsufficientFunds and changes nothing.
+  - transfer(src, dst, amount): atomic move between two different accounts (src == dst
+    raises ValueError). Same validation as above; on any error nothing changes.
+  - total() -> int: the sum of all balances, as a consistent snapshot (never observes a
+    transfer half-done).
+  - history(account) -> list of (kind, amount) tuples in the order applied, where kind is
+    "open", "deposit", "withdraw", "transfer_in" or "transfer_out"; failed operations are
+    not recorded. Return a copy.
+
+  Every method may be called concurrently from many threads. Transfers in opposite
+  directions between the same accounts must never deadlock. Do not use the real clock.
+entrypoint: solution.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 20
+tags:
+- threads
+- atomicity

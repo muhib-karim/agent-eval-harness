@@ -1,0 +1,22 @@
+id: levenshtein
+title: Levenshtein distance with an early-exit bound
+category: algorithms
+prompt: |
+  Implement levenshtein(a: str, b: str, max_distance: int | None = None) -> int.
+
+  Return the minimum number of single-character insertions, deletions and substitutions
+  that turn a into b. Characters are Unicode code points; comparison is case-sensitive.
+
+  If max_distance is given (a non-negative int, not bool) and the true distance exceeds it,
+  return max_distance + 1 instead; otherwise return the true distance. A negative or
+  non-int max_distance raises ValueError. If a or b is not a str, raise TypeError.
+
+  Use O(min(len(a), len(b))) extra memory. Two 1,000-character strings must finish well
+  under a few seconds; with a small max_distance, two 20,000-character strings must too.
+entrypoint: solution.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 10
+tags:
+- dynamic-programming
+- strings

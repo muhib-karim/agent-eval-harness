@@ -1,0 +1,22 @@
+id: topo_sort
+title: Deterministic topological order
+category: algorithms
+prompt: |
+  Implement topo_sort(graph) -> list.
+
+  graph maps each node to an iterable of the nodes it depends on. Return every node exactly
+  once, dependencies before dependents. Nodes that appear only as dependencies are included.
+  When several nodes are ready at the same time, emit the smallest first (nodes are mutually
+  comparable, e.g. all str or all int), so the result is the lexicographically smallest valid
+  order. Duplicate dependencies are allowed and count once.
+
+  If the graph has a cycle (including a node depending on itself), raise ValueError.
+  Do not mutate the input. Must handle graphs of 10,000 nodes in a long chain (no recursion
+  limit problems). An empty graph returns [].
+entrypoint: solution.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 10
+tags:
+- graphs
+- determinism

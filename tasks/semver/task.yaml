@@ -1,0 +1,29 @@
+id: semver
+title: Semantic Versioning 2.0.0 parse and precedence
+category: parsing
+prompt: |
+  Implement parse(text: str) -> tuple and compare(a: str, b: str) -> int following
+  Semantic Versioning 2.0.0 exactly.
+
+  parse returns (major, minor, patch, prerelease, build) where major/minor/patch are ints,
+  prerelease is a tuple of identifiers (numeric identifiers as int, others as str) and build
+  is a tuple of str. Missing prerelease or build gives ().
+
+  Valid: MAJOR.MINOR.PATCH with non-negative decimal integers without leading zeroes
+  ("0" is fine, "01" is not), optional "-" prerelease and optional "+" build metadata.
+  Identifiers are non-empty and use only [0-9A-Za-z-]. Numeric prerelease identifiers must
+  not have leading zeroes; build identifiers may. No "v" prefix and no surrounding
+  whitespace. Anything else, or a non-str input, raises ValueError.
+
+  compare returns -1, 0 or 1 by SemVer precedence: numeric fields first; a version with a
+  prerelease is lower than the same version without; prerelease identifiers compare left to
+  right, numeric ones numerically, alphanumeric ones in ASCII order, numeric lower than
+  alphanumeric, and a shorter list is lower when all preceding identifiers are equal.
+  Build metadata is ignored for precedence.
+entrypoint: solution.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- versions
+- spec-compliance
