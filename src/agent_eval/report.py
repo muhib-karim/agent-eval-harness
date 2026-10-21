@@ -30,20 +30,26 @@ def render_report(summary: Summary, fmt: ReportFormat) -> str:
     if fmt == "json":
         return summary_json(summary)
     if fmt == "md":
+        boot = summary.bootstrap
+        level = f"{boot.confidence:.0%}"
         lines = [
             "# Coding task comparison",
             "",
             f"{summary.attempts} attempts. Pass rates are task-macro-averaged. "
             "Missing usage is unknown.",
             "",
-            "| Model | Pass@1 | Pass@k | Mean (s) | Median (s) | "
+            f"{level} CI: {boot.method}, {boot.resamples} resamples, seed {boot.seed}.",
+            "",
+            f"| Model | Pass@1 | {level} CI | Pass@k | Mean (s) | Median (s) | "
             "Input / output tokens | Cost (USD) |",
-            "| --- | ---: | --- | ---: | ---: | --- | --- |",
+            "| --- | ---: | ---: | --- | ---: | ---: | --- | --- |",
         ]
         for model in summary.models:
             estimates = ", ".join(f"{k}: {v:.1%}" for k, v in model.pass_at_k.items())
+            low, high = model.pass_at_1_ci
             lines.append(
-                f"| {_md(model.model)} | {model.pass_at_1:.1%} | {estimates} | "
+                f"| {_md(model.model)} | {model.pass_at_1:.1%} | {low:.1%}–{high:.1%} | "
+                f"{estimates} | "
                 f"{model.mean_wall_time_s:.3f} | {model.median_wall_time_s:.3f} | "
                 f"{_count(model.input_tokens)} / {_count(model.output_tokens)} | "
                 f"{format_usd(model.cost_usd)} |"
@@ -57,6 +63,27 @@ def render_report(summary: Summary, fmt: ReportFormat) -> str:
                 score = next((s for s in model.tasks if s.task_id == task), None)
                 cells.append(f"{score.passed}/{score.attempts}" if score else "—")
             lines.append(f"| {_md(task)} | " + " | ".join(cells) + " |")
+        categories = sorted(set(summary.task_categories.values()))
+        lines.extend(["", "## Pass@1 by category", ""])
+        lines.append(
+            "| Category | Tasks | " + " | ".join(_md(m.model) for m in summary.models) + " |"
+        )
+        lines.append("| --- | ---: | " + " | ".join("---:" for _ in summary.models) + " |")
+        for category in categories:
+            count = sum(c == category for c in summary.task_categories.values())
+            cells = []
+            for model in summary.models:
+                found = next((c for c in model.categories if c.category == category), None)
+                cells.append(f"{found.pass_at_1:.1%}" if found else "—")
+            lines.append(f"| {_md(category)} | {count} | " + " | ".join(cells) + " |")
+        if summary.comparisons:
+            lines.extend(["", "## Paired comparisons where intervals overlap", ""])
+            for item in summary.comparisons:
+                lines.append(
+                    f"- {_md(item.model_a)} − {_md(item.model_b)}: {item.diff:+.1%} "
+                    f"(paired {level} CI {item.ci_low:+.1%} to {item.ci_high:+.1%}). "
+                    f"{_md(item.note)}"
+                )
         lines.extend(
             [
                 "",

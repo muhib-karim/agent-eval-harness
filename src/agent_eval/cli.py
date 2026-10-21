@@ -15,6 +15,7 @@ from agent_eval.engine import run_config, validate_task
 from agent_eval.report import ReportFormat, render_report
 from agent_eval.results import load_attempts, summarize
 from agent_eval.specs import discover_tasks
+from agent_eval.stats import DEFAULT_RESAMPLES, DEFAULT_SEED
 
 
 def parser() -> argparse.ArgumentParser:
@@ -31,6 +32,15 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--format", choices=["md", "html", "json"], default="md")
     report.add_argument("--out", type=Path)
     report.add_argument("--k", type=int, action="append", help="pass@k to include; repeatable")
+    report.add_argument(
+        "--seed", type=int, default=DEFAULT_SEED, help="bootstrap seed (default: %(default)s)"
+    )
+    report.add_argument(
+        "--resamples",
+        type=int,
+        default=DEFAULT_RESAMPLES,
+        help="bootstrap resamples (default: %(default)s)",
+    )
     listing = sub.add_parser("list-tasks", help="list matching task specs")
     listing.add_argument("patterns", nargs="*", default=["tasks/*/task.yaml"])
     validate = sub.add_parser("validate-task", help="grade a task's reference implementation")
@@ -79,7 +89,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"Report: {out / 'report.html'}"
             )
         elif args.command == "report":
-            summary = summarize(load_attempts(args.results), tuple(args.k or (1, 2, 5, 10)))
+            summary = summarize(
+                load_attempts(args.results),
+                tuple(args.k or (1, 2, 5, 10)),
+                seed=args.seed,
+                resamples=args.resamples,
+            )
             report = render_report(summary, cast(ReportFormat, args.format))
             if args.out:
                 args.out.write_text(report, encoding="utf-8")

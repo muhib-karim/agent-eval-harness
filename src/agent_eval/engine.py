@@ -143,6 +143,7 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
                     cost_usd=generated.cost_usd,
                     error=redact(error) if error else None,
                     artifacts=str(artifact_dir.relative_to(out)),
+                    category=task.category,
                 )
                 stream.write(attempt.model_dump_json() + "\n")
                 stream.flush()

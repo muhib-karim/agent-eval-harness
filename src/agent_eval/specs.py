@@ -27,6 +27,8 @@ class TaskSpec(StrictModel):
     reference: str = "reference.py"
     timeout_s: PositiveSeconds = 10
     tags: list[str] = Field(default_factory=list)
+    # Groups tasks in the per-category breakdown; reports call missing ones "uncategorized".
+    category: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]*$")
 
     @field_validator("entrypoint")
     @classmethod

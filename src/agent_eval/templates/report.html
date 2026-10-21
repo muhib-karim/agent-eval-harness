@@ -30,16 +30,22 @@ footer { border-top: 1px solid #ccd8e2; margin-top: 3rem; padding-top: 1rem; }
 <h2>Leaderboard</h2>
 <p>Pass rates average each observed task equally. Pass@k is shown only when every observed task for that model has at least k attempts. Models with different task sets are not directly comparable.</p>
 <div class="table-wrap"><table>
-<thead><tr><th scope="col">Model</th><th scope="col">Pass@1</th><th scope="col">Pass@k</th><th scope="col">Mean / median (s)</th><th scope="col">Tokens in / out</th><th scope="col">Reported USD</th></tr></thead>
+<thead><tr><th scope="col">Model</th><th scope="col">Pass@1</th><th scope="col">{{ '%.0f'|format(summary.bootstrap.confidence * 100) }}% CI</th><th scope="col">Pass@k</th><th scope="col">Mean / median (s)</th><th scope="col">Tokens in / out</th><th scope="col">Reported USD</th></tr></thead>
 <tbody>{% for model in summary.models %}<tr>
 <td>{{ model.model }}<small>{{ model.passed }}/{{ model.attempts }} passes</small></td>
 <td class="score">{{ '%.1f'|format(model.pass_at_1 * 100) }}%</td>
+<td>{{ '%.1f'|format(model.pass_at_1_ci[0] * 100) }}–{{ '%.1f'|format(model.pass_at_1_ci[1] * 100) }}%</td>
 <td>{% for k, value in model.pass_at_k.items() %}<small>@{{ k }}: {{ '%.1f'|format(value * 100) }}%</small>{% endfor %}</td>
 <td>{{ '%.3f'|format(model.mean_wall_time_s) }} / {{ '%.3f'|format(model.median_wall_time_s) }}</td>
 <td>{{ model.input_tokens if model.input_tokens is not none else 'unknown' }} / {{ model.output_tokens if model.output_tokens is not none else 'unknown' }}<small>Reported: {{ model.input_tokens_reported }}/{{ model.attempts }} in; {{ model.output_tokens_reported }}/{{ model.attempts }} out</small></td>
 <td>{{ model.cost_usd|usd }}<small>{{ model.cost_reported }}/{{ model.attempts }} reported</small></td>
 </tr>{% endfor %}</tbody></table></div>
+<p>Intervals: {{ summary.bootstrap.method }}, {{ summary.bootstrap.resamples }} resamples, seed {{ summary.bootstrap.seed }}.</p>
+{% if summary.comparisons %}<ul>{% for item in summary.comparisons %}<li>{{ item.note }} Paired difference {{ '%+.1f'|format(item.diff * 100) }} points ({{ '%+.1f'|format(item.ci_low * 100) }} to {{ '%+.1f'|format(item.ci_high * 100) }}).</li>{% endfor %}</ul>{% endif %}
 <p>Usage totals include only reported values; partial totals are not estimates of the missing usage. Timing includes generation and grading.</p>
+<h2>Pass@1 by category</h2>
+<div class="table-wrap"><table><thead><tr><th scope="col">Category</th>{% for model in summary.models %}<th scope="col">{{ model.model }}</th>{% endfor %}</tr></thead>
+<tbody>{% for category in summary.task_categories.values()|unique|sort %}<tr><th scope="row">{{ category }}</th>{% for model in summary.models %}<td>{% set matching = model.categories|selectattr('category', 'equalto', category)|list %}{% if matching %}{{ '%.1f'|format(matching[0].pass_at_1 * 100) }}%{% else %}—{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
 <h2>Per-task pass matrix</h2>
 <div class="table-wrap"><table><thead><tr><th scope="col">Task</th>{% for model in summary.models %}<th scope="col">{{ model.model }}</th>{% endfor %}</tr></thead>
 <tbody>{% for task in summary.task_ids %}<tr><th scope="row">{{ task }}</th>{% for model in summary.models %}<td>{% set matching = model.tasks|selectattr('task_id', 'equalto', task)|list %}{% if matching %}{{ matching[0].passed }}/{{ matching[0].attempts }}{% else %}—{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
