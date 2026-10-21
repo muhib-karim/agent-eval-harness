@@ -331,7 +331,9 @@ The Makefile wraps the same steps: `make install`, `make lint typecheck test`, `
 gate on Python 3.11 and 3.12, builds the sdist and wheel, runs the offline demo from a
 non-editable install, builds the Docker image and runs the demo inside it with
 `--network none`, and scans the history with gitleaks. [CodeQL](.github/workflows/codeql.yml)
-runs on pushes, pull requests and weekly, and Dependabot keeps pip and Actions dependencies current.
+runs on pushes, pull requests and weekly; recorded model outputs under `results/` are evaluation
+data and are excluded from scanning ([why](CONTRIBUTING.md#code-scanning)). Dependabot keeps pip
+and Actions dependencies current.
 [`pages.yml`](.github/workflows/pages.yml) publishes the project site from `main`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
