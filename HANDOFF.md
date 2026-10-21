@@ -1,130 +1,119 @@
-# Handoff: v1.3.0 upgrade (in progress)
+# Handoff: agent-eval-harness v1.3.0
 
-Branch `upgrade/v1.3.0`. Model used in these sessions: **claude-opus-5-5** (Claude Code).
-Status by item: see `TASKS.md`. Items 1–8 are done; only the final push with green CI (10) remains.
+Branch `upgrade/v1.3.0`: 26 commits on top of `main` (d44e4e1), all authored and committed as
+Muhib Karim. Work was done in five slices by Claude Code with model **claude-opus-5-5**. Item
+status: [TASKS.md](TASKS.md). Release text: [RELEASE_NOTES_v1.3.0.md](RELEASE_NOTES_v1.3.0.md).
 
-## What changed
+**State:** acceptance items 1–9 are done. Item 10 is handed to the coordinator: push the two
+slice 5 commits (local head, after 4e48f9b), open the PR, merge after CI is green, then tag
+`v1.3.0`. The last pushed head, 4e48f9b, is green on CI and CodeQL.
 
-### Slice 1 (pushed, head 611997a)
-- `stats.py`: seeded task-level percentile bootstrap (seed 20261021, 2000 resamples, 95%) for
-  pass@1; paired bootstrap of the difference for every model pair whose intervals overlap.
-- `Summary` gains `pass_at_1_ci`, per-category scores, `task_categories`, `bootstrap`,
-  `comparisons`. `Attempt.category` is optional (additive); old result files load as
-  `uncategorized`. `report --seed/--resamples`. Markdown and HTML show CIs, categories, notes.
-- CI: named lint/format/strict-mypy steps, coverage gate (85%) with summary and artifact,
-  pinned gitleaks job, CodeQL workflow, Dependabot (pip + github-actions).
+## What changed in 1.3.0
 
-### Slice 2 (pushed, head e346a95)
-- Bug-fix task support (`starter:`), mock `reference_dir`, `validate-task --reference`.
-- References moved out of task directories to `tests/fixtures/reference/` (mypy excludes them).
-- 10 new tasks → 16 total, 4 per category (algorithms, parsing, stateful, bug-fix), each with
-  >= 8 hidden tests; `tests/test_task_suite.py` enforces solvability and non-vacuous tests.
-- `cli` runner presets `claude-code`, `codex`, `opencode`; environment allow-list for every
-  CLI agent; `isolate_home`; `{prompt}` placeholder; claude-code JSON usage parsing;
-  redaction of forwarded credential values. Docs in `docs/reference.md`,
-  `examples/agent-clis.yaml`.
+| Area | Change | Main files |
+| --- | --- | --- |
+| Tasks | 6 → 16 tasks, four per category (`algorithms`, `parsing`, `stateful`, `bug-fix`), 279 hidden tests; `category` and `starter` fields; references moved out of task dirs | `tasks/`, `tests/fixtures/reference/`, `src/agent_eval/specs.py`, `engine.py` |
+| Task QA | CI test: each reference passes; no hidden test passes on an empty module or a `None` stub; each bug-fix starter fails ≥ 1 and passes ≥ 1 test | `tests/test_task_suite.py` |
+| Statistics | Seeded task-level bootstrap 95% CIs (seed 20261021, 2000 resamples), per-category pass@1, paired bootstrap for overlapping intervals; `report --seed/--resamples` | `src/agent_eval/stats.py`, `results.py` |
+| Report | Self-contained HTML (no external assets): keyboard-sortable leaderboard with `aria-sort`, SVG interval rows, paired table, heatmap with numbers, explicit `unknown`, dark mode, 375 px layout | `src/agent_eval/templates/report.html`, `tests/test_report_html.py` |
+| Agent CLIs | `claude-code`, `codex`, `opencode` presets; env allow-list for all CLI agents; `isolate_home`; `{prompt}`; Claude Code usage parsing; redaction of forwarded values | `src/agent_eval/runners/presets.py`, `local.py`, `tests/test_cli_presets.py` |
+| Runs | `run --resume` (unchanged config and task hashes required; recorded attempts kept) | `engine.py`, `tests/test_resume.py` |
+| CI | Named ruff/format/strict-mypy steps, 85% coverage gate + summary, 3.11/3.12 matrix, gitleaks job, CodeQL, Dependabot; release body from `RELEASE_NOTES_<tag>.md` | `.github/` |
+| Results | Measured run v2: 6 models × 16 tasks × 3 repeats = 288 attempts, 2026-10-21 17:53:41Z–18:11:34Z | `results/2026-10-21-measured/` incl. `METHODOLOGY.md` |
+| Docs | README rewrite with Showcase screenshot; reference docs; CONTRIBUTING; sample report; CHANGELOG `[1.3.0] - 2026-10-21`; version 1.3.0 in pyproject, `__init__`, CITATION.cff; release notes; SKILLS_USED.md | `README.md`, `docs/`, `CHANGELOG.md`, `RELEASE_NOTES_v1.3.0.md` |
+| Pages | Landing page = 21 Oct run (+ METHODOLOGY.md); 17 Oct run under `/history/2026-10-17/`; demo at `/demo/` | `.github/workflows/pages.yml` |
 
-### Slice 3 (pushed, head 187a051; CI 39635710585 and CodeQL 39635710548 green)
-- HTML report redesigned as one self-contained file (CSP `default-src 'none'`, no external
-  assets): leaderboard sortable by a ~40-line inline script that turns headers into
-  keyboard-operable buttons and moves `aria-sort` (a plain table, ordered by pass@1, without
-  JavaScript; unknown values sort last; a live region announces each sort); per-model SVG
-  interval rows; a paired-comparison table; category heatmap and per-task matrix with the number in
-  every cell and contrast-checked colour bands; `unknown` / `n/N reported` usage; captions,
-  scoped headers, labelled focusable scroll regions, skip link; dark mode; 375 px layout.
-- `tests/test_report_html.py` (snapshot-style: outline, self-containment, escaping incl.
-  attributes, unknown/partial usage, sort attributes, CI geometry, heat bands).
-- `results/2026-10-17-measured/report.md` regenerated from the unchanged `results.jsonl`.
-- CHANGELOG `## [1.3.0] - 2026-10-21` (Keep a Changelog), version 1.3.0 in pyproject,
-  `__init__` and CITATION.cff (date 2026-10-21). `SKILLS_USED.md` created.
-
-### Slice 4 (local commits 5ec4dd7..HEAD, NOT pushed per the slice instructions)
-- `agent-eval run --resume`, with `tests/test_resume.py`.
-- Measured run v2 in `results/2026-10-21-measured/`: claude-opus-5-5, claude-fable-5-1,
-  claude-sonnet-5-5, claude-sonnet-5, claude-haiku-4-5 (Messages API) and gpt-6-sol (Chat
-  Completions), 16 tasks, 3 repeats, 288 attempts, 2026-10-21 17:53:41Z to 18:11:34Z, uninterrupted.
-  pass@1: 100 / 100 / 100 / 97.9 / 79.2 / 66.7%. 27 non-passing attempts (16 fail, 8 error,
-  3 timeout), none retried, all explained in `METHODOLOGY.md`. claude-haiku-4-5 answered too
-  but was left out to stay under the attempt budget.
-- Run hygiene: the key mapping and the API version path for the base URL existed only in a
-  scratch launcher's environment. Output went to scratch, was copied with machine paths replaced
-  (repo root, one temp workdir in a test log), then scanned for machine paths, endpoint hosts and
-  credentials (none). The reports were regenerated with `--k 1 --k 3`, and task and config hashes
-  were verified against the repository.
-- Pages workflow: the landing page is the new run (plus METHODOLOGY.md); the 17 Oct run is under
-  `/history/2026-10-17/`.
-- README rewritten (badges, Showcase screenshot `docs/assets/report-2026-10-21.png` rendered with
-  headless Chromium, quickstart, usage, task catalogue, Mermaid architecture, results, roadmap,
-  links). The release install line now targets v1.3.0 with the `grade` extra. The stale
-  `docs/assets/demo-report.png` was removed. `docs/sample-report.md` (16-task demo),
-  CONTRIBUTING, `docs/reference.md` and the CHANGELOG were updated.
+Measured run v2, pass@1 (95% CI): claude-sonnet-5-5, claude-opus-5-5, claude-fable-5-1 100%
+(100–100); gpt-6-sol 97.9% (93.8–100); claude-sonnet-5 79.2% (60.4–93.8); claude-haiku-4-5
+66.7% (47.9–85.4). 27 non-passing attempts (16 fail, 8 error, 3 timeout), none retried, all
+explained in `METHODOLOGY.md`. claude-haiku-5-5 also answered the probe but was left out to keep
+the run under the attempt budget (288 rather than 336).
 
 ## Checks
 
-RUN (slice 4, before the handoff commit):
-- `ruff check .`, `ruff format --check .` → clean. `mypy --strict` → no issues in 29 source files.
-- `pytest -x -q -p no:cacheprovider` → 229 passed in 100.77s; coverage 98.94% (gate 85%).
-- Live run: 288/288 attempts recorded, `agent-eval` exit 0; log lines `start 2026-10-21T17:53:41Z`,
-  `Completed 288 attempts; 261 passed.`, `exit 0 2026-10-21T18:11:34Z`.
-- `metadata.json` hashes: 36 task files and the config hash match the repository.
-- Scrub check: no machine paths, endpoint hosts or credentials in `results/2026-10-21-measured/`;
-  `gitleaks dir` on it → no leaks.
-- A fresh venv with `pip install '.[grade]'` (non-editable) → `agent-eval --version` 1.3.0;
-  `list-tasks` lists 16 tasks.
-- Every README finding was checked against `results.jsonl`; one overstatement was corrected.
+### RUN — final, slice 5 (local head before this handoff commit, Python 3.11 venv)
 
-RUN (slice 3, Python 3.11.6, before the handoff commit):
-- `ruff check .`, `ruff format --check .` → clean. `mypy --strict` → no issues in 28 source files.
-- `pytest -x -q -p no:cacheprovider` → 222 passed in 90.88s; coverage 98.89% (gate 85%).
-- Headless Chromium renders of the report at 1280 px and 375 px, light and dark: inspected by eye;
-  fixed misaligned interval gridlines, leaderboard overflow and clipped mobile captions.
-- Scripted sort check in headless Chromium (injected clicks on a scratch copy): 10 header buttons
-  created; Model sorts ascending then descending; Mean s ascending; `aria-sort` moves to the
-  clicked header only; an all-unknown Cost column keeps a stable order; the live region reads
-  "Sorted by Cost USD, ascending."
-- `agent-eval --version` → 1.3.0. gitleaks and forbidden-term grep: see below.
+```text
+$ ruff check .                    -> All checks passed!
+$ ruff format --check .           -> 76 files already formatted
+$ mypy --strict                   -> Success: no issues found in 29 source files
+$ pytest -x -q -p no:cacheprovider
+  TOTAL 1037 stmts, 10 miss, 284 branches, 4 partial -> 99%
+  Required test coverage of 85.0% reached. Total coverage: 98.94%
+  229 passed in 101.91s
+$ gitleaks git --log-opts=d44e4e1..HEAD .   -> no leaks found
+$ gitleaks dir .                            -> no leaks found
+```
 
-RUN (slice 2, Python 3.11.6, head fc6f2eb):
-- `ruff check .` → All checks passed. `ruff format --check .` → clean.
-- `mypy --strict` → Success: no issues found in 27 source files.
-- `pytest -x -q -p no:cacheprovider` → 205 passed in 81.30s; coverage 98.89% (gate 85%).
-- `agent-eval run examples/mock-demo.yaml` → 64 attempts, 32 passed; mock-reference 100% in all
-  4 categories, mock-wrong 0%.
-- Every bug-fix starter graded against its hidden tests: fix_binary_search 5/12,
-  fix_running_stats 9/13, fix_memoize 6/10, fix_slugify 11/13 (outcome `fail` each).
-- `gitleaks git` on 611997a..HEAD and `gitleaks dir .` → no leaks found. Grep of added lines for
-  forbidden terms, machine paths and URLs → no hits. Endpoint hosts/credentials from the
-  environment → not present in the tree. Commit author/committer identity → correct for all.
-- Slice 1 CI on GitHub: CI run 39579363695 success, CodeQL run 39579363919 success (head 611997a).
+- Added lines on the branch (`git diff d44e4e1..HEAD`) grepped for the forbidden names, machine
+  paths and token prefixes: no hits. Endpoint hosts and credential values from the environment:
+  not in the diff or the tree. All 26 commits on the branch carry the configured
+  identity as author and committer.
+- Pages assemble step reproduced locally from the committed results: the landing page shows 288
+  attempts and the history page 108. The committed `results/2026-10-21-measured/report.html` is
+  byte-identical to what the workflow will render.
 
-INFERRED (not run):
-- `pipx install '.[grade]'` (pipx is not installed on this machine; the plain pip path was run).
-- The Mermaid diagram rendering on GitHub (syntax kept to basic flowchart features; not rendered
-  locally). The Pages workflow change (it runs only on `main`).
-- The README release install line resolves only after `v1.3.0` is tagged and the release
-  workflow attaches the wheel.
-- Screen-reader output of the report (structure checked by tests and by reading the markup, not
-  with NVDA/VoiceOver). Contrast ratios were computed from the colour tokens, not measured with
-  an automated checker such as axe.
-- Python 3.12 locally (CI matrix covers it once pushed); the Docker and offline-demo CI jobs for
-  slice 2 (they run `examples/mock-demo.yaml`, whose `reference_dir` resolves inside the copied
-  repo, so they should pass).
-- The preset command templates against the real claude / codex / opencode binaries. They follow
-  the CLIs' documented headless modes but were exercised only with a fake CLI.
+### RUN — on GitHub Actions (branch `upgrade/v1.3.0`)
 
-## Remaining issues / notes
-- Behaviour change to record in the CHANGELOG (item 8): CLI agents no longer inherit the whole
-  parent environment; they get the allow-list plus `env_passthrough`.
-- When an HTTP runner errors on a bug-fix task, the saved `solution.py` artifact is the
-  untouched starter (the outcome is still correctly `error`). Possible follow-up: skip saving
-  the solution when it is byte-identical to the starter, or label it.
-- Extraction rule: replies with several Python blocks are joined (documented). For single-block
-  prompts this turned four claude-haiku-4-5 replies into import errors. A stricter rule, such as
-  taking the largest block when the prompt asks for one block, is on the roadmap; it was not
-  applied to this run's results.
-- The HTTP runner does not record the provider's stop reason, so "used the whole output budget"
-  is inferred from reported output tokens equal to `max_tokens`. Recording `stop_reason` would be
-  a small additive schema extension.
-- The coverage badge is a static number (98.9%) from this slice's local run; CI enforces the 85% gate.
-- HANDOFF.md was not written at the end of slice 1 (that session hit its time box after the push);
-  this file covers both slices.
+| Head | CI run | CodeQL run | Conclusion |
+| --- | --- | --- | --- |
+| 4e48f9b (slice 4) | 39651870067 | 39651870150 | success / success; CI jobs `checks (3.11)`, `checks (3.12)`, `gitleaks`, `offline-demo`, `docker` all success |
+| 187a051 (slice 3) | 39635710585 | 39635710548 | success / success |
+| e346a95 (slice 2) | 39633772358 | 39633772492 | success / success |
+| 611997a (slice 1) | 39579363695 | 39579363919 | success / success |
+
+The two slice 5 commits (release notes, release-workflow notes file) have not run on CI yet; they
+change only a Markdown file and the tag-triggered release workflow.
+
+### RUN — earlier slices (summarised; details in git history of this file)
+
+- Slice 2: every bug-fix starter graded against its hidden tests (fix_binary_search 5/12,
+  fix_running_stats 9/13, fix_memoize 6/10, fix_slugify 11/13, all `fail`); the offline demo,
+  64 attempts, mock-reference 100% in every category, mock-wrong 0%.
+- Slice 3: headless Chromium renders of the report at 1280 px and 375 px, light and dark. These
+  fixed misaligned gridlines, leaderboard overflow and clipped mobile captions. A scripted
+  click test confirmed the sort buttons, `aria-sort` moves and the live-region text.
+- Slice 4: the live run (288/288 recorded, exit 0); 36 task-file hashes and the config hash in
+  `metadata.json` match the repository; the scrubbed results were scanned for machine paths,
+  hosts and credentials (none); a non-editable `pip install '.[grade]'` in a fresh venv gives
+  `agent-eval --version` 1.3.0 and 16 tasks; every README finding was checked against
+  `results.jsonl`, and one overstatement was corrected.
+
+### INFERRED — not run
+
+- `pipx install '.[grade]'` (pipx is not installed here; the plain pip path was run).
+- Mermaid rendering on GitHub (basic flowchart syntax only; not rendered locally).
+- The Pages deployment itself (the workflow runs only on `main`; its commands were run locally).
+- The release workflow change and the README/release-notes install line: they work only once
+  `v1.3.0` is tagged and the workflow attaches the wheel.
+- Screen-reader output of the report (structure checked by tests and markup review, not with
+  NVDA/VoiceOver); contrast ratios computed from the colour tokens, not measured with axe.
+- The agent-CLI presets against the real claude / codex / opencode binaries (tested with a fake
+  CLI only).
+
+## Remaining issues and follow-ups
+
+- **Extraction rule.** Replies with several Python blocks are joined (documented). For
+  single-block prompts this turned four claude-haiku-4-5 replies into import errors in the
+  measured run. A stricter rule, such as taking the largest block when the prompt asks for one,
+  is on the roadmap and was not applied to the recorded results.
+- **Stop reason not recorded.** "Used the whole output budget" is inferred from reported output
+  tokens equal to `max_tokens`. Recording `stop_reason` would be a small additive schema change.
+- **Bug-fix artifact.** When an HTTP runner errors on a bug-fix task, the saved `solution.py` is
+  the untouched starter (the outcome is still correctly `error`).
+- **Static coverage badge** (98.9%) in the README; CI enforces the 85% gate but doesn't update
+  the badge.
+- **Suite ceiling.** Four models score 100% or close to it, so the suite cannot rank them; harder
+  tasks are the next step.
+- Process notes: slice 1 hit its time box before writing a handoff, so slice 2 wrote the first
+  one. The slice 4 summary said 13 commits; the correct count is 9.
+
+## For the coordinator
+
+1. Push `upgrade/v1.3.0` (two new commits after 4e48f9b, plus this handoff commit) and confirm
+   CI, CodeQL and gitleaks are green on the new head.
+2. Open the PR to `main` and merge after review.
+3. Tag `v1.3.0` on the merge commit. The release workflow builds and tests the wheel and sdist,
+   writes `SHA256SUMS.txt`, and publishes `RELEASE_NOTES_v1.3.0.md` as the release body. The
+   README install line works from then on.
+4. The Pages workflow on `main` publishes the 21 Oct report as the landing page.

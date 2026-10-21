@@ -3,13 +3,14 @@
 Handoff note for the next session. Detailed progress: `TASKS.md`; session report: `HANDOFF.md`.
 
 ## Status
-v1.3.0 upgrade on branch `upgrade/v1.3.0`. Items 1–8 done, including measured run v2
-(`results/2026-10-21-measured/`, 288 attempts) and the README refresh. Slice 4 commits are local,
-not pushed.
+v1.3.0 upgrade on branch `upgrade/v1.3.0` is complete (items 1–9). Release notes written.
+Slices 1–4 are pushed and green (4e48f9b); the slice 5 commits are local, for the coordinator to
+push, merge and tag.
 
 ## Next step
-Item 10: push with push.sh, confirm CI, CodeQL and gitleaks are green, and record the run ids in
-HANDOFF.md. The coordinator tags v1.3.0 after merging.
+Coordinator: push, PR, merge, tag v1.3.0. After that, the follow-ups in HANDOFF.md: a stricter
+code-block extraction for single-block prompts, recording `stop_reason`, and harder tasks to
+separate the top models.
 
 ## Gotchas
 - Run pytest as `setsid -w timeout -k 5 300 pytest -x -q -p no:cacheprovider` (one process only;
@@ -25,3 +26,4 @@ HANDOFF.md. The coordinator tags v1.3.0 after merging.
 - 2026-10-21 16:15Z Claude Code / claude-opus-5-5: slice 2 — items 1 and 4 (16 tasks, starters, reference_dir, CLI presets); 205 tests, 98.9% cov; not pushed; next: item 3.
 - 2026-10-21 16:45Z Claude Code / claude-opus-5-5: slice 3 — items 3 and 8, SKILLS_USED.md; 222 tests, 98.9% cov; not pushed; next: item 6.
 - 2026-10-21 18:20Z Claude Code / claude-opus-5-5: slice 4 — --resume, measured run v2 (288 attempts), README/docs refresh; 229 tests, 98.9% cov; not pushed; next: push + CI.
+- 2026-10-21 18:25Z Claude Code / claude-opus-5-5: slice 5 — release notes, release workflow uses them, final HANDOFF/TASKS; 229 tests, 98.9% cov, gitleaks clean; not pushed.
