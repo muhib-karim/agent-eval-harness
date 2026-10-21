@@ -3,6 +3,8 @@ models:
     runner: mock
     options:
       variant: reference
+      # Reference solutions live outside the task directories, next to the suite tests.
+      reference_dir: ../tests/fixtures/reference
   - name: mock-wrong
     runner: mock
     options:

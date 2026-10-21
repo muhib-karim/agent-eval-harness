@@ -40,6 +40,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
+# Reference solutions are task answers written like model output, not project source.
+exclude = ["^tests/fixtures/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
