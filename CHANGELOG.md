@@ -37,7 +37,8 @@ All notable changes are recorded here. The format follows
   stays published under `/history/2026-10-17/`.
 - CI quality gates: named ruff lint/format and strict mypy steps, coverage summary and artifact
   (gate stays at 85%), a gitleaks job, a CodeQL workflow and Dependabot for pip and GitHub
-  Actions.
+  Actions. CodeQL skips recorded model outputs (`results/**`) and the deliberately buggy bug-fix
+  starters via `.github/codeql/codeql-config.yml`; findings in the harness code were fixed.
 
 ### Changed
 
