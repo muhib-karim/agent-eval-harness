@@ -3,12 +3,13 @@
 Handoff note for the next session. Detailed progress: `TASKS.md`; session report: `HANDOFF.md`.
 
 ## Status
-v1.3.0 upgrade on branch `upgrade/v1.3.0`. Done: items 1 (16 tasks, bug-fix starters,
-external references, suite test), 2 (bootstrap CIs, categories), 4 (agent CLI presets),
-5 (CI gates). Slice 2 commits are local, not pushed.
+v1.3.0 upgrade on branch `upgrade/v1.3.0`. Done: items 1 (16 tasks), 2 (bootstrap CIs),
+3 (self-contained accessible HTML report), 4 (agent CLI presets), 5 (CI gates), 8 (CHANGELOG,
+version 1.3.0), SKILLS_USED.md. Slice 3 commits are local, not pushed.
 
 ## Next step
-Item 3 (HTML report redesign), then 6 (live run on 16 tasks), 7, 8, SKILLS_USED.md.
+Item 6 (live run on 16 tasks, background + log), then 7 (README, screenshot of the new report),
+then push and CI (10).
 
 ## Gotchas
 - Run pytest as `setsid -w timeout -k 5 300 pytest -x -q -p no:cacheprovider` (one process only;
@@ -21,3 +22,4 @@ Item 3 (HTML report redesign), then 6 (live run on 16 tasks), 7, 8, SKILLS_USED.
 ## Session log
 - 2026-10-21 09:50Z Claude Code / claude-opus-5-5: slice 1 — stats (CIs, categories, paired notes) and CI gates; next: item 1.
 - 2026-10-21 16:15Z Claude Code / claude-opus-5-5: slice 2 — items 1 and 4 (16 tasks, starters, reference_dir, CLI presets); 205 tests, 98.9% cov; not pushed; next: item 3.
+- 2026-10-21 16:45Z Claude Code / claude-opus-5-5: slice 3 — items 3 and 8, SKILLS_USED.md; 222 tests, 98.9% cov; not pushed; next: item 6.
