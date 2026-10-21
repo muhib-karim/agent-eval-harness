@@ -24,10 +24,16 @@ CI runs the same checks on Python 3.11 and 3.12. Pull requests should pass all o
 
 ## Tasks
 
-A new task needs a precise prompt, an independent `reference.py`, and hidden pytest files. See
+A new task needs a precise prompt, a `category`, hidden pytest files with at least 8 tests, and
+an independent reference solution saved as `tests/fixtures/reference/<task_id>.py`, outside the
+task directory. Bug-fix tasks also need a `starter` file and an issue-style prompt. See
 [docs/reference.md](docs/reference.md#writing-a-task). Before submitting:
 
-- `agent-eval validate-task tasks/<id>/task.yaml` passes;
+- `agent-eval validate-task tasks/<id>/task.yaml --reference tests/fixtures/reference/<id>.py`
+  passes;
+- `pytest tests/test_task_suite.py` passes: no hidden test may pass on an empty module or on a
+  stub whose every call returns `None`, and a bug-fix starter must fail at least one hidden test
+  and pass at least one;
 - the tests cover invalid input and exact boundaries, and include at least one case that a
   plausible but incomplete solution fails;
 - every behaviour the tests check is stated in the prompt.
