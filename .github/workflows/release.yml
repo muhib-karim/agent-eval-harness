@@ -46,5 +46,10 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
-            gh release create "$TAG" dist/* --title "$TAG" --notes-from-tag --verify-tag
+            # Prefer the committed release notes for this tag, e.g. RELEASE_NOTES_v1.3.0.md.
+            if [ -f "RELEASE_NOTES_${TAG}.md" ]; then
+              gh release create "$TAG" dist/* --title "$TAG" --notes-file "RELEASE_NOTES_${TAG}.md" --verify-tag
+            else
+              gh release create "$TAG" dist/* --title "$TAG" --notes-from-tag --verify-tag
+            fi
           fi
