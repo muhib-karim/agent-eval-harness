@@ -101,6 +101,27 @@ def render_report(summary: Summary, fmt: ReportFormat) -> str:
         raise ValueError(f"unsupported report format: {fmt}")
     environment = Environment(autoescape=select_autoescape(default=True), undefined=StrictUndefined)
     environment.filters["usd"] = format_usd
+    environment.filters["pct"] = format_pct
+    environment.filters["heat"] = heat_level
+    environment.filters["count"] = _count
     template = files("agent_eval").joinpath("templates/report.html").read_text(encoding="utf-8")
     max_time = max(t for m in summary.models for t in m.wall_times_s) or 1
-    return environment.from_string(template).render(summary=summary, max_time=max_time)
+    categories = sorted(set(summary.task_categories.values()))
+    return environment.from_string(template).render(
+        summary=summary,
+        max_time=max_time,
+        categories=categories,
+        category_sizes={
+            name: sum(c == name for c in summary.task_categories.values()) for name in categories
+        },
+        level=f"{summary.bootstrap.confidence:.0%}",
+    )
+
+
+def format_pct(value: float) -> str:
+    return f"{value * 100:.1f}%"
+
+
+def heat_level(value: float) -> int:
+    """Five equal-width pass-rate bands, 0 (0-20%) to 4 (80-100%), for the heatmap colours."""
+    return min(4, max(0, int(value * 5)))

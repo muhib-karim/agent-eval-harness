@@ -113,7 +113,7 @@ def test_overlapping_models_get_a_paired_note() -> None:
     assert "Paired comparisons" in markdown and "95% CI" in markdown
     assert "Pass@1 by category" in markdown
     html = render_report(summary, "html")
-    assert "Pass@1 by category" in html and "includes zero" in html
+    assert "Pass@1 by category" in html and "no reliable difference" in html
 
 
 def test_significant_paired_difference_is_reported() -> None:
@@ -130,6 +130,7 @@ def test_significant_paired_difference_is_reported() -> None:
     [comparison] = summary.comparisons
     assert comparison.significant and comparison.diff == pytest.approx(0.25)
     assert "excludes zero" in comparison.note
+    assert "<strong>differs</strong> (interval excludes 0)" in render_report(summary, "html")
 
 
 def test_old_results_without_category_still_load() -> None:
