@@ -37,8 +37,8 @@ Unknown fields in the config and in built-in runner options are rejected.
 | --- | --- |
 | `openai` | Chat Completions-compatible endpoint. Required `model`, `base_url_env`, `api_key_env`; optional `max_tokens` (4096), `token_param` (`max_tokens` or `max_completion_tokens`; default `max_tokens`), `timeout_s` (120), `temperature` (omitted unless set). |
 | `anthropic` | Messages API endpoint, version header `2023-06-01`. Same options. |
-| `cli` | Required `command` (argv list or shell-like string); optional `timeout_s` (120). |
-| `mock` | `variant`: `reference` (default) or `wrong`; optional `fixtures`: task id → task-relative Python file. |
+| `cli` | Either `preset` (`claude-code`, `codex`, `opencode`) or `command` (argv list or shell-like string). Optional `timeout_s` (120, or 600 for presets), `env_passthrough`, `isolate_home`; presets also take `executable`, `model`, `extra_args`. |
+| `mock` | `variant`: `reference` (default) or `wrong`; optional `fixtures`: task id → task-relative Python file; optional `reference_dir`: directory of `<task_id>.py` solutions, relative to the config. |
 
 ### HTTP runners
 
@@ -58,9 +58,10 @@ See [`examples/real-models.yaml`](../examples/real-models.yaml) for a two-endpoi
 
 ### CLI runner
 
-Arguments support the `{prompt_file}`, `{workdir}` and `{entrypoint}` placeholders; write literal
-braces as `{{` and `}}`. No shell is launched, so pipes, redirection and `VAR=value` prefixes
-are passed through literally. Prefer the argv-list form:
+Arguments support the `{prompt}`, `{prompt_file}`, `{workdir}` and `{entrypoint}` placeholders;
+write literal braces as `{{` and `}}`. `{prompt}` is the whole prompt as one argument. No shell
+is launched, so pipes, redirection and `VAR=value` prefixes are passed through literally. Prefer
+the argv-list form:
 
 ```yaml
 models:
@@ -72,21 +73,54 @@ models:
 tasks: [../tasks/*/task.yaml]
 ```
 
-The command runs with the fresh workdir as its cwd and must write the entrypoint file itself.
-Its stdout/stderr are saved as `model-output.txt` but not treated as code. stdin is `/dev/null`.
-A non-zero exit is recorded as an `error` attempt. On POSIX, anything left in the command's
-process group is killed when it exits. The command inherits the parent environment so it can
-authenticate. The grader subprocess gets only `PATH`, `SYSTEMROOT` and `LANG`.
+The command runs with the fresh workdir as its cwd and must write the entrypoint file itself
+(for bug-fix tasks the buggy starter is already there). Its stdout/stderr are saved as
+`model-output.txt` but not treated as code. stdin is `/dev/null`. A non-zero exit is recorded
+as an `error` attempt. On POSIX, anything left in the command's process group is killed when it
+exits or times out.
+
+**Environment allow-list.** The agent receives only `PATH`, `HOME`, `LANG`, `LC_ALL`, `TERM`,
+`TMPDIR`, `USER` and `SYSTEMROOT`, plus the preset's credential variables and any names in
+`env_passthrough`. Everything else in the parent environment is withheld. Values of forwarded
+variables that are at least 8 characters long are redacted from saved artifacts. (Before 1.3.0
+the command inherited the whole parent environment; add what your agent needs to
+`env_passthrough`.)
+
+**Workdir isolation.** Each attempt runs in its own temporary directory that holds only the
+prompt file and, for bug-fix tasks, the starter; hidden tests are copied in only after the agent
+exits. `isolate_home: true` also points `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`,
+`XDG_DATA_HOME` and `TMPDIR` at a fresh empty directory outside the workdir, deleted afterwards,
+so the agent cannot read host configuration, history or other projects. Agents that keep their
+login under `HOME` then need an API key passed through the environment instead.
+
+#### Agent CLI presets
+
+| Preset | Command template | Forwarded credentials | Usage |
+| --- | --- | --- | --- |
+| `claude-code` | `claude -p {prompt} --output-format json --permission-mode acceptEdits --allowedTools Read,Edit,Write` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL` | tokens and cost from the JSON result |
+| `codex` | `codex exec --full-auto --skip-git-repo-check --cd {workdir} {prompt}` | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `CODEX_HOME` | unknown |
+| `opencode` | `opencode run {prompt}` | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `OPENCODE_CONFIG` | unknown |
+
+`model` appends `--model <id>`; `extra_args` are appended after the template and may use the
+placeholders; `executable` replaces the binary name (e.g. a pinned install path). Preset
+timeouts default to 600 seconds. The flags follow each CLI's documented non-interactive mode as
+of October 2026 and are covered in CI only by a fake CLI (`tests/test_cli_presets.py`), not by
+the real tools. If a CLI changes its flags, override with `extra_args` or switch to `command`.
+See [`examples/agent-clis.yaml`](../examples/agent-clis.yaml).
 
 ### Mock runner
 
-`reference` copies the task's `reference.py` (or the file named in `fixtures`) to the entrypoint.
+`reference` copies a known-good solution to the entrypoint: the file named in `fixtures`, else
+`<reference_dir>/<task_id>.py`, else the task's own `reference.py`. The bundled demo uses
+`reference_dir: ../tests/fixtures/reference`.
 `wrong` writes a module whose `__getattr__` returns a function that returns `None` for every name.
 It exists to exercise the harness offline. It says nothing about any model.
 
 ## Writing a task
 
-A task is a directory with `task.yaml`, `reference.py`, and one or more pytest files:
+A task is a directory with `task.yaml` and one or more pytest files. Keep the reference
+solution outside the shipped task directory (the bundled tasks keep theirs in
+`tests/fixtures/reference/<task_id>.py`) so nothing answer-bearing ships next to the prompt:
 
 ```yaml
 id: answer
@@ -95,18 +129,25 @@ prompt: Implement answer() returning the integer 42.
 language: python
 entrypoint: solution.py
 hidden_tests: [hidden_tests.py]
-reference: reference.py
+category: algorithms
 timeout_s: 5
 tags: [intro, functions]
 ```
 
-Defaults: `reference: reference.py`, `language: python` (the only supported value),
-`timeout_s: 10`, `tags: []`. `entrypoint` must be a plain module filename and may not shadow
+Defaults: `reference: reference.py` (used only if present), `language: python` (the only
+supported value), `timeout_s: 10`, `tags: []`, `category` unset (reported as
+`uncategorized`; lowercase letters, digits, `-` and `_`), `starter` unset.
+
+**Bug-fix tasks** set `starter: starter.py`: the engine copies that file to the entrypoint
+before generation. HTTP runners embed its source in the prompt and ask for the complete fixed
+module; CLI agents find it in their workdir. Write the issue report (symptom and reproduction)
+as the prompt, and hidden tests that catch the bug plus regression tests that the buggy
+starter already passes. `entrypoint` must be a plain module filename and may not shadow
 `conftest.py`, `pytest.py`, `sitecustomize.py` or `usercustomize.py`. Test and reference paths
 must resolve inside the task directory, including through symlinks.
 
 ```python
-# reference.py
+# tests/fixtures/reference/answer.py (outside the task directory)
 def answer() -> int:
     return 42
 ```
@@ -120,8 +161,11 @@ def test_answer() -> None:
     assert answer() == 42
 ```
 
-Check it with `agent-eval validate-task path/to/task.yaml`, which grades the reference exactly
-as a generated solution would be graded.
+Check it with `agent-eval validate-task path/to/task.yaml --reference path/to/answer.py`, which
+grades the solution exactly as a generated one would be graded (omit `--reference` to use a
+`reference.py` inside the task directory). For the bundled suite, `tests/test_task_suite.py`
+also checks that no hidden test passes on an empty module or on a stub whose every call
+returns `None`, and that each bug-fix starter fails some hidden tests and passes others.
 
 Constraints to design around:
 
