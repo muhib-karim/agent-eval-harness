@@ -1,0 +1,148 @@
+"""Levenshtein edit distance with optional early termination.
+
+Only the Python standard library is used.
+"""
+
+from __future__ import annotations
+
+
+def levenshtein(a: str, b: str, max_distance: int | None = None) -> int:
+    """Return the Levenshtein distance between ``a`` and ``b``.
+
+    The distance is the minimum number of single-character insertions,
+    deletions and substitutions needed to transform ``a`` into ``b``.
+    Characters are Unicode code points and comparison is case-sensitive.
+
+    If ``max_distance`` is given and the true distance exceeds it, then
+    ``max_distance + 1`` is returned instead of the true distance.
+
+    Raises:
+        TypeError:  if ``a`` or ``b`` is not a ``str``.
+        ValueError: if ``max_distance`` is not ``None`` and is negative,
+                    not an ``int``, or a ``bool``.
+    """
+    if not isinstance(a, str):
+        raise TypeError("a must be a str, got %s" % type(a).__name__)
+    if not isinstance(b, str):
+        raise TypeError("b must be a str, got %s" % type(b).__name__)
+
+    if max_distance is not None:
+        if isinstance(max_distance, bool) or not isinstance(max_distance, int):
+            raise ValueError("max_distance must be a non-negative int or None")
+        if max_distance < 0:
+            raise ValueError("max_distance must be non-negative")
+
+    if a == b:
+        return 0
+
+    # Make `a` the longer string so the DP row has length min(len(a), len(b)) + 1.
+    if len(a) < len(b):
+        a, b = b, a
+
+    # Strip common prefix (cheap and reduces work; does not change the distance).
+    start = 0
+    limit = len(b)
+    while start < limit and a[start] == b[start]:
+        start += 1
+    # Strip common suffix.
+    end_a = len(a)
+    end_b = len(b)
+    while end_b > start and a[end_a - 1] == b[end_b - 1]:
+        end_a -= 1
+        end_b -= 1
+    a = a[start:end_a]
+    b = b[start:end_b]
+
+    n = len(a)
+    m = len(b)  # m <= n
+
+    if m == 0:
+        return n if max_distance is None or n <= max_distance else max_distance + 1
+
+    if max_distance is not None:
+        if n - m > max_distance:
+            return max_distance + 1
+        if max_distance < m:
+            return _banded(a, b, max_distance)
+        # Band would cover the entire matrix; the plain algorithm is faster.
+        d = _full(a, b)
+        return d if d <= max_distance else max_distance + 1
+
+    return _full(a, b)
+
+
+def _full(a: str, b: str) -> int:
+    """Standard single-row dynamic programme. Requires len(b) <= len(a)."""
+    m = len(b)
+    row = list(range(m + 1))
+    for i in range(1, len(a) + 1):
+        ca = a[i - 1]
+        diag = row[0]
+        row[0] = i
+        left = i
+        for j in range(1, m + 1):
+            up = row[j]
+            if ca == b[j - 1]:
+                v = diag
+            else:
+                v = diag
+                if up < v:
+                    v = up
+                if left < v:
+                    v = left
+                v += 1
+            diag = up
+            row[j] = v
+            left = v
+    return row[m]
+
+
+def _banded(a: str, b: str, k: int) -> int:
+    """Only compute cells (i, j) with |i - j| <= k. Requires len(b) <= len(a)
+    and len(a) - len(b) <= k. Returns the distance, or k + 1 if it exceeds k."""
+    n = len(a)
+    m = len(b)
+    INF = k + 1
+    row = list(range(m + 1))  # row 0; entries beyond k are > k anyway
+
+    for i in range(1, n + 1):
+        ca = a[i - 1]
+        lo = i - k
+        if lo < 1:
+            lo = 1
+        hi = i + k
+        if hi > m:
+            hi = m
+        phi = i - 1 + k  # last valid column of the previous row's band
+        if phi > m:
+            phi = m
+
+        diag = row[lo - 1]  # always within previous band
+        left = i if i <= k else INF
+        best = INF
+
+        for j in range(lo, hi + 1):
+            up = row[j] if j <= phi else INF
+            if ca == b[j - 1]:
+                v = diag
+            else:
+                v = diag
+                if up < v:
+                    v = up
+                if left < v:
+                    v = left
+                v += 1
+            if v > k:
+                v = INF
+            elif v < best:
+                best = v
+            diag = up
+            row[j] = v
+            left = v
+
+        row[0] = i  # only ever read again when i < k, where it is correct
+        if best > k:
+            return INF
+
+    d = row[m]
+    return d if d <= k else INF

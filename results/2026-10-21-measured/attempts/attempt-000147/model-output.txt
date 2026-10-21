@@ -1,0 +1,171 @@
+# solution.py
+
+```python
+"""
+A small arithmetic expression tokenizer and evaluator implemented using only
+the Python standard library (actually, no external imports are even needed).
+
+Supported tokens:
+    * unsigned integers, e.g. "123"
+    * decimals with digits on BOTH sides of the decimal point, e.g. "12.34"
+      (things like "1." or ".5" are NOT valid numbers)
+    * single-character operators: + - * / ( )
+
+Whitespace is ignored. Any other character, or a malformed number, raises
+ValueError during tokenization.
+
+evaluate() parses the token stream with a small recursive-descent parser
+supporting standard precedence (unary +/- bind tighter than * /, which bind
+tighter than + -), parentheses, and left-associative binary operators.
+"""
+
+from typing import List, Optional
+
+
+def tokenize(text: str) -> List[str]:
+    """Tokenize `text` into a list of number/operator tokens.
+
+    Raises ValueError on any unexpected character or malformed number.
+    """
+    tokens: List[str] = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        c = text[i]
+
+        if c.isspace():
+            i += 1
+            continue
+
+        if c in '+-*/()':
+            tokens.append(c)
+            i += 1
+            continue
+
+        if c.isdigit():
+            start = i
+            while i < n and text[i].isdigit():
+                i += 1
+
+            if i < n and text[i] == '.':
+                # A decimal point must be followed by at least one digit.
+                j = i + 1
+                if j < n and text[j].isdigit():
+                    i = j
+                    while i < n and text[i].isdigit():
+                        i += 1
+                else:
+                    raise ValueError(
+                        f"Malformed number at position {start}: {text[start:i+1]!r}"
+                    )
+
+            tokens.append(text[start:i])
+            continue
+
+        raise ValueError(f"Unexpected character {c!r} at position {i}")
+
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    """Evaluate an arithmetic expression given as a string, returning a float.
+
+    Raises ValueError for empty expressions, adjacent operands, trailing
+    tokens, unbalanced parentheses, or malformed input (via tokenize()).
+    Raises ZeroDivisionError for division by zero.
+    """
+    tokens = tokenize(text)
+
+    if not tokens:
+        raise ValueError("Empty expression")
+
+    pos = 0
+    length = len(tokens)
+
+    def peek() -> Optional[str]:
+        return tokens[pos] if pos < length else None
+
+    def advance() -> str:
+        nonlocal pos
+        tok = tokens[pos]
+        pos += 1
+        return tok
+
+    def parse_expr() -> float:
+        value = parse_term()
+        while peek() in ('+', '-'):
+            op = advance()
+            rhs = parse_term()
+            if op == '+':
+                value = value + rhs
+            else:
+                value = value - rhs
+        return value
+
+    def parse_term() -> float:
+        value = parse_factor()
+        while peek() in ('*', '/'):
+            op = advance()
+            rhs = parse_factor()
+            if op == '*':
+                value = value * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / rhs
+        return value
+
+    def parse_factor() -> float:
+        sign = 1
+        while peek() in ('+', '-'):
+            op = advance()
+            if op == '-':
+                sign = -sign
+        value = parse_primary()
+        return sign * value
+
+    def parse_primary() -> float:
+        tok = peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+
+        if tok == '(':
+            advance()
+            value = parse_expr()
+            if peek() != ')':
+                raise ValueError("Expected closing parenthesis")
+            advance()
+            return value
+
+        if tok in ('+', '-', '*', '/', ')'):
+            raise ValueError(f"Unexpected token {tok!r}")
+
+        advance()
+        try:
+            return float(tok)
+        except ValueError:
+            raise ValueError(f"Invalid number token {tok!r}")
+
+    result = parse_expr()
+
+    if pos != length:
+        raise ValueError(f"Unexpected trailing tokens starting at {tokens[pos]!r}")
+
+    return result
+
+
+if __name__ == "__main__":
+    # Simple manual smoke tests.
+    tests = [
+        "1 + 2 * 3",
+        "(1 + 2) * 3",
+        "-3 + 4",
+        "--3 + 4",
+        "3 - -4",
+        "2.5 * 4",
+        "10 / 4",
+    ]
+    for t in tests:
+        print(t, "=>", evaluate(t))
+```

@@ -1,0 +1,46 @@
+import math
+import numbers
+from collections import deque
+
+
+def _finite_real(x):
+    if isinstance(x, bool) or not isinstance(x, numbers.Real):
+        return False
+    try:
+        return math.isfinite(x)
+    except (OverflowError, ValueError, TypeError):
+        return False
+
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        if isinstance(limit, bool) or not isinstance(limit, numbers.Integral) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if not _finite_real(window_s) or window_s <= 0:
+            raise ValueError("window_s must be positive and finite")
+        self._limit = int(limit)
+        self._window = window_s
+        # key -> (deque of accepted timestamps, last seen time)
+        self._events = {}
+        self._last = {}
+
+    def allow(self, key, now: float) -> bool:
+        if not _finite_real(now):
+            raise ValueError("now must be a finite real number")
+        # hashing the key may raise TypeError before any state change
+        last = self._last.get(key)
+        if last is not None and now < last:
+            raise ValueError("time must be nondecreasing per key")
+
+        dq = self._events.get(key)
+        if dq is None:
+            dq = deque()
+            self._events[key] = dq
+        cutoff = now - self._window
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+        self._last[key] = now
+        if len(dq) < self._limit:
+            dq.append(now)
+            return True
+        return False

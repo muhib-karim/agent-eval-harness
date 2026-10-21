@@ -1,0 +1,98 @@
+```python
+def levenshtein(a: str, b: str, max_distance: int | None = None) -> int:
+    """
+    Calculate the Levenshtein distance between two strings.
+    
+    Returns the minimum number of single-character insertions, deletions and 
+    substitutions needed to turn string a into string b.
+    
+    If max_distance is provided and the true distance exceeds it, returns 
+    max_distance + 1 instead.
+    
+    Args:
+        a: First string
+        b: Second string
+        max_distance: Optional maximum distance threshold
+        
+    Returns:
+        Levenshtein distance between a and b
+        
+    Raises:
+        TypeError: If a or b is not a string
+        ValueError: If max_distance is not a non-negative int or None
+    """
+    # Type checking
+    if not isinstance(a, str):
+        raise TypeError(f"a must be a string, not {type(a).__name__}")
+    if not isinstance(b, str):
+        raise TypeError(f"b must be a string, not {type(b).__name__}")
+    
+    # Validate max_distance
+    if max_distance is not None:
+        if not isinstance(max_distance, int) or isinstance(max_distance, bool):
+            raise ValueError("max_distance must be a non-negative int or None")
+        if max_distance < 0:
+            raise ValueError("max_distance must be a non-negative int or None")
+    
+    # Ensure a is the shorter string for O(min(len(a), len(b))) memory
+    if len(a) > len(b):
+        a, b = b, a
+    
+    len_a = len(a)
+    len_b = len(b)
+    
+    # Quick returns
+    if len_a == 0:
+        distance = len_b
+        if max_distance is not None and distance > max_distance:
+            return max_distance + 1
+        return distance
+    
+    if len_b == 0:
+        distance = len_a
+        if max_distance is not None and distance > max_distance:
+            return max_distance + 1
+        return distance
+    
+    # Early termination if strings differ by more than max_distance
+    if max_distance is not None and len_b - len_a > max_distance:
+        return max_distance + 1
+    
+    # Use two rows for O(min(len(a), len(b))) space complexity
+    prev_row = list(range(len_b + 1))
+    curr_row = [0] * (len_b + 1)
+    
+    for i in range(1, len_a + 1):
+        curr_row[0] = i
+        
+        # Early termination: if max_distance is set and minimum possible distance
+        # in this row exceeds max_distance, we can potentially return early
+        min_in_row = i
+        
+        for j in range(1, len_b + 1):
+            # Cost of substitution (0 if characters match, 1 otherwise)
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            
+            # Calculate minimum of three operations
+            curr_row[j] = min(
+                prev_row[j] + 1,      # deletion
+                curr_row[j - 1] + 1,  # insertion
+                prev_row[j - 1] + cost  # substitution
+            )
+            
+            min_in_row = min(min_in_row, curr_row[j])
+        
+        # Early termination with max_distance
+        if max_distance is not None and min_in_row > max_distance:
+            return max_distance + 1
+        
+        # Swap rows
+        prev_row, curr_row = curr_row, prev_row
+    
+    distance = prev_row[len_b]
+    
+    if max_distance is not None and distance > max_distance:
+        return max_distance + 1
+    
+    return distance
+```

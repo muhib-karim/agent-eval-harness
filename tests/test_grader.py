@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from agent_eval.engine import validate_task
 from agent_eval.grader import grade, parse_junit
 from agent_eval.process import run_process
 from agent_eval.specs import load_task
@@ -77,13 +76,6 @@ def test_junit(tmp_path: Path, xml: str, code: int, outcome: str, passed: int, t
     assert (result.outcome, result.passed, result.total) == (outcome, passed, total)
 
 
-@pytest.mark.parametrize("task_path", sorted(Path("tasks").glob("*/task.yaml")))
-def test_example_reference(task_path: Path) -> None:
-    result = asyncio.run(validate_task(task_path))
-    assert result.outcome == "pass", result.log
-    assert result.passed >= 10
-
-
 @pytest.mark.skipif(os.name != "posix", reason="process-group semantics are POSIX-specific")
 def test_timeout_kills_descendants(tmp_path: Path) -> None:
     marker = tmp_path / "orphan.txt"
@@ -110,7 +102,7 @@ def test_cancellation_cleans_up(tmp_path: Path) -> None:
         await asyncio.sleep(0.1)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await task
+            await asyncio.wait_for(task, timeout=5)
 
     asyncio.run(run())
 

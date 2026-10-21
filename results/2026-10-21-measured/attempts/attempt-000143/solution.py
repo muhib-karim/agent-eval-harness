@@ -1,0 +1,113 @@
+from contextlib import contextmanager
+
+
+class TextBuffer:
+    def __init__(self, text: str = ""):
+        if not isinstance(text, str):
+            raise ValueError("text must be a str")
+        self._text = text
+        self._undo = []   # list of steps; each step is a list of ops
+        self._redo = []
+        self._depth = 0
+        self._current = None  # ops of the active outermost group
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    @staticmethod
+    def _is_int(v):
+        return isinstance(v, int) and not isinstance(v, bool)
+
+    # raw operations (no history)
+    def _raw_insert(self, index, s):
+        self._text = self._text[:index] + s + self._text[index:]
+
+    def _raw_delete(self, start, end):
+        self._text = self._text[:start] + self._text[end:]
+
+    def _apply(self, op):
+        kind, pos, s = op
+        if kind == "i":
+            self._raw_insert(pos, s)
+        else:
+            self._raw_delete(pos, pos + len(s))
+
+    def _apply_inverse(self, op):
+        kind, pos, s = op
+        if kind == "i":
+            self._raw_delete(pos, pos + len(s))
+        else:
+            self._raw_insert(pos, s)
+
+    def _record(self, op):
+        if self._depth > 0:
+            self._current.append(op)
+        else:
+            self._undo.append([op])
+            self._redo.clear()
+
+    def insert(self, index: int, s: str) -> None:
+        if not self._is_int(index) or not isinstance(s, str):
+            raise ValueError("invalid arguments")
+        if index < 0 or index > len(self._text):
+            raise ValueError("index out of range")
+        if s == "":
+            return
+        self._raw_insert(index, s)
+        self._record(("i", index, s))
+
+    def delete(self, start: int, end: int) -> None:
+        if not self._is_int(start) or not self._is_int(end):
+            raise ValueError("invalid positions")
+        if start < 0 or end < start or end > len(self._text):
+            raise ValueError("positions out of range")
+        if start == end:
+            return
+        removed = self._text[start:end]
+        self._raw_delete(start, end)
+        self._record(("d", start, removed))
+
+    def undo(self) -> bool:
+        if self._depth > 0 or not self._undo:
+            return False
+        step = self._undo.pop()
+        for op in reversed(step):
+            self._apply_inverse(op)
+        self._redo.append(step)
+        return True
+
+    def redo(self) -> bool:
+        if self._depth > 0 or not self._redo:
+            return False
+        step = self._redo.pop()
+        for op in step:
+            self._apply(op)
+        self._undo.append(step)
+        return True
+
+    @contextmanager
+    def group(self):
+        outermost = self._depth == 0
+        if outermost:
+            self._current = []
+        marker = len(self._current)
+        self._depth += 1
+        try:
+            yield self
+        except BaseException:
+            # roll back edits made within this block
+            while len(self._current) > marker:
+                self._apply_inverse(self._current.pop())
+            self._depth -= 1
+            if outermost:
+                self._current = None
+            raise
+        else:
+            self._depth -= 1
+            if outermost:
+                ops = self._current
+                self._current = None
+                if ops:
+                    self._undo.append(ops)
+                    self._redo.clear()

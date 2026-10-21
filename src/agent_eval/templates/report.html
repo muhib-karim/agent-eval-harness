@@ -3,54 +3,284 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <title>Coding task comparison</title>
 <style>
-:root { color-scheme: light; font-family: system-ui, sans-serif; color: #172c40; background: #eef3f6; }
-body { max-width: 1100px; margin: 3rem auto; padding: 0 1.5rem; }
-h1 { font-size: 2.4rem; letter-spacing: -.04em; margin-bottom: .5rem; }
-h2 { margin-top: 2.5rem; }
-p, figcaption { color: #425970; line-height: 1.6; }
-.table-wrap { overflow-x: auto; border: 1px solid #ccd8e2; border-radius: .6rem; background: white; }
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --ink: #14212e; --muted: #4a5a6a; --line: #d9dfe5;
+  --head: #eef1f4; --accent: #0b6e69; --whisker: #4a5a6a; --track: #e3e8ec;
+  --heat-0-bg: #f1f4f6; --heat-0-fg: #14212e; --heat-1-bg: #cfe8e4; --heat-1-fg: #14212e;
+  --heat-2-bg: #92cdc5; --heat-2-fg: #14212e; --heat-3-bg: #3f9e94; --heat-3-fg: #0b151d;
+  --heat-4-bg: #0b5e59; --heat-4-fg: #ffffff;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f161d; --surface: #16202a; --ink: #e6edf3; --muted: #9fb0c0; --line: #2a3846;
+    --head: #1b2731; --accent: #4fc3b8; --whisker: #9fb0c0; --track: #24313d;
+    --heat-0-bg: #1b2731; --heat-0-fg: #e6edf3; --heat-1-bg: #1f4a47; --heat-1-fg: #e6edf3;
+    --heat-2-bg: #276d67; --heat-2-fg: #ffffff; --heat-3-bg: #3a978e; --heat-3-fg: #0b151d;
+    --heat-4-bg: #7fd6cc; --heat-4-fg: #0b151d;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.page { max-width: 1240px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -.01em; }
+h2 { font-size: 1.15rem; margin: 2.5rem 0 .5rem; }
+h3 { font-size: 1rem; margin: 1.5rem 0 .25rem; }
+p { margin: .5rem 0; max-width: 72ch; }
+.muted, caption, small, .note { color: var(--muted); }
+small { display: block; font-size: .8rem; font-weight: 400; line-height: 1.3; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.skip { position: absolute; left: -999px; top: .5rem; background: var(--surface); padding: .5rem .75rem; }
+.skip:focus { left: .5rem; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.facts { display: flex; flex-wrap: wrap; gap: .25rem 1.5rem; margin: .75rem 0; padding: 0; }
+.facts div { display: flex; gap: .4rem; align-items: baseline; }
+.facts dt { color: var(--muted); font-size: .85rem; }
+.facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.note { font-size: .9rem; border-left: 3px solid var(--line); padding-left: .75rem; }
+.scroll {
+  overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface);
+}
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: .9rem; border-bottom: 1px solid #e2e8ee; }
-thead { background: #172c40; color: white; }
-td:first-child, th:first-child { font-weight: 650; }
-.score { color: #056557; font-weight: 700; }
-figure { margin: 1rem 0; background: white; padding: 1.2rem; border-radius: .6rem; }
-svg { width: 100%; height: auto; max-height: 260px; }
-rect { fill: #167a79; } text { fill: #425970; font: 12px system-ui, sans-serif; }
-small { display: block; font-weight: normal; line-height: 1.5; }
-footer { border-top: 1px solid #ccd8e2; margin-top: 3rem; padding-top: 1rem; }
+caption {
+  text-align: left; padding: .6rem .75rem; font-size: .85rem; caption-side: top;
+  position: sticky; left: 0; max-width: calc(100vw - 2rem - 2px);
+}
+th, td { padding: .45rem .6rem; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+thead th {
+  background: var(--head); font-size: .8rem; font-weight: 600; white-space: nowrap;
+  border-top: 1px solid var(--line);
+}
+tbody th { font-weight: 600; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.num { text-align: right; white-space: nowrap; }
+.unknown { color: var(--muted); font-style: italic; }
+th[data-sort] button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; text-align: inherit; min-height: 1.5rem;
+}
+th[data-sort]::after { content: ""; display: inline-block; width: 1em; text-align: center; }
+th[aria-sort="descending"]::after { content: "\2193"; content: "\2193" / ""; }
+th[aria-sort="ascending"]::after { content: "\2191"; content: "\2191" / ""; }
+.score { font-weight: 700; }
+.heat-0 { background: var(--heat-0-bg); color: var(--heat-0-fg); }
+.heat-1 { background: var(--heat-1-bg); color: var(--heat-1-fg); }
+.heat-2 { background: var(--heat-2-bg); color: var(--heat-2-fg); }
+.heat-3 { background: var(--heat-3-bg); color: var(--heat-3-fg); }
+.heat-4 { background: var(--heat-4-bg); color: var(--heat-4-fg); }
+.heat small { color: inherit; opacity: .85; }
+.legend { display: flex; flex-wrap: wrap; gap: .25rem .9rem; list-style: none; padding: 0; margin: .6rem 0 0; font-size: .8rem; }
+.legend li { display: flex; align-items: center; gap: .35rem; }
+.swatch { width: .9rem; height: .9rem; border: 1px solid var(--line); display: inline-block; }
+.chart { list-style: none; margin: 0; padding: .5rem .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.chart li {
+  display: grid; grid-template-columns: 12rem minmax(0, 1fr) 11.5rem;
+  grid-template-areas: "name bar value"; gap: .25rem .75rem; align-items: center; padding: .35rem 0; border-top: 1px solid var(--line);
+}
+.chart li:first-child { border-top: 0; }
+.chart .axis { color: var(--muted); font-size: .75rem; }
+.chart li > :nth-child(1) { grid-area: name; }
+.chart li > :nth-child(2) { grid-area: bar; }
+.chart li > :nth-child(3) { grid-area: value; }
+.chart .axis > :nth-child(2) { display: flex; justify-content: space-between; }
+.chart .name { font-weight: 600; overflow-wrap: anywhere; }
+.chart .value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart .value small { display: inline; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.track { stroke: var(--track); stroke-width: 2; }
+.grid { stroke: var(--line); stroke-width: 1; }
+.whisker { stroke: var(--whisker); stroke-width: 2; }
+.point { fill: var(--accent); }
+.tick { fill: var(--accent); opacity: .7; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .page { padding: 1.25rem 1rem 2rem; }
+  h1 { font-size: 1.4rem; }
+  th, td { padding: .4rem .5rem; }
+  .chart li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name value" "bar bar"; }
+  .chart .axis { grid-template-areas: "bar bar"; }
+  .chart .axis > :nth-child(1), .chart .axis > :nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 </style>
 </head>
 <body>
+<a class="skip" href="#leaderboard">Skip to leaderboard</a>
+<div class="page">
+<header>
 <h1>Coding task comparison</h1>
-<p>Results describe this recorded run only. The bundled offline demo uses mock adapters, not live models; mock results are not a live-model benchmark.</p>
-<p>{{ summary.attempts }} attempts across {{ summary.task_ids|length }} tasks. Observed results from this run only.</p>
-<h2>Leaderboard</h2>
-<p>Pass rates average each observed task equally. Pass@k is shown only when every observed task for that model has at least k attempts. Models with different task sets are not directly comparable.</p>
-<div class="table-wrap"><table>
-<thead><tr><th scope="col">Model</th><th scope="col">Pass@1</th><th scope="col">Pass@k</th><th scope="col">Mean / median (s)</th><th scope="col">Tokens in / out</th><th scope="col">Reported USD</th></tr></thead>
-<tbody>{% for model in summary.models %}<tr>
-<td>{{ model.model }}<small>{{ model.passed }}/{{ model.attempts }} passes</small></td>
-<td class="score">{{ '%.1f'|format(model.pass_at_1 * 100) }}%</td>
-<td>{% for k, value in model.pass_at_k.items() %}<small>@{{ k }}: {{ '%.1f'|format(value * 100) }}%</small>{% endfor %}</td>
-<td>{{ '%.3f'|format(model.mean_wall_time_s) }} / {{ '%.3f'|format(model.median_wall_time_s) }}</td>
-<td>{{ model.input_tokens if model.input_tokens is not none else 'unknown' }} / {{ model.output_tokens if model.output_tokens is not none else 'unknown' }}<small>Reported: {{ model.input_tokens_reported }}/{{ model.attempts }} in; {{ model.output_tokens_reported }}/{{ model.attempts }} out</small></td>
-<td>{{ model.cost_usd|usd }}<small>{{ model.cost_reported }}/{{ model.attempts }} reported</small></td>
-</tr>{% endfor %}</tbody></table></div>
-<p>Usage totals include only reported values; partial totals are not estimates of the missing usage. Timing includes generation and grading.</p>
-<h2>Per-task pass matrix</h2>
-<div class="table-wrap"><table><thead><tr><th scope="col">Task</th>{% for model in summary.models %}<th scope="col">{{ model.model }}</th>{% endfor %}</tr></thead>
-<tbody>{% for task in summary.task_ids %}<tr><th scope="row">{{ task }}</th>{% for model in summary.models %}<td>{% set matching = model.tasks|selectattr('task_id', 'equalto', task)|list %}{% if matching %}{{ matching[0].passed }}/{{ matching[0].attempts }}{% else %}—{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
-<h2>Timing distribution</h2>
-<p>One bar per attempt, sorted by duration within each model. All charts share a scale from 0 to {{ '%.3f'|format(max_time) }} seconds.</p>
-{% for model in summary.models %}<figure><figcaption>{{ model.model }}</figcaption>
-<svg viewBox="0 0 800 200" role="img" aria-label="Attempt durations for {{ model.model }}">
-<title>{{ model.model }}: individual attempt wall times</title>
-{% for duration in model.wall_times_s|sort %}
-<rect x="{{ 20 + loop.index0 * 760 / model.attempts }}" y="{{ 170 - duration / max_time * 145 }}" width="{{ 760 / model.attempts * 0.8 }}" height="{{ duration / max_time * 145 }}"><title>{{ '%.3f'|format(duration) }} seconds</title></rect>
-{% endfor %}<text x="20" y="190">0 s baseline</text><text x="20" y="15">{{ '%.3f'|format(max_time) }} s</text></svg>
-</figure>{% endfor %}
-<footer><p>agent-eval-harness · Schema {{ summary.schema_version }} · Hidden tests measure only their specified behavior.</p></footer>
-</body></html>
+<dl class="facts">
+<div><dt>Attempts</dt><dd>{{ summary.attempts }}</dd></div>
+<div><dt>Tasks</dt><dd>{{ summary.task_ids|length }}</dd></div>
+<div><dt>Categories</dt><dd>{{ categories|length }}</dd></div>
+<div><dt>Models</dt><dd>{{ summary.models|length }}</dd></div>
+<div><dt>Intervals</dt><dd>{{ level }} bootstrap, {{ summary.bootstrap.resamples }} resamples, seed {{ summary.bootstrap.seed }}</dd></div>
+</dl>
+<p class="note">Results describe this recorded run only. The bundled offline demo uses mock adapters, not live models; mock results are not a live-model benchmark. Hidden tests measure only their specified behaviour.</p>
+</header>
+<main>
+<section id="leaderboard" aria-labelledby="leaderboard-heading">
+<h2 id="leaderboard-heading">Leaderboard</h2>
+<p>Pass rates average each observed task equally. Pass@k is shown only when every observed task for that model has at least k attempts. Models with different task sets are not directly comparable. Usage columns sum only what the provider reported and say <span class="unknown">unknown</span> when nothing was reported.</p>
+<div class="scroll" role="region" aria-labelledby="leaderboard-caption" tabindex="0">
+<table id="leaderboard-table">
+<caption id="leaderboard-caption">Models ranked by pass@1; select a column heading to sort.</caption>
+<thead><tr>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Rank</th>
+<th scope="col" data-sort="text">Model</th>
+<th scope="col" class="num" data-sort="num" aria-sort="descending">Pass@1</th>
+<th scope="col" class="num" data-sort="num">{{ level }} CI</th>
+<th scope="col">Pass@k (k &gt; 1)</th>
+<th scope="col" class="num" data-sort="num">Passes</th>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Mean s</th>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Median s</th>
+<th scope="col" class="num" data-sort="num">Input tokens</th>
+<th scope="col" class="num" data-sort="num">Output tokens</th>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Cost USD</th>
+</tr></thead>
+<tbody>
+{% for model in summary.models %}<tr>
+<td class="num" data-value="{{ loop.index }}">{{ loop.index }}</td>
+<th scope="row" data-value="{{ model.model|lower }}">{{ model.model }}</th>
+<td class="num score" data-value="{{ model.pass_at_1 }}">{{ model.pass_at_1|pct }}</td>
+<td class="num" data-value="{{ model.pass_at_1_ci[0] }}">{{ '%.1f'|format(model.pass_at_1_ci[0] * 100) }}–{{ model.pass_at_1_ci[1]|pct }}</td>
+<td class="nowrap">{% for k, value in model.pass_at_k.items() if k != 1 %}{% if not loop.first %} · {% endif %}@{{ k }} {{ value|pct }}{% else %}—{% endfor %}</td>
+<td class="num" data-value="{{ model.passed }}">{{ model.passed }}/{{ model.attempts }}</td>
+<td class="num" data-value="{{ model.mean_wall_time_s }}">{{ '%.2f'|format(model.mean_wall_time_s) }}</td>
+<td class="num" data-value="{{ model.median_wall_time_s }}">{{ '%.2f'|format(model.median_wall_time_s) }}</td>
+{% for total, reported in [(model.input_tokens, model.input_tokens_reported), (model.output_tokens, model.output_tokens_reported)] %}<td class="num" data-value="{{ '' if total is none else total }}">{% if total is none %}<span class="unknown">unknown</span>{% else %}{{ total }}{% if reported < model.attempts %}<small>{{ reported }}/{{ model.attempts }} reported</small>{% endif %}{% endif %}</td>
+{% endfor %}<td class="num" data-value="{{ '' if model.cost_usd is none else model.cost_usd|round(9) }}">{% if model.cost_usd is none %}<span class="unknown">unknown</span>{% else %}{{ model.cost_usd|usd }}{% if model.cost_reported < model.attempts %}<small>{{ model.cost_reported }}/{{ model.attempts }} reported</small>{% endif %}{% endif %}</td>
+</tr>
+{% endfor %}</tbody>
+</table>
+</div>
+<p id="sort-status" class="visually-hidden" aria-live="polite"></p>
+</section>
+
+<section aria-labelledby="ci-heading">
+<h2 id="ci-heading">Pass@1 with {{ level }} bootstrap intervals</h2>
+<p>{{ summary.bootstrap.method|capitalize }}: tasks are resampled with replacement {{ summary.bootstrap.resamples }} times (seed {{ summary.bootstrap.seed }}) and the interval is the central {{ level }} of the resampled means. The dot is the observed pass@1; the whiskers span the interval.</p>
+<ul class="chart">
+<li class="axis" aria-hidden="true"><span>Model</span><span><span>0%</span><span>50%</span><span>100%</span></span><span>pass@1 (interval)</span></li>
+{% for model in summary.models %}{% set low, high = model.pass_at_1_ci %}<li>
+<span class="name">{{ model.model }}</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="{{ model.model }}: pass@1 {{ model.pass_at_1|pct }}, {{ level }} interval {{ low|pct }} to {{ high|pct }}">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+{% for x in (6, 103, 200, 297, 394) %}<line class="grid" x1="{{ x }}" y1="3" x2="{{ x }}" y2="17"/>{% endfor %}
+<line class="whisker" x1="{{ 6 + low * 388 }}" y1="10" x2="{{ 6 + high * 388 }}" y2="10"/>
+<line class="whisker" x1="{{ 6 + low * 388 }}" y1="4" x2="{{ 6 + low * 388 }}" y2="16"/>
+<line class="whisker" x1="{{ 6 + high * 388 }}" y1="4" x2="{{ 6 + high * 388 }}" y2="16"/>
+<circle class="point" cx="{{ 6 + model.pass_at_1 * 388 }}" cy="10" r="5"/>
+</svg>
+<span class="value">{{ model.pass_at_1|pct }} <small>({{ low|pct }}–{{ high|pct }})</small></span>
+</li>
+{% endfor %}</ul>
+{% if summary.comparisons %}<h3 id="paired-heading">Paired comparisons</h3>
+<p>Overlapping intervals do not settle a ranking. For every pair whose intervals overlap, a paired bootstrap over the shared tasks (same seed) estimates the difference directly.</p>
+<div class="scroll" role="region" aria-labelledby="paired-caption" tabindex="0">
+<table>
+<caption id="paired-caption">Pass@1 difference (first minus second model) in percentage points.</caption>
+<thead><tr><th scope="col">Pair</th><th scope="col" class="num">Tasks</th><th scope="col" class="num">Difference</th><th scope="col" class="num">Paired {{ level }} CI</th><th scope="col">Reading</th></tr></thead>
+<tbody>{% for item in summary.comparisons %}<tr><th scope="row">{{ item.model_a }} − {{ item.model_b }}</th><td class="num">{{ item.shared_tasks }}</td><td class="num">{{ '%+.1f'|format(item.diff * 100) }}</td><td class="num">{{ '%+.1f'|format(item.ci_low * 100) }} to {{ '%+.1f'|format(item.ci_high * 100) }}</td><td class="nowrap">{% if item.significant %}<strong>differs</strong> (interval excludes 0){% else %}no reliable difference{% endif %}</td></tr>
+{% endfor %}</tbody>
+</table>
+</div>{% endif %}
+</section>
+
+<section aria-labelledby="category-heading">
+<h2 id="category-heading">Pass@1 by category</h2>
+<div class="scroll" role="region" aria-labelledby="category-caption" tabindex="0">
+<table class="heatmap">
+<caption id="category-caption">Task-averaged pass@1 per category. Each cell shows the rate and passes/attempts; the colour band repeats the number.</caption>
+<thead><tr><th scope="col">Category</th><th scope="col" class="num">Tasks</th>{% for model in summary.models %}<th scope="col" class="num">{{ model.model }}</th>{% endfor %}</tr></thead>
+<tbody>{% for category in categories %}<tr><th scope="row">{{ category }}</th><td class="num">{{ category_sizes[category] }}</td>{% for model in summary.models %}{% set found = model.categories|selectattr('category', 'equalto', category)|list %}{% if found %}<td class="num heat heat-{{ found[0].pass_at_1|heat }}">{{ found[0].pass_at_1|pct }}<small>{{ found[0].passed }}/{{ found[0].attempts }}</small></td>{% else %}<td class="num">—<span class="visually-hidden">not run</span></td>{% endif %}{% endfor %}</tr>
+{% endfor %}</tbody>
+</table>
+</div>
+<ul class="legend" aria-label="Colour bands">{% for band in ("0–20%", "20–40%", "40–60%", "60–80%", "80–100%") %}<li><span class="swatch heat-{{ loop.index0 }}" aria-hidden="true"></span>{{ band }}</li>{% endfor %}</ul>
+</section>
+
+<section aria-labelledby="task-heading">
+<h2 id="task-heading">Per-task pass matrix</h2>
+<div class="scroll" role="region" aria-labelledby="task-caption" tabindex="0">
+<table>
+<caption id="task-caption">Passes / attempts per task and model.</caption>
+<thead><tr><th scope="col">Task</th><th scope="col">Category</th>{% for model in summary.models %}<th scope="col" class="num">{{ model.model }}</th>{% endfor %}</tr></thead>
+<tbody>{% for task in summary.task_ids %}<tr><th scope="row">{{ task }}</th><td>{{ summary.task_categories[task] }}</td>{% for model in summary.models %}{% set matching = model.tasks|selectattr('task_id', 'equalto', task)|list %}{% if matching %}<td class="num heat heat-{{ matching[0].pass_at_1|heat }}">{{ matching[0].passed }}/{{ matching[0].attempts }}</td>{% else %}<td class="num">—<span class="visually-hidden">not run</span></td>{% endif %}{% endfor %}</tr>
+{% endfor %}</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="timing-heading">
+<h2 id="timing-heading">Timing distribution</h2>
+<p>One mark per attempt (generation plus grading), on a shared scale from 0 to {{ '%.2f'|format(max_time) }} seconds.</p>
+<ul class="chart">
+<li class="axis" aria-hidden="true"><span>Model</span><span><span>0 s</span><span>{{ '%.2f'|format(max_time) }} s</span></span><span>median (max)</span></li>
+{% for model in summary.models %}<li>
+<span class="name">{{ model.model }}</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="{{ model.model }}: {{ model.attempts }} attempts, median {{ '%.2f'|format(model.median_wall_time_s) }} seconds, longest {{ '%.2f'|format(model.wall_times_s|max) }} seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+{% for duration in model.wall_times_s|sort %}<rect class="tick" x="{{ 5 + duration / max_time * 388 }}" y="3" width="2" height="14"/>{% endfor %}
+</svg>
+<span class="value">{{ '%.2f'|format(model.median_wall_time_s) }} s <small>({{ '%.2f'|format(model.wall_times_s|max) }} s)</small></span>
+</li>
+{% endfor %}</ul>
+</section>
+</main>
+<footer><p>agent-eval-harness · results schema {{ summary.schema_version }} · single self-contained file, no external assets.</p></footer>
+</div>
+<script>
+{% raw %}(function () {
+  "use strict";
+  var table = document.getElementById("leaderboard-table");
+  if (!table || !table.tHead || !table.tBodies.length) return;
+  var body = table.tBodies[0];
+  var headers = Array.prototype.slice.call(table.tHead.rows[0].cells);
+  var status = document.getElementById("sort-status");
+  function value(row, index) {
+    var cell = row.cells[index];
+    return cell ? cell.getAttribute("data-value") || "" : "";
+  }
+  function sortBy(th, index) {
+    var numeric = th.getAttribute("data-sort") === "num";
+    var current = th.getAttribute("aria-sort");
+    var first = th.getAttribute("data-first") || (numeric ? "descending" : "ascending");
+    var direction = current === "descending" ? "ascending" : current === "ascending" ? "descending" : first;
+    var rows = Array.prototype.slice.call(body.rows);
+    rows.sort(function (a, b) {
+      var x = value(a, index), y = value(b, index);
+      if (x === "" || y === "") return (x === "") - (y === "");
+      var order = numeric ? parseFloat(x) - parseFloat(y) : x.localeCompare(y);
+      return direction === "ascending" ? order : -order;
+    });
+    rows.forEach(function (row) { body.appendChild(row); });
+    headers.forEach(function (header) { header.removeAttribute("aria-sort"); });
+    th.setAttribute("aria-sort", direction);
+    if (status) status.textContent = "Sorted by " + th.textContent.trim() + ", " + direction + ".";
+  }
+  headers.forEach(function (th, index) {
+    if (!th.hasAttribute("data-sort")) return;
+    var button = document.createElement("button");
+    button.type = "button";
+    while (th.firstChild) button.appendChild(th.firstChild);
+    th.appendChild(button);
+    button.addEventListener("click", function () { sortBy(th, index); });
+  });
+})();{% endraw %}
+</script>
+</body>
+</html>

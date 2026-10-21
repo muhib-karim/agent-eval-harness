@@ -1,0 +1,29 @@
+The bug is in the substitution pattern. `[^a-z0-9]` matches one character at a time, so each non-alphanumeric character becomes its own dash. For example, `" -- "` turns into `"----"`. Adding the `+` quantifier makes the pattern match a whole run of such characters, which is then replaced by a single `-`.
+
+```python
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug
+```
+
+With this change:
+- `slugify("Hello -- World")` returns `'hello-world'`
+- `slugify("Tom & Jerry")` returns `'tom-jerry'`
+
+Everything else stays the same:
+- **Leading and trailing dashes:** `.strip("-")` still removes them.
+- **Truncation:** a cut at `max_length` can still end on a dash, and the `.rstrip("-")` that follows removes it.
+- **Input checks:** validation behaves as before. That includes rejecting `bool` for `max_length` via `type(...) is not int`.

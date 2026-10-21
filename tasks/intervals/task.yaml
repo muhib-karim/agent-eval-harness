@@ -21,3 +21,4 @@ timeout_s: 5
 tags:
 - sorting
 - boundaries
+category: algorithms

@@ -1,0 +1,201 @@
+```python
+def to_roman(value: int) -> str:
+    """
+    Convert an integer (1-3999) to uppercase canonical Roman numerals.
+    
+    Args:
+        value: Integer in range 1-3999
+        
+    Returns:
+        Roman numeral string in canonical form
+        
+    Raises:
+        ValueError: If value is not an int, bool, or outside 1-3999
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"Expected int, got {type(value).__name__}")
+    
+    if value < 1 or value > 3999:
+        raise ValueError(f"Value must be in range 1-3999, got {value}")
+    
+    # Mapping of values to Roman numerals in descending order
+    # Includes subtractive forms
+    val_to_roman = [
+        (1000, 'M'),
+        (900, 'CM'),
+        (500, 'D'),
+        (400, 'CD'),
+        (100, 'C'),
+        (90, 'XC'),
+        (50, 'L'),
+        (40, 'XL'),
+        (10, 'X'),
+        (9, 'IX'),
+        (5, 'V'),
+        (4, 'IV'),
+        (1, 'I'),
+    ]
+    
+    result = []
+    for val, numeral in val_to_roman:
+        count = value // val
+        if count:
+            result.append(numeral * count)
+            value -= val * count
+    
+    return ''.join(result)
+
+
+def from_roman(text: str) -> int:
+    """
+    Convert uppercase canonical Roman numerals (1-3999) to integer.
+    
+    Args:
+        text: Roman numeral string in canonical form
+        
+    Returns:
+        Integer value in range 1-3999
+        
+    Raises:
+        ValueError: If text is not valid canonical Roman numerals
+    """
+    if not isinstance(text, str):
+        raise ValueError(f"Expected str, got {type(text).__name__}")
+    
+    if not text:
+        raise ValueError("Roman numeral string cannot be empty")
+    
+    if not text.isupper():
+        raise ValueError("Roman numerals must be uppercase")
+    
+    if text != text.strip() or ' ' in text:
+        raise ValueError("Roman numerals cannot contain whitespace")
+    
+    # Check for valid characters
+    valid_chars = set('IVXLCDM')
+    if not all(c in valid_chars for c in text):
+        raise ValueError(f"Invalid character in Roman numerals: {text}")
+    
+    # Define canonical patterns
+    # Valid patterns: I, II, III, IV, V, VI, VII, VIII, IX (for units)
+    # Valid patterns: X, XX, XXX, XL, L, LX, LXX, LXXX, XC (for tens)
+    # Valid patterns: C, CC, CCC, CD, D, DC, DCC, DCCC, CM (for hundreds)
+    # Valid patterns: M, MM, MMM (for thousands)
+    
+    roman_to_val = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+    
+    # Validate canonical form by checking it converts back
+    result = 0
+    i = 0
+    
+    # Process thousands (M, MM, MMM)
+    m_count = 0
+    while i < len(text) and text[i] == 'M':
+        m_count += 1
+        i += 1
+    if m_count > 3:
+        raise ValueError(f"Invalid repetition: too many M's in {text}")
+    result += m_count * 1000
+    
+    # Process hundreds (C, CC, CCC, CD, D, DC, DCC, DCCC, CM)
+    if i < len(text):
+        if text[i:i+2] == 'CM':
+            result += 900
+            i += 2
+        elif text[i:i+2] == 'CD':
+            result += 400
+            i += 2
+        elif text[i] == 'D':
+            result += 500
+            i += 1
+            c_count = 0
+            while i < len(text) and text[i] == 'C':
+                c_count += 1
+                i += 1
+            if c_count > 3:
+                raise ValueError(f"Invalid repetition: too many C's after D in {text}")
+            result += c_count * 100
+        elif text[i] == 'C':
+            c_count = 0
+            while i < len(text) and text[i] == 'C':
+                c_count += 1
+                i += 1
+            if c_count > 3:
+                raise ValueError(f"Invalid repetition: too many C's in {text}")
+            result += c_count * 100
+    
+    # Process tens (X, XX, XXX, XL, L, LX, LXX, LXXX, XC)
+    if i < len(text):
+        if text[i:i+2] == 'XC':
+            result += 90
+            i += 2
+        elif text[i:i+2] == 'XL':
+            result += 40
+            i += 2
+        elif text[i] == 'L':
+            result += 50
+            i += 1
+            x_count = 0
+            while i < len(text) and text[i] == 'X':
+                x_count += 1
+                i += 1
+            if x_count > 3:
+                raise ValueError(f"Invalid repetition: too many X's after L in {text}")
+            result += x_count * 10
+        elif text[i] == 'X':
+            x_count = 0
+            while i < len(text) and text[i] == 'X':
+                x_count += 1
+                i += 1
+            if x_count > 3:
+                raise ValueError(f"Invalid repetition: too many X's in {text}")
+            result += x_count * 10
+    
+    # Process units (I, II, III, IV, V, VI, VII, VIII, IX)
+    if i < len(text):
+        if text[i:i+2] == 'IX':
+            result += 9
+            i += 2
+        elif text[i:i+2] == 'IV':
+            result += 4
+            i += 2
+        elif text[i] == 'V':
+            result += 5
+            i += 1
+            one_count = 0
+            while i < len(text) and text[i] == 'I':
+                one_count += 1
+                i += 1
+            if one_count > 3:
+                raise ValueError(f"Invalid repetition: too many I's after V in {text}")
+            result += one_count
+        elif text[i] == 'I':
+            one_count = 0
+            while i < len(text) and text[i] == 'I':
+                one_count += 1
+                i += 1
+            if one_count > 3:
+                raise ValueError(f"Invalid repetition: too many I's in {text}")
+            result += one_count
+    
+    # Check if we consumed entire string
+    if i != len(text):
+        raise ValueError(f"Invalid Roman numeral format: {text}")
+    
+    # Final validation: convert back and compare
+    if result < 1 or result > 3999:
+        raise ValueError(f"Roman numeral out of range 1-3999: {text}")
+    
+    if to_roman(result) != text:
+        raise ValueError(f"Invalid canonical form: {text}")
+    
+    return result
+```

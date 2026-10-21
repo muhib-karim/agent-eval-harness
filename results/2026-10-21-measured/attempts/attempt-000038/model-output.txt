@@ -1,0 +1,69 @@
+The approach is to build the numeral greedily for `to_roman`, and to have `from_roman` parse the text and then require that converting the result back gives exactly the same string.
+
+```python
+"""Roman numeral conversion utilities (standard library only)."""
+
+_PAIRS = (
+    (1000, "M"),
+    (900, "CM"),
+    (500, "D"),
+    (400, "CD"),
+    (100, "C"),
+    (90, "XC"),
+    (50, "L"),
+    (40, "XL"),
+    (10, "X"),
+    (9, "IX"),
+    (5, "V"),
+    (4, "IV"),
+    (1, "I"),
+)
+
+_SYMBOLS = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+
+
+def to_roman(value: int) -> str:
+    """Convert an integer in 1..3999 to an uppercase canonical Roman numeral."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("value must be an integer")
+    if not 1 <= value <= 3999:
+        raise ValueError("value must be in range 1..3999")
+    parts = []
+    remaining = value
+    for number, numeral in _PAIRS:
+        if remaining == 0:
+            break
+        count, remaining = divmod(remaining, number)
+        if count:
+            parts.append(numeral * count)
+    return "".join(parts)
+
+
+def from_roman(text: str) -> int:
+    """Convert an uppercase canonical Roman numeral (1..3999) to an integer."""
+    if not isinstance(text, str):
+        raise ValueError("text must be a string")
+    if not text:
+        raise ValueError("empty Roman numeral")
+    for ch in text:
+        if ch not in _SYMBOLS:
+            raise ValueError(f"invalid Roman numeral character: {ch!r}")
+
+    total = 0
+    n = len(text)
+    for i, ch in enumerate(text):
+        v = _SYMBOLS[ch]
+        if i + 1 < n and _SYMBOLS[text[i + 1]] > v:
+            total -= v
+        else:
+            total += v
+
+    if not 1 <= total <= 3999:
+        raise ValueError(f"invalid Roman numeral: {text!r}")
+    # Canonical check: the round-trip must reproduce the exact input.
+    if to_roman(total) != text:
+        raise ValueError(f"non-canonical Roman numeral: {text!r}")
+    return total
+```
+
+The round-trip check in `from_roman` rejects every non-canonical form. Examples are `IIII`, `VX`, `IC`, `XM`, `MMMM` and `IIV`. Values outside 1..3999 are rejected by the range check that runs first.

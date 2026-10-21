@@ -1,0 +1,27 @@
+# Agent CLIs run headless through the `cli` runner presets.
+# Each agent gets a fresh workdir (and, with isolate_home, an empty HOME) and only the
+# environment variables named by its preset plus env_passthrough. Credentials stay in your
+# environment; the config only names them. Remove agents you do not have installed.
+models:
+  - name: claude-code
+    runner: cli
+    options:
+      preset: claude-code
+      model: claude-sonnet-5
+  - name: codex
+    runner: cli
+    options:
+      preset: codex
+      model: gpt-6-sol
+      timeout_s: 900
+  - name: opencode
+    runner: cli
+    options:
+      preset: opencode
+      model: anthropic/claude-haiku-4-5
+      isolate_home: true
+      env_passthrough: [ANTHROPIC_BASE_URL]
+tasks:
+  - ../tasks/*/task.yaml
+repeats: 1
+concurrency: 1

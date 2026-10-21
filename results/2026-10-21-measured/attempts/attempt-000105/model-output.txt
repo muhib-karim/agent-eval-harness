@@ -1,0 +1,45 @@
+```python
+"""A small memoizing decorator with hit/miss counters."""
+
+import functools
+
+
+def memoize(func):
+    cache = {}
+    stats = {"hits": 0, "misses": 0}
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        # Keyword arguments are sorted by name so that call order doesn't
+        # matter. Keyword names are unique strings, so values are never
+        # compared during sorting.
+        # Hashing the key raises TypeError for unhashable arguments before
+        # func is called.
+        key = (args, tuple(sorted(kwargs.items())))
+        if key in cache:
+            stats["hits"] += 1
+            return cache[key]
+        result = func(*args, **kwargs)
+        stats["misses"] += 1
+        cache[key] = result
+        return result
+
+    def cache_info():
+        return stats["hits"], stats["misses"]
+
+    def cache_clear():
+        cache.clear()
+        stats["hits"] = stats["misses"] = 0
+
+    wrapper.cache_info = cache_info
+    wrapper.cache_clear = cache_clear
+    return wrapper
+```
+
+The cache key ignored `kwargs` entirely, so `scale(3, factor=2)` and `scale(3, factor=10)` both used the key `(3,)`. The key is now `(args, sorted keyword items)`:
+
+- **Keyword arguments:** calls that differ only in keyword values get separate cache entries. Calls that pass the same keywords in a different order share one entry.
+- **Unhashable arguments:** they still raise `TypeError` when the key is looked up, before `func` is called.
+- **Exceptions and counters:** exceptions from `func` are still not cached, and `cache_info()` and `cache_clear()` behave as before.
+
+I haven't run this against the reproduction.

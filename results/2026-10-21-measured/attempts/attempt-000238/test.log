@@ -1,0 +1,23 @@
+
+==================================== ERRORS ====================================
+________________ ERROR collecting _hidden_vpdfi3o0/test_000.py _________________
+<site-packages>/_pytest/python.py:508: in importtestmodule
+    mod = import_path(
+<site-packages>/_pytest/pathlib.py:572: in import_path
+    mod = _import_module_using_spec(module_name, path, insert_modules=True)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<site-packages>/_pytest/pathlib.py:716: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<site-packages>/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+_hidden_vpdfi3o0/test_000.py:2: in <module>
+    from solution import TextBuffer
+E     File "<workdir>/solution.py", line 2
+E       ```python
+E       ^
+E   SyntaxError: invalid syntax
+=========================== short test summary info ============================
+ERROR _hidden_vpdfi3o0/test_000.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.98s

@@ -1,0 +1,32 @@
+id: fix_memoize
+title: "Bug fix: memoize ignores keyword arguments"
+category: bug-fix
+prompt: |
+  Issue #203: @memoize returns stale results when only keyword arguments differ.
+
+  Reproduction:
+      >>> @memoize
+      ... def scale(x, factor=1):
+      ...     return x * factor
+      >>> scale(3, factor=2)
+      6
+      >>> scale(3, factor=10)
+      6             # expected 30
+
+  memo.py provides memoize(func), a decorator that caches results by the call's
+  arguments. Calls that pass the same keyword arguments in a different order share one
+  cache entry; positional and keyword spellings of the same argument may be cached
+  separately. Unhashable arguments raise TypeError and the function is not called.
+  Exceptions raised by func are not cached. The wrapper keeps func's __name__, __doc__
+  and __wrapped__, and exposes cache_info() -> (hits, misses) and cache_clear(), which
+  empties the cache and resets both counters.
+
+  Fix the bug without changing the public API.
+entrypoint: memo.py
+starter: starter.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- decorators
+- caching

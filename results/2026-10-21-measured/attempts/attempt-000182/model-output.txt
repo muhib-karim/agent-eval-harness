@@ -1,0 +1,86 @@
+```python
+import re
+
+_ROMAN_MAP = [
+    (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+    (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+    (10, "X"), (9, "IX"), (5, "V"), (4, "IV"),
+    (1, "I"),
+]
+
+_ROMAN_REGEX = re.compile(
+    r"^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$"
+)
+
+
+def to_roman(value: int) -> str:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("value must be an int")
+    if not (1 <= value <= 3999):
+        raise ValueError("value must be between 1 and 3999")
+
+    result = []
+    remaining = value
+    for num, sym in _ROMAN_MAP:
+        while remaining >= num:
+            result.append(sym)
+            remaining -= num
+    return "".join(result)
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str):
+        raise ValueError("text must be a str")
+    if text == "":
+        raise ValueError("text must be a nonempty canonical roman numeral")
+    if not _ROMAN_REGEX.match(text):
+        raise ValueError("text is not a valid canonical roman numeral")
+
+    value = 0
+    i = 0
+    n = len(text)
+    # Build a mapping sorted by length desc to match multi-char tokens first
+    tokens = sorted(_ROMAN_MAP, key=lambda x: -len(x[1]))
+    while i < n:
+        for num, sym in tokens:
+            if text.startswith(sym, i):
+                value += num
+                i += len(sym)
+                break
+        else:
+            # Should not happen due to regex validation, but guard anyway
+            raise ValueError("text is not a valid canonical roman numeral")
+
+    if not (1 <= value <= 3999):
+        raise ValueError("value must be between 1 and 3999")
+
+    # Ensure round-trip canonical form matches exactly (extra safety)
+    if to_roman(value) != text:
+        raise ValueError("text is not a valid canonical roman numeral")
+
+    return value
+
+
+if __name__ == "__main__":
+    # Simple self-tests
+    assert to_roman(1) == "I"
+    assert to_roman(3999) == "MMMCMXCIX"
+    assert from_roman("IV") == 4
+    assert from_roman("MMMCMXCIX") == 3999
+
+    for bad in ["", "iv", " IV", "IIII", "IM", "ABC", "MMMM", "VV", "IC"]:
+        try:
+            from_roman(bad)
+            raise AssertionError(f"Expected ValueError for {bad!r}")
+        except ValueError:
+            pass
+
+    for bad in [0, -1, 4000, 1.5, True, False, "5", None]:
+        try:
+            to_roman(bad)
+            raise AssertionError(f"Expected ValueError for {bad!r}")
+        except ValueError:
+            pass
+
+    print("All tests passed.")
+```

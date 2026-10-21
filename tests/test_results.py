@@ -70,12 +70,14 @@ def test_reports_escape_text_and_include_data(format: str) -> None:
     if format == "json":
         assert json.loads(rendered)["attempts"] == 2
     else:
-        assert "<script>" not in rendered and "&lt;script&gt;" in rendered
+        assert "<script>alert" not in rendered and "&lt;script&gt;" in rendered
         assert "unknown" in rendered and "—" in rendered
     if format == "html":
         assert "<svg" in rendered and "<rect" in rendered
         assert "<style>" in rendered
-        assert "<script" not in rendered and "http" not in rendered
+        # One inline sorting script and no external resources of any kind.
+        assert rendered.count("<script") == 1 and "<script src" not in rendered
+        assert "://" not in rendered
         assert "Leaderboard" in rendered and "Per-task pass matrix" in rendered
     if format == "md":
         assert "&#124;" in rendered

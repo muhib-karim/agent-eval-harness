@@ -1,0 +1,134 @@
+```python
+def topo_sort(graph):
+    """
+    Topologically sort a directed acyclic graph.
+    
+    Args:
+        graph: A dict mapping each node to an iterable of nodes it depends on.
+               Dependencies are nodes that must come before the dependent node.
+    
+    Returns:
+        A list of all nodes in topological order, with dependencies before dependents.
+        When multiple nodes are ready, the smallest is emitted first (lexicographically).
+    
+    Raises:
+        ValueError: If the graph contains a cycle.
+    """
+    # Build the graph structure and collect all nodes
+    all_nodes = set()
+    in_degree = {}
+    adjacency = {}
+    
+    # First pass: collect all nodes from both keys and dependency values
+    for node, dependencies in graph.items():
+        all_nodes.add(node)
+        if node not in in_degree:
+            in_degree[node] = 0
+        if node not in adjacency:
+            adjacency[node] = []
+        
+        # Use a set to handle duplicate dependencies
+        deps_set = set(dependencies)
+        for dep in deps_set:
+            all_nodes.add(dep)
+            if dep not in in_degree:
+                in_degree[dep] = 0
+            if dep not in adjacency:
+                adjacency[dep] = []
+    
+    # Second pass: build the reverse graph (dependency -> dependent relationships)
+    # and calculate in-degrees
+    reverse_graph = {node: [] for node in all_nodes}
+    in_degree = {node: 0 for node in all_nodes}
+    
+    for node, dependencies in graph.items():
+        deps_set = set(dependencies)
+        in_degree[node] = len(deps_set)
+        for dep in deps_set:
+            reverse_graph[dep].append(node)
+    
+    # Find all nodes with no dependencies (in_degree == 0)
+    ready = sorted([node for node in all_nodes if in_degree[node] == 0])
+    
+    result = []
+    
+    while ready:
+        # Always take the smallest node (lexicographically)
+        current = ready.pop(0)
+        result.append(current)
+        
+        # Process all nodes that depend on current
+        for dependent in reverse_graph[current]:
+            in_degree[dependent] -= 1
+            if in_degree[dependent] == 0:
+                # Insert in sorted position to maintain lexicographic order
+                import bisect
+                bisect.insort(ready, dependent)
+    
+    # If we haven't processed all nodes, there's a cycle
+    if len(result) != len(all_nodes):
+        raise ValueError("Graph contains a cycle")
+    
+    return result
+```
+
+Wait, I need to reconsider the import of bisect. Let me rewrite this without relying on bisect being in the right place, and optimize the sorted insertion:
+
+```python
+def topo_sort(graph):
+    """
+    Topologically sort a directed acyclic graph.
+    
+    Args:
+        graph: A dict mapping each node to an iterable of nodes it depends on.
+               Dependencies are nodes that must come before the dependent node.
+    
+    Returns:
+        A list of all nodes in topological order, with dependencies before dependents.
+        When multiple nodes are ready, the smallest is emitted first (lexicographically).
+    
+    Raises:
+        ValueError: If the graph contains a cycle.
+    """
+    # Collect all nodes from both keys and dependency values
+    all_nodes = set()
+    for node, dependencies in graph.items():
+        all_nodes.add(node)
+        for dep in dependencies:
+            all_nodes.add(dep)
+    
+    # Build reverse graph and calculate in-degrees
+    reverse_graph = {node: [] for node in all_nodes}
+    in_degree = {node: 0 for node in all_nodes}
+    
+    for node, dependencies in graph.items():
+        # Use set to handle duplicate dependencies (they count once)
+        deps_set = set(dependencies)
+        in_degree[node] = len(deps_set)
+        for dep in deps_set:
+            reverse_graph[dep].append(node)
+    
+    # Find all nodes with no dependencies and sort them
+    ready = sorted([node for node in all_nodes if in_degree[node] == 0])
+    
+    result = []
+    
+    while ready:
+        # Always take the smallest node (lexicographically)
+        current = ready.pop(0)
+        result.append(current)
+        
+        # Process all nodes that depend on current
+        for dependent in reverse_graph[current]:
+            in_degree[dependent] -= 1
+            if in_degree[dependent] == 0:
+                # Add to ready list and re-sort to maintain lexicographic order
+                ready.append(dependent)
+                ready.sort()
+    
+    # If we haven't processed all nodes, there's a cycle
+    if len(result) != len(all_nodes):
+        raise ValueError("Graph contains a cycle")
+    
+    return result
+```

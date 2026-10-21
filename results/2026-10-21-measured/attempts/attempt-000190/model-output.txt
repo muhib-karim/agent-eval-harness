@@ -1,0 +1,158 @@
+```python
+"""
+solution.py
+
+A simple text buffer with grouped, unbounded undo/redo support.
+
+Only the Python standard library is used.
+"""
+
+from typing import List, Tuple, Optional, Union
+
+# A single atomic edit is represented as (start, old, new):
+#   - start: position in the buffer where the edit begins
+#   - old:   the substring that existed at `start` before the edit
+#   - new:   the substring that exists at `start` after the edit
+# Applying the edit:   text = text[:start] + new + text[start+len(old):]
+# Reverting the edit:  text = text[:start] + old + text[start+len(new):]
+_Op = Tuple[int, str, str]
+_Group = List[_Op]
+
+
+class _GroupContext:
+    """Context manager object returned by TextBuffer.group()."""
+
+    __slots__ = ("_buf",)
+
+    def __init__(self, buf: "TextBuffer") -> None:
+        self._buf = buf
+
+    def __enter__(self) -> "_GroupContext":
+        buf = self._buf
+        buf._group_depth += 1
+        if buf._group_depth == 1:
+            buf._group_ops = []
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        buf = self._buf
+        buf._group_depth -= 1
+        if buf._group_depth == 0:
+            if exc_type is not None:
+                # Roll back whatever was done inside this (outermost) group.
+                for op in reversed(buf._group_ops):
+                    buf._apply_backward(op)
+                buf._group_ops = None
+                return False  # propagate the exception
+            else:
+                if buf._group_ops:
+                    buf._undo_stack.append(buf._group_ops)
+                    buf._redo_stack.clear()
+                buf._group_ops = None
+        # If we're still nested (depth > 0) just let the exception
+        # (if any) propagate without touching any stacks here.
+        return False
+
+
+def _is_plain_int(value) -> bool:
+    """True for genuine int instances, False for bool (and anything else)."""
+    return type(value) is int
+
+
+class TextBuffer:
+    """A mutable text buffer supporting grouped undo/redo."""
+
+    def __init__(self, text: str = "") -> None:
+        if not isinstance(text, str):
+            raise ValueError("initial text must be a str")
+        self._text: str = text
+        self._undo_stack: List[_Group] = []
+        self._redo_stack: List[_Group] = []
+        self._group_depth: int = 0
+        self._group_ops: Optional[_Group] = None
+
+    # ------------------------------------------------------------------ #
+    # Public read-only state
+    # ------------------------------------------------------------------ #
+    @property
+    def text(self) -> str:
+        return self._text
+
+    # ------------------------------------------------------------------ #
+    # Editing
+    # ------------------------------------------------------------------ #
+    def insert(self, index: int, s: str) -> None:
+        if not _is_plain_int(index):
+            raise ValueError("index must be an int")
+        if not (0 <= index <= len(self._text)):
+            raise ValueError("index out of range")
+        if not isinstance(s, str):
+            raise ValueError("s must be a str")
+
+        if s == "":
+            return  # no-op
+
+        op: _Op = (index, "", s)
+        self._record_and_apply(op)
+
+    def delete(self, start: int, end: int) -> None:
+        if not _is_plain_int(start) or not _is_plain_int(end):
+            raise ValueError("start/end must be ints")
+        if not (0 <= start <= end <= len(self._text)):
+            raise ValueError("invalid start/end range")
+
+        if start == end:
+            return  # no-op
+
+        old = self._text[start:end]
+        op: _Op = (start, old, "")
+        self._record_and_apply(op)
+
+    # ------------------------------------------------------------------ #
+    # Undo / Redo
+    # ------------------------------------------------------------------ #
+    def undo(self) -> bool:
+        if not self._undo_stack:
+            return False
+        group = self._undo_stack.pop()
+        for op in reversed(group):
+            self._apply_backward(op)
+        self._redo_stack.append(group)
+        return True
+
+    def redo(self) -> bool:
+        if not self._redo_stack:
+            return False
+        group = self._redo_stack.pop()
+        for op in group:
+            self._apply_forward(op)
+        self._undo_stack.append(group)
+        return True
+
+    # ------------------------------------------------------------------ #
+    # Grouping
+    # ------------------------------------------------------------------ #
+    def group(self) -> _GroupContext:
+        return _GroupContext(self)
+
+    # ------------------------------------------------------------------ #
+    # Internal helpers
+    # ------------------------------------------------------------------ #
+    def _apply_forward(self, op: _Op) -> None:
+        start, old, new = op
+        self._text = self._text[:start] + new + self._text[start + len(old):]
+
+    def _apply_backward(self, op: _Op) -> None:
+        start, old, new = op
+        self._text = self._text[:start] + old + self._text[start + len(new):]
+
+    def _record_and_apply(self, op: _Op) -> None:
+        self._apply_forward(op)
+        if self._group_depth > 0:
+            # Inside an (possibly nested) group: just collect the op.
+            self._group_ops.append(op)
+        else:
+            # Standalone edit: it is its own group.
+            self._undo_stack.append([op])
+            self._redo_stack.clear()
+```

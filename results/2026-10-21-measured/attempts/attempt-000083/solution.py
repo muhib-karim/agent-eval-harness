@@ -1,0 +1,78 @@
+import math
+import numbers
+from collections import deque
+
+
+class SlidingWindowLimiter:
+    """Sliding-window rate limiter with independent per-key history.
+
+    At most ``limit`` accepted calls are allowed within the half-open window
+    ``(now - window_s, now]`` for each key. Denied calls do not consume
+    capacity. Time is supplied by the caller and must be finite and
+    nondecreasing per key across all calls (accepted or denied).
+    """
+
+    def __init__(self, limit, window_s):
+        if isinstance(limit, bool) or not isinstance(limit, numbers.Integral):
+            raise ValueError("limit must be a positive integer")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        if isinstance(window_s, bool) or not isinstance(window_s, numbers.Real):
+            raise ValueError("window_s must be a positive finite number")
+        window_f = float(window_s)
+        if not math.isfinite(window_f) or window_f <= 0:
+            raise ValueError("window_s must be a positive finite number")
+
+        self._limit = int(limit)
+        self._window = window_s
+        self._history = {}    # key -> deque of accepted timestamps
+        self._last_time = {}  # key -> last observed time (accepted or denied)
+
+    @property
+    def limit(self):
+        return self._limit
+
+    @property
+    def window_s(self):
+        return self._window
+
+    @staticmethod
+    def _validate_time(now):
+        if isinstance(now, bool) or not isinstance(now, numbers.Real):
+            raise ValueError("time must be a finite real number")
+        try:
+            f = float(now)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("time must be a finite real number")
+        if not math.isfinite(f):
+            raise ValueError("time must be a finite real number")
+
+    def allow(self, key, now):
+        # Validate the timestamp before touching any state.
+        self._validate_time(now)
+
+        last = self._last_time.get(key)
+        if last is not None and now < last:
+            raise ValueError(
+                "time must be nondecreasing per key (got %r after %r)" % (now, last)
+            )
+
+        # From here on the call is valid; record the observed time.
+        self._last_time[key] = now
+
+        dq = self._history.get(key)
+        if dq is None:
+            dq = deque()
+            self._history[key] = dq
+
+        # Discard accepted timestamps that have fallen out of the window:
+        # keep only timestamps t with t > now - window_s.
+        cutoff = now - self._window
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+
+        if len(dq) < self._limit:
+            dq.append(now)
+            return True
+        return False

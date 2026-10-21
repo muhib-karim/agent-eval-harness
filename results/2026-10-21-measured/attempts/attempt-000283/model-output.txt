@@ -1,0 +1,34 @@
+```python
+import heapq
+from collections import defaultdict
+
+
+def topo_sort(graph) -> list:
+    """Return the lexicographically smallest topological ordering of graph."""
+    indegree = {node: 0 for node in graph}
+    dependents = defaultdict(list)
+
+    for node, dependencies in graph.items():
+        for dependency in set(dependencies):
+            indegree.setdefault(dependency, 0)
+            indegree[node] += 1
+            dependents[dependency].append(node)
+
+    ready = [node for node, count in indegree.items() if count == 0]
+    heapq.heapify(ready)
+    result = []
+
+    while ready:
+        node = heapq.heappop(ready)
+        result.append(node)
+
+        for dependent in dependents[node]:
+            indegree[dependent] -= 1
+            if indegree[dependent] == 0:
+                heapq.heappush(ready, dependent)
+
+    if len(result) != len(indegree):
+        raise ValueError("graph contains a cycle")
+
+    return result
+```

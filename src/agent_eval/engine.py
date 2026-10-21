@@ -7,10 +7,12 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -20,28 +22,65 @@ from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
 from agent_eval.runners import create_runner
 from agent_eval.runners.base import Generation, Runner, RunnerError
-from agent_eval.runners.local import MockOptions
+from agent_eval.runners.local import CLIOptions, MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
 
-async def validate_task(path: Path) -> Grade:
-    task = load_task(path, require_reference=True)
+async def validate_task(path: Path, reference: Path | None = None) -> Grade:
+    """Grade a reference solution: the task's own ``reference`` file or an external one."""
+    task = load_task(path, require_reference=reference is None)
+    source = task_file(path, task.reference) if reference is None else reference
     with tempfile.TemporaryDirectory(prefix="agent-eval-validate-") as directory:
         workdir = Path(directory)
-        (workdir / task.entrypoint).write_bytes(task_file(path, task.reference).read_bytes())
+        (workdir / task.entrypoint).write_bytes(source.read_bytes())
         return await grade(task, path, workdir)
 
 
-async def run_config(config_path: Path, out: Path) -> list[Attempt]:
+def _resolve_options(runner: str, options: dict[str, Any], base: Path) -> dict[str, Any]:
+    """Make the mock runner's ``reference_dir`` relative to the config, not the CWD."""
+    reference_dir = options.get("reference_dir")
+    if runner == "mock" and isinstance(reference_dir, str):
+        return {**options, "reference_dir": str((base / reference_dir).resolve())}
+    return options
+
+
+def recover_attempts(path: Path) -> list[Attempt]:
+    """Recorded attempts of an interrupted run; drops only a half-written final line."""
+    data = path.read_bytes()
+    lines = data.split(b"\n")
+    attempts: list[Attempt] = []
+    for index, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            attempts.append(Attempt.model_validate_json(line))
+        except ValueError:
+            if index == len(lines) - 1:
+                # The process died mid-write; this attempt will run again.
+                path.write_bytes(data[: len(data) - len(line)])
+                break
+            raise ValueError(f"cannot resume: invalid attempt on line {index + 1}") from None
+    identities = {(row.model, row.task_id, row.repeat) for row in attempts}
+    if len(identities) != len(attempts) or len({row.attempt_id for row in attempts}) != len(
+        attempts
+    ):
+        raise ValueError("cannot resume: duplicate attempts in results.jsonl")
+    return attempts
+
+
+async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> list[Attempt]:
+    """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
+    interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
     # Validate every runner before creating a run directory or starting any generation.
     jobs: list[tuple[str, str, Path, TaskSpec, int, Runner]] = []
     for model in config.models:
+        options = _resolve_options(model.runner, model.options, config_path.parent)
         for task_path, task in tasks:
             for repeat in range(1, config.repeats + 1):
-                runner = create_runner(model.runner, model.options, task_path=task_path)
+                runner = create_runner(model.runner, options, task_path=task_path)
                 jobs.append((model.name, model.runner, task_path, task, repeat, runner))
     secrets = [
         os.environ[value]
@@ -49,6 +88,12 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
         for name, value in model.options.items()
         if name == "api_key_env" and isinstance(value, str) and os.environ.get(value)
     ]
+    # Credentials forwarded to agent CLIs; short values are skipped to avoid redacting noise.
+    for model in config.models:
+        if model.runner == "cli":
+            for name in CLIOptions.model_validate(model.options).passthrough_names():
+                if len(os.environ.get(name, "")) >= 8:
+                    secrets.append(os.environ[name])
 
     def redact(value: str) -> str:
         for secret in sorted(secrets, key=len, reverse=True):
@@ -56,22 +101,26 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
         return value
 
     out = out.resolve()
-    out.mkdir(parents=True, exist_ok=False)
     resolved = config.model_dump(mode="json")
     resolved["tasks"] = [str(path) for path, _ in tasks]
-    (out / "config.resolved.yaml").write_text(
-        redact(yaml.safe_dump(resolved, sort_keys=False)), encoding="utf-8"
-    )
+    config_text = redact(yaml.safe_dump(resolved, sort_keys=False))
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
         sources = [path, *(task_file(path, name) for name in task.hidden_tests)]
+        if task.starter is not None:
+            sources.append(task_file(path, task.starter))
         if (path.parent / task.reference).is_file():
             sources.append(task_file(path, task.reference))
         for model in config.models:
             if model.runner == "mock":
-                options = MockOptions.model_validate(model.options)
-                if options.variant == "reference" and task.id in options.fixtures:
-                    sources.append(task_file(path, options.fixtures[task.id]))
+                mock = MockOptions.model_validate(
+                    _resolve_options(model.runner, model.options, config_path.parent)
+                )
+                reference = mock.reference_file(task.id)
+                if mock.variant == "reference" and task.id in mock.fixtures:
+                    sources.append(task_file(path, mock.fixtures[task.id]))
+                elif mock.variant == "reference" and reference and reference.is_file():
+                    sources.append(reference)
         hashes[task.id] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     metadata = {
         "schema_version": "1.0",
@@ -82,21 +131,38 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
         "task_hashes": hashes,
         "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
     }
+    done: list[Attempt] = []
+    if resume and out.exists():
+        if not (out / "results.jsonl").is_file():
+            raise ValueError(f"cannot resume: no results.jsonl in {out}")
+        if (out / "config.resolved.yaml").read_text(encoding="utf-8") != config_text:
+            raise ValueError("cannot resume: the config differs from the interrupted run")
+        previous = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
+        if previous.get("task_hashes") != json.loads(redact(json.dumps(hashes))):
+            raise ValueError("cannot resume: task files changed since the interrupted run")
+        done = recover_attempts(out / "results.jsonl")
+        previous.setdefault("resumed_at", []).append(metadata["started_at"])
+        metadata = previous
+    else:
+        out.mkdir(parents=True, exist_ok=False)
+        (out / "config.resolved.yaml").write_text(config_text, encoding="utf-8")
     (out / "metadata.json").write_text(
         redact(json.dumps(metadata, indent=2)) + "\n", encoding="utf-8"
     )
+    recorded = {(row.model, row.task_id, row.repeat) for row in done}
     semaphore = asyncio.Semaphore(config.concurrency)
-    attempts: list[Attempt] = []
-    with (out / "results.jsonl").open("w", encoding="utf-8") as stream:
+    attempts: list[Attempt] = list(done)
+    with (out / "results.jsonl").open("a" if done else "w", encoding="utf-8") as stream:
 
         async def execute(index: int, job: tuple[str, str, Path, TaskSpec, int, Runner]) -> None:
             async with semaphore:
                 model_name, runner_name, task_path, task, repeat, runner = job
                 attempt_id = f"attempt-{index:06d}"
                 artifact_dir = out / "attempts" / attempt_id
+                # Leftovers of an attempt that was interrupted before it was recorded.
+                shutil.rmtree(artifact_dir, ignore_errors=True)
                 artifact_dir.mkdir(parents=True)
                 start = time.perf_counter()
-                generation_end = start
                 grading_time = 0.0
                 generated = Generation("")
                 graded = Grade("error")
@@ -104,6 +170,10 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
                 with tempfile.TemporaryDirectory(prefix="agent-eval-") as directory:
                     workdir = Path(directory)
                     try:
+                        if task.starter is not None:
+                            shutil.copyfile(
+                                task_file(task_path, task.starter), workdir / task.entrypoint
+                            )
                         generated = await runner.generate(task, workdir)
                         generation_end = time.perf_counter()
                         graded = await grade(task, task_path, workdir)
@@ -143,6 +213,7 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
                     cost_usd=generated.cost_usd,
                     error=redact(error) if error else None,
                     artifacts=str(artifact_dir.relative_to(out)),
+                    category=task.category,
                 )
                 stream.write(attempt.model_dump_json() + "\n")
                 stream.flush()
@@ -151,7 +222,8 @@ async def run_config(config_path: Path, out: Path) -> list[Attempt]:
         # Structured concurrency ensures cleanup completes before the result stream closes.
         async with asyncio.TaskGroup() as group:
             for index, job in enumerate(jobs, 1):
-                group.create_task(execute(index, job))
+                if (redact(job[0]), job[3].id, job[4]) not in recorded:
+                    group.create_task(execute(index, job))
     attempts.sort(key=lambda row: row.attempt_id)
     summary = summarize(attempts)
     (out / "summary.json").write_text(render_report(summary, "json"), encoding="utf-8")

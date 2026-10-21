@@ -1,0 +1,1366 @@
+{
+  "schema_version": "1.0",
+  "attempts": 288,
+  "task_ids": [
+    "arithmetic",
+    "fix_binary_search",
+    "fix_memoize",
+    "fix_running_stats",
+    "fix_slugify",
+    "ini_parser",
+    "intervals",
+    "json_path",
+    "ledger",
+    "levenshtein",
+    "lru_ttl",
+    "rate_limiter",
+    "roman",
+    "semver",
+    "topo_sort",
+    "undo_buffer"
+  ],
+  "task_categories": {
+    "arithmetic": "parsing",
+    "fix_binary_search": "bug-fix",
+    "fix_memoize": "bug-fix",
+    "fix_running_stats": "bug-fix",
+    "fix_slugify": "bug-fix",
+    "ini_parser": "parsing",
+    "intervals": "algorithms",
+    "json_path": "parsing",
+    "ledger": "stateful",
+    "levenshtein": "algorithms",
+    "lru_ttl": "stateful",
+    "rate_limiter": "stateful",
+    "roman": "algorithms",
+    "semver": "parsing",
+    "topo_sort": "algorithms",
+    "undo_buffer": "stateful"
+  },
+  "models": [
+    {
+      "model": "claude-sonnet-5-5",
+      "attempts": 48,
+      "passed": 48,
+      "outcomes": {
+        "pass": 48,
+        "fail": 0,
+        "error": 0,
+        "timeout": 0
+      },
+      "pass_at_1": 1.0,
+      "pass_at_k": {
+        "1": 1.0,
+        "3": 1.0
+      },
+      "pass_at_1_ci": [
+        1.0,
+        1.0
+      ],
+      "mean_wall_time_s": 9.421603792531338,
+      "median_wall_time_s": 8.814427304081619,
+      "wall_times_s": [
+        10.747199591714889,
+        10.733705668244511,
+        9.631362918764353,
+        8.387785798870027,
+        8.803175852168351,
+        5.767531884368509,
+        8.710538536775857,
+        6.272398523055017,
+        7.939266179688275,
+        6.3397107119672,
+        6.277640690095723,
+        6.72560847690329,
+        4.437115500215441,
+        4.298911056946963,
+        4.4221834018826485,
+        7.895516301039606,
+        7.178912192117423,
+        7.748104107100517,
+        7.514360558241606,
+        7.0313231577165425,
+        8.247925573959947,
+        12.647587809711695,
+        15.069762276019901,
+        10.369435102213174,
+        13.989836203865707,
+        9.660570724867284,
+        8.825678755994886,
+        15.521327117923647,
+        18.833204644732177,
+        10.64410144975409,
+        17.372796058189124,
+        11.521622614003718,
+        11.671873762272298,
+        9.720280479174107,
+        14.014367142226547,
+        5.226335335057229,
+        5.4489772520028055,
+        5.531770959962159,
+        10.854287549853325,
+        9.88731390517205,
+        6.086551385000348,
+        10.082333480939269,
+        10.878504167310894,
+        5.830407083965838,
+        6.0540719092823565,
+        13.564228528179228,
+        14.596546597778797,
+        13.222933064214885
+      ],
+      "input_tokens": 20727,
+      "output_tokens": 55573,
+      "cost_usd": null,
+      "input_tokens_reported": 48,
+      "output_tokens_reported": 48,
+      "cost_reported": 0,
+      "tasks": [
+        {
+          "task_id": "arithmetic",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_binary_search",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_memoize",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_running_stats",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_slugify",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ini_parser",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "intervals",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "json_path",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ledger",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "levenshtein",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "lru_ttl",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "rate_limiter",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "roman",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "semver",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "topo_sort",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "undo_buffer",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "algorithms",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "bug-fix",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "parsing",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "stateful",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        }
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "attempts": 48,
+      "passed": 48,
+      "outcomes": {
+        "pass": 48,
+        "fail": 0,
+        "error": 0,
+        "timeout": 0
+      },
+      "pass_at_1": 1.0,
+      "pass_at_k": {
+        "1": 1.0,
+        "3": 1.0
+      },
+      "pass_at_1_ci": [
+        1.0,
+        1.0
+      ],
+      "mean_wall_time_s": 12.916990357266817,
+      "median_wall_time_s": 11.889838594710454,
+      "wall_times_s": [
+        11.579632223583758,
+        12.519983114674687,
+        12.606379925273359,
+        13.955192911904305,
+        10.444606316741556,
+        10.536408382933587,
+        11.726122666150331,
+        12.211091943085194,
+        12.905634966213256,
+        13.114180697128177,
+        15.249808465130627,
+        6.263157534878701,
+        16.110546158161014,
+        7.632839282043278,
+        8.239863988012075,
+        10.225930742919445,
+        10.469390718266368,
+        9.900575094856322,
+        10.328398142941296,
+        10.197239791974425,
+        10.897135252133012,
+        16.489034206140786,
+        15.316930811852217,
+        13.485785436350852,
+        16.1323048947379,
+        12.48035710118711,
+        11.89768044417724,
+        17.504884297028184,
+        23.40485095931217,
+        16.591046737972647,
+        21.818935940042138,
+        13.343803133815527,
+        10.02115860581398,
+        14.568850829731673,
+        10.51162857702002,
+        11.881996745243669,
+        11.226180717349052,
+        9.290698307100683,
+        11.126745039131492,
+        11.75083389878273,
+        10.566440599039197,
+        10.113817300181836,
+        14.79096772102639,
+        9.475826315116137,
+        9.066961105912924,
+        17.43864514073357,
+        20.410859764087945,
+        22.194194200914353
+      ],
+      "input_tokens": 20727,
+      "output_tokens": 62037,
+      "cost_usd": null,
+      "input_tokens_reported": 48,
+      "output_tokens_reported": 48,
+      "cost_reported": 0,
+      "tasks": [
+        {
+          "task_id": "arithmetic",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_binary_search",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_memoize",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_running_stats",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_slugify",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ini_parser",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "intervals",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "json_path",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ledger",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "levenshtein",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "lru_ttl",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "rate_limiter",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "roman",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "semver",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "topo_sort",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "undo_buffer",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "algorithms",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "bug-fix",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "parsing",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "stateful",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        }
+      ]
+    },
+    {
+      "model": "claude-fable-5-1",
+      "attempts": 48,
+      "passed": 48,
+      "outcomes": {
+        "pass": 48,
+        "fail": 0,
+        "error": 0,
+        "timeout": 0
+      },
+      "pass_at_1": 1.0,
+      "pass_at_k": {
+        "1": 1.0,
+        "3": 1.0
+      },
+      "pass_at_1_ci": [
+        1.0,
+        1.0
+      ],
+      "mean_wall_time_s": 18.69482279687266,
+      "median_wall_time_s": 17.116213000612333,
+      "wall_times_s": [
+        19.981730023864657,
+        17.99853249778971,
+        10.440755806863308,
+        13.098838017322123,
+        12.133367768023163,
+        10.729163887910545,
+        29.33757523400709,
+        10.217679052613676,
+        10.288075297605246,
+        9.742555124219507,
+        10.865525921806693,
+        9.390420359093696,
+        4.417476987931877,
+        4.54245882993564,
+        4.397696643136442,
+        6.494403321761638,
+        7.275343528948724,
+        13.34859288809821,
+        17.26829808205366,
+        16.96058597881347,
+        23.85201926389709,
+        16.898280539549887,
+        27.562803242821246,
+        37.641882091294974,
+        37.847958012949675,
+        18.408580829389393,
+        22.289939634967595,
+        22.03027893230319,
+        46.77575672697276,
+        53.26318265404552,
+        46.80546104488894,
+        22.25371381500736,
+        14.431051675230265,
+        13.884942916221917,
+        19.22794124018401,
+        16.22803293634206,
+        16.964127919171005,
+        18.64050971996039,
+        19.448630094062537,
+        21.190148597117513,
+        22.78676122194156,
+        19.08853690698743,
+        8.886239848099649,
+        8.041538222227246,
+        7.631584455259144,
+        25.185982580762357,
+        24.903350829612464,
+        26.253183046821505
+      ],
+      "input_tokens": 20727,
+      "output_tokens": 74638,
+      "cost_usd": null,
+      "input_tokens_reported": 48,
+      "output_tokens_reported": 48,
+      "cost_reported": 0,
+      "tasks": [
+        {
+          "task_id": "arithmetic",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_binary_search",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_memoize",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_running_stats",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_slugify",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ini_parser",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "intervals",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "json_path",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ledger",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "levenshtein",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "lru_ttl",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "rate_limiter",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "roman",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "semver",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "topo_sort",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "undo_buffer",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "algorithms",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "bug-fix",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "parsing",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "stateful",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-sol",
+      "attempts": 48,
+      "passed": 47,
+      "outcomes": {
+        "pass": 47,
+        "fail": 1,
+        "error": 0,
+        "timeout": 0
+      },
+      "pass_at_1": 0.9791666666666666,
+      "pass_at_k": {
+        "1": 0.9791666666666666,
+        "3": 1.0
+      },
+      "pass_at_1_ci": [
+        0.9375,
+        1.0
+      ],
+      "mean_wall_time_s": 11.281269693155386,
+      "median_wall_time_s": 10.063946845941246,
+      "wall_times_s": [
+        11.682906521018595,
+        6.976816225796938,
+        10.766799018252641,
+        7.435825301334262,
+        11.500881540123373,
+        6.978220643941313,
+        6.544674351345748,
+        9.015882721636444,
+        6.3099128431640565,
+        3.9031515191309154,
+        8.642353165894747,
+        3.763110048137605,
+        9.047436189372092,
+        3.3310953392647207,
+        9.864930968731642,
+        5.933592275716364,
+        8.315031912177801,
+        7.855289620347321,
+        9.109649170190096,
+        7.10947296814993,
+        6.692211897112429,
+        14.168694726657122,
+        11.704528436996043,
+        19.169836157001555,
+        15.269786012358963,
+        10.847816193010658,
+        9.530758343171328,
+        19.910023808013648,
+        23.940225606784225,
+        18.640746563207358,
+        23.540617973078042,
+        15.246926579624414,
+        12.422037305310369,
+        18.130319263320416,
+        16.69624455505982,
+        6.772325978148729,
+        8.367531682830304,
+        14.762959301937371,
+        10.26296272315085,
+        6.442638543900102,
+        12.697410399094224,
+        13.083110155072063,
+        14.794333667960018,
+        6.561927121132612,
+        5.311354922130704,
+        17.93290976062417,
+        17.468780511058867,
+        17.044894739985466
+      ],
+      "input_tokens": 13755,
+      "output_tokens": 38837,
+      "cost_usd": null,
+      "input_tokens_reported": 48,
+      "output_tokens_reported": 48,
+      "cost_reported": 0,
+      "tasks": [
+        {
+          "task_id": "arithmetic",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_binary_search",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_memoize",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_running_stats",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_slugify",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ini_parser",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "intervals",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "json_path",
+          "attempts": 3,
+          "passed": 2,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "task_id": "ledger",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "levenshtein",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "lru_ttl",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "rate_limiter",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "roman",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "semver",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "topo_sort",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "undo_buffer",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        }
+      ],
+      "categories": [
+        {
+          "category": "algorithms",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "bug-fix",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "parsing",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 11,
+          "pass_at_1": 0.9166666666666666
+        },
+        {
+          "category": "stateful",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        }
+      ]
+    },
+    {
+      "model": "claude-sonnet-5",
+      "attempts": 48,
+      "passed": 38,
+      "outcomes": {
+        "pass": 38,
+        "fail": 6,
+        "error": 4,
+        "timeout": 0
+      },
+      "pass_at_1": 0.7916666666666666,
+      "pass_at_k": {
+        "1": 0.7916666666666666,
+        "3": 0.875
+      },
+      "pass_at_1_ci": [
+        0.6041666666666666,
+        0.9375
+      ],
+      "mean_wall_time_s": 27.583255406440003,
+      "median_wall_time_s": 14.9070042995736,
+      "wall_times_s": [
+        5.431658424902707,
+        4.806640661787242,
+        5.753171388991177,
+        4.834362832829356,
+        36.016680215951055,
+        4.477467105258256,
+        5.035769629757851,
+        5.26317826192826,
+        5.27255528094247,
+        5.561018731910735,
+        38.74505993677303,
+        3.715069300029427,
+        40.99898716621101,
+        4.026157941203564,
+        3.129792738240212,
+        8.703106847591698,
+        19.47167735081166,
+        12.30176998488605,
+        21.830594630911946,
+        14.49480493599549,
+        32.10506938910112,
+        18.769992019049823,
+        10.478877590037882,
+        14.08238300587982,
+        64.50606248900294,
+        53.54250083025545,
+        86.41189241921529,
+        27.416764799971133,
+        23.190500258933753,
+        91.16918087704107,
+        87.59111180203035,
+        13.236853576730937,
+        96.97820370923728,
+        15.72713038418442,
+        33.52378739695996,
+        13.873556402977556,
+        11.419876202009618,
+        21.306082060094923,
+        12.057500396855175,
+        18.505159445106983,
+        7.805350359994918,
+        14.506690280046314,
+        7.157039453741163,
+        19.694889502599835,
+        15.307318319100887,
+        81.99275005422533,
+        89.07692030491307,
+        92.69329281290993
+      ],
+      "input_tokens": 20631,
+      "output_tokens": 129892,
+      "cost_usd": null,
+      "input_tokens_reported": 48,
+      "output_tokens_reported": 48,
+      "cost_reported": 0,
+      "tasks": [
+        {
+          "task_id": "arithmetic",
+          "attempts": 3,
+          "passed": 0,
+          "pass_at_1": 0.0
+        },
+        {
+          "task_id": "fix_binary_search",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_memoize",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_running_stats",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_slugify",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "ini_parser",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "intervals",
+          "attempts": 3,
+          "passed": 2,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "task_id": "json_path",
+          "attempts": 3,
+          "passed": 2,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "task_id": "ledger",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "levenshtein",
+          "attempts": 3,
+          "passed": 0,
+          "pass_at_1": 0.0
+        },
+        {
+          "task_id": "lru_ttl",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "rate_limiter",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "roman",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "semver",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "topo_sort",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "undo_buffer",
+          "attempts": 3,
+          "passed": 1,
+          "pass_at_1": 0.3333333333333333
+        }
+      ],
+      "categories": [
+        {
+          "category": "algorithms",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 8,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "category": "bug-fix",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 12,
+          "pass_at_1": 1.0
+        },
+        {
+          "category": "parsing",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 8,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "category": "stateful",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 10,
+          "pass_at_1": 0.8333333333333334
+        }
+      ]
+    },
+    {
+      "model": "claude-haiku-4-5",
+      "attempts": 48,
+      "passed": 32,
+      "outcomes": {
+        "pass": 32,
+        "fail": 9,
+        "error": 4,
+        "timeout": 3
+      },
+      "pass_at_1": 0.6666666666666666,
+      "pass_at_k": {
+        "1": 0.6666666666666666,
+        "3": 0.8125
+      },
+      "pass_at_1_ci": [
+        0.4786458333333342,
+        0.8541666666666666
+      ],
+      "mean_wall_time_s": 9.028000391903333,
+      "median_wall_time_s": 8.838403111556545,
+      "wall_times_s": [
+        9.352917113341391,
+        9.88915344281122,
+        11.002205189317465,
+        6.260897028259933,
+        5.779739371035248,
+        5.931328064762056,
+        4.994424864184111,
+        4.486578308977187,
+        4.663077128119767,
+        5.921358216088265,
+        5.955908260308206,
+        8.071759450715035,
+        4.369812460616231,
+        4.805911791045219,
+        4.961375530809164,
+        7.19259004900232,
+        7.889316916931421,
+        7.3575028399936855,
+        6.291241948958486,
+        7.832815185654908,
+        13.09145343489945,
+        8.936183063313365,
+        10.098817200865597,
+        9.151657321956009,
+        7.751659433357418,
+        8.890956060960889,
+        9.633183421101421,
+        6.192139225080609,
+        17.02027808688581,
+        19.048321767244488,
+        17.758344191126525,
+        6.0929569797590375,
+        9.34878697572276,
+        5.28063182067126,
+        5.3250277121551335,
+        7.9837059448473155,
+        8.83678506501019,
+        10.537731559947133,
+        15.415171644184738,
+        10.277190269902349,
+        10.888957075309008,
+        11.675988633651286,
+        10.798742067068815,
+        13.263794088270515,
+        8.8400211581029,
+        14.079699885100126,
+        11.882409487850964,
+        12.23351207608357
+      ],
+      "input_tokens": 15678,
+      "output_tokens": 43707,
+      "cost_usd": null,
+      "input_tokens_reported": 48,
+      "output_tokens_reported": 48,
+      "cost_reported": 0,
+      "tasks": [
+        {
+          "task_id": "arithmetic",
+          "attempts": 3,
+          "passed": 0,
+          "pass_at_1": 0.0
+        },
+        {
+          "task_id": "fix_binary_search",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_memoize",
+          "attempts": 3,
+          "passed": 2,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "task_id": "fix_running_stats",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "fix_slugify",
+          "attempts": 3,
+          "passed": 2,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "task_id": "ini_parser",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "intervals",
+          "attempts": 3,
+          "passed": 1,
+          "pass_at_1": 0.3333333333333333
+        },
+        {
+          "task_id": "json_path",
+          "attempts": 3,
+          "passed": 0,
+          "pass_at_1": 0.0
+        },
+        {
+          "task_id": "ledger",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "levenshtein",
+          "attempts": 3,
+          "passed": 0,
+          "pass_at_1": 0.0
+        },
+        {
+          "task_id": "lru_ttl",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "rate_limiter",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "roman",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "semver",
+          "attempts": 3,
+          "passed": 2,
+          "pass_at_1": 0.6666666666666666
+        },
+        {
+          "task_id": "topo_sort",
+          "attempts": 3,
+          "passed": 3,
+          "pass_at_1": 1.0
+        },
+        {
+          "task_id": "undo_buffer",
+          "attempts": 3,
+          "passed": 1,
+          "pass_at_1": 0.3333333333333333
+        }
+      ],
+      "categories": [
+        {
+          "category": "algorithms",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 7,
+          "pass_at_1": 0.5833333333333334
+        },
+        {
+          "category": "bug-fix",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 10,
+          "pass_at_1": 0.8333333333333333
+        },
+        {
+          "category": "parsing",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 5,
+          "pass_at_1": 0.41666666666666663
+        },
+        {
+          "category": "stateful",
+          "tasks": 4,
+          "attempts": 12,
+          "passed": 10,
+          "pass_at_1": 0.8333333333333334
+        }
+      ]
+    }
+  ],
+  "bootstrap": {
+    "method": "task-level percentile bootstrap",
+    "seed": 20261021,
+    "resamples": 2000,
+    "confidence": 0.95
+  },
+  "comparisons": [
+    {
+      "model_a": "claude-sonnet-5-5",
+      "model_b": "claude-opus-5-5",
+      "shared_tasks": 16,
+      "diff": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.0,
+      "significant": false,
+      "note": "Intervals overlap and the paired 95% interval for the difference includes zero: no reliable difference between claude-sonnet-5-5 and claude-opus-5-5 on these 16 tasks."
+    },
+    {
+      "model_a": "claude-sonnet-5-5",
+      "model_b": "claude-fable-5-1",
+      "shared_tasks": 16,
+      "diff": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.0,
+      "significant": false,
+      "note": "Intervals overlap and the paired 95% interval for the difference includes zero: no reliable difference between claude-sonnet-5-5 and claude-fable-5-1 on these 16 tasks."
+    },
+    {
+      "model_a": "claude-sonnet-5-5",
+      "model_b": "gpt-6-sol",
+      "shared_tasks": 16,
+      "diff": 0.020833333333333336,
+      "ci_low": 0.0,
+      "ci_high": 0.0625,
+      "significant": false,
+      "note": "Intervals overlap and the paired 95% interval for the difference includes zero: no reliable difference between claude-sonnet-5-5 and gpt-6-sol on these 16 tasks."
+    },
+    {
+      "model_a": "claude-opus-5-5",
+      "model_b": "claude-fable-5-1",
+      "shared_tasks": 16,
+      "diff": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.0,
+      "significant": false,
+      "note": "Intervals overlap and the paired 95% interval for the difference includes zero: no reliable difference between claude-opus-5-5 and claude-fable-5-1 on these 16 tasks."
+    },
+    {
+      "model_a": "claude-opus-5-5",
+      "model_b": "gpt-6-sol",
+      "shared_tasks": 16,
+      "diff": 0.020833333333333336,
+      "ci_low": 0.0,
+      "ci_high": 0.0625,
+      "significant": false,
+      "note": "Intervals overlap and the paired 95% interval for the difference includes zero: no reliable difference between claude-opus-5-5 and gpt-6-sol on these 16 tasks."
+    },
+    {
+      "model_a": "claude-fable-5-1",
+      "model_b": "gpt-6-sol",
+      "shared_tasks": 16,
+      "diff": 0.020833333333333336,
+      "ci_low": 0.0,
+      "ci_high": 0.0625,
+      "significant": false,
+      "note": "Intervals overlap and the paired 95% interval for the difference includes zero: no reliable difference between claude-fable-5-1 and gpt-6-sol on these 16 tasks."
+    },
+    {
+      "model_a": "gpt-6-sol",
+      "model_b": "claude-sonnet-5",
+      "shared_tasks": 16,
+      "diff": 0.1875,
+      "ci_low": 0.04166666666666667,
+      "ci_high": 0.375,
+      "significant": true,
+      "note": "Intervals overlap, but the paired 95% interval for the difference excludes zero: gpt-6-sol differs from claude-sonnet-5."
+    },
+    {
+      "model_a": "claude-sonnet-5",
+      "model_b": "claude-haiku-4-5",
+      "shared_tasks": 16,
+      "diff": 0.125,
+      "ci_low": 0.04166666666666667,
+      "ci_high": 0.22916666666666669,
+      "significant": true,
+      "note": "Intervals overlap, but the paired 95% interval for the difference excludes zero: claude-sonnet-5 differs from claude-haiku-4-5."
+    }
+  ]
+}

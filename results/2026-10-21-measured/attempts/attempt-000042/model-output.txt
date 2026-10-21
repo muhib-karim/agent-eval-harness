@@ -1,0 +1,69 @@
+```python
+import re
+
+_NUM = r"(?:0|[1-9][0-9]*)"
+_IDENT = r"[0-9A-Za-z-]+"
+_RE = re.compile(
+    r"(" + _NUM + r")\.(" + _NUM + r")\.(" + _NUM + r")"
+    r"(?:-(" + _IDENT + r"(?:\." + _IDENT + r")*))?"
+    r"(?:\+(" + _IDENT + r"(?:\." + _IDENT + r")*))?"
+)
+_DIGITS = re.compile(r"[0-9]+")
+
+
+def parse(text: str) -> tuple:
+    if not isinstance(text, str):
+        raise ValueError("version must be a str")
+    m = _RE.fullmatch(text)
+    if m is None:
+        raise ValueError("invalid semantic version: %r" % (text,))
+    major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    pre = ()
+    if m.group(4) is not None:
+        items = []
+        for ident in m.group(4).split("."):
+            if _DIGITS.fullmatch(ident):
+                if len(ident) > 1 and ident[0] == "0":
+                    raise ValueError("numeric prerelease identifier with leading zero: %r" % (text,))
+                items.append(int(ident))
+            else:
+                items.append(ident)
+        pre = tuple(items)
+    build = ()
+    if m.group(5) is not None:
+        build = tuple(m.group(5).split("."))
+    return (major, minor, patch, pre, build)
+
+
+def _cmp(x, y) -> int:
+    return (x > y) - (x < y)
+
+
+def compare(a: str, b: str) -> int:
+    pa = parse(a)
+    pb = parse(b)
+    for i in range(3):
+        c = _cmp(pa[i], pb[i])
+        if c:
+            return c
+    pre_a, pre_b = pa[3], pb[3]
+    if not pre_a and not pre_b:
+        return 0
+    if not pre_a:
+        return 1
+    if not pre_b:
+        return -1
+    for x, y in zip(pre_a, pre_b):
+        xi, yi = isinstance(x, int), isinstance(y, int)
+        if xi and yi:
+            c = _cmp(x, y)
+        elif xi:
+            c = -1
+        elif yi:
+            c = 1
+        else:
+            c = _cmp(x, y)
+        if c:
+            return c
+    return _cmp(len(pre_a), len(pre_b))
+```

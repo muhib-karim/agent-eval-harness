@@ -1,0 +1,78 @@
+_ID_START = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+_ID_CHARS = _ID_START | set("0123456789")
+_DIGITS = set("0123456789")
+
+
+def _parse(path):
+    """Parse path into a list of ('key', str) / ('idx', int) tokens.
+
+    Raises ValueError on malformed syntax.
+    """
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    tokens = []
+    n = len(path)
+    i = 0
+    if n == 0:
+        return tokens
+
+    def read_ident(i):
+        if i >= n or path[i] not in _ID_START:
+            raise ValueError("expected identifier at position %d" % i)
+        j = i + 1
+        while j < n and path[j] in _ID_CHARS:
+            j += 1
+        return path[i:j], j
+
+    def read_index(i):
+        # path[i] == '['
+        j = i + 1
+        start = j
+        while j < n and path[j] in _DIGITS:
+            j += 1
+        if j == start:
+            raise ValueError("expected digits in brackets at position %d" % start)
+        if j >= n or path[j] != "]":
+            raise ValueError("expected ']' at position %d" % j)
+        return int(path[start:j]), j + 1
+
+    if path[0] == "$":
+        i = 1
+        if i < n and path[i] not in ".[":
+            raise ValueError("unexpected character after '$'")
+    else:
+        if path[0] == "[":
+            idx, i = read_index(0)
+            tokens.append(("idx", idx))
+        else:
+            key, i = read_ident(0)
+            tokens.append(("key", key))
+
+    while i < n:
+        c = path[i]
+        if c == ".":
+            key, i = read_ident(i + 1)
+            tokens.append(("key", key))
+        elif c == "[":
+            idx, i = read_index(i)
+            tokens.append(("idx", idx))
+        else:
+            raise ValueError("unexpected character %r at position %d" % (c, i))
+    return tokens
+
+
+def get_path(data, path, default=None):
+    tokens = _parse(path)
+    cur = data
+    for kind, val in tokens:
+        if kind == "key":
+            if isinstance(cur, dict) and val in cur:
+                cur = cur[val]
+            else:
+                return default
+        else:
+            if isinstance(cur, list) and 0 <= val < len(cur):
+                cur = cur[val]
+            else:
+                return default
+    return cur

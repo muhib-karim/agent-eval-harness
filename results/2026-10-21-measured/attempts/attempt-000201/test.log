@@ -1,0 +1,13 @@
+
+==================================== ERRORS ====================================
+________________ ERROR collecting _hidden_nztskbz2/test_000.py _________________
+_hidden_nztskbz2/test_000.py:2: in <module>
+    from memo import memoize
+memo.py:32: in <module>
+    key = (args, frozenset(kwargs.items()))
+           ^^^^
+E   NameError: name 'args' is not defined
+=========================== short test summary info ============================
+ERROR _hidden_nztskbz2/test_000.py - NameError: name 'args' is not defined
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.88s

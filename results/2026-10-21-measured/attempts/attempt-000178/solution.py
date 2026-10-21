@@ -1,0 +1,72 @@
+"""
+solution.py
+
+Implementation of a per-key sliding-window rate limiter using only the
+Python standard library.
+"""
+
+import math
+from collections import deque
+
+
+class SlidingWindowLimiter:
+    """
+    A sliding-window rate limiter.
+
+    Each hashable key has an independent history of accepted call
+    timestamps. A call at time `now` for key `key` is allowed if there
+    are strictly fewer than `limit` previously accepted timestamps in
+    the half-open interval (now - window_s, now].
+
+    Timestamps (per key) must be finite and nondecreasing across ALL
+    calls (including denied ones). Equal consecutive timestamps are
+    allowed. Violating this invariant raises ValueError without
+    altering any state.
+    """
+
+    def __init__(self, limit: int, window_s: float):
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise ValueError("limit must be a positive integer (not bool)")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        if isinstance(window_s, bool) or not isinstance(window_s, (int, float)):
+            raise ValueError("window_s must be a finite positive number")
+        if not math.isfinite(window_s) or window_s <= 0:
+            raise ValueError("window_s must be a finite positive number")
+
+        self.limit = limit
+        self.window_s = float(window_s)
+
+        # key -> deque of accepted timestamps (oldest first)
+        self._history = {}
+        # key -> last seen `now` value (for nondecreasing check)
+        self._last_time = {}
+
+    def allow(self, key, now: float) -> bool:
+        if isinstance(now, bool) or not isinstance(now, (int, float)):
+            raise ValueError("now must be a finite real number")
+        if not math.isfinite(now):
+            raise ValueError("now must be finite")
+
+        last = self._last_time.get(key)
+        if last is not None and now < last:
+            raise ValueError(
+                "now must be nondecreasing per key across all calls"
+            )
+
+        # Validation passed; now it's safe to update state.
+        self._last_time[key] = now
+
+        dq = self._history.setdefault(key, deque())
+
+        cutoff = now - self.window_s
+        # Discard accepted timestamps <= now - window_s
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+
+        if len(dq) < self.limit:
+            dq.append(now)
+            return True
+
+        return False

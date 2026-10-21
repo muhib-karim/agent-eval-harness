@@ -1,0 +1,166 @@
+```python
+"""
+solution.py
+
+Implements get_path(data, path, default=None): a small, strict JSON-path-like
+accessor using only the Python standard library.
+
+Supported path syntax
+---------------------
+    ''                      -> returns data
+    '$'                     -> returns data
+    'a.b.c'                 -> dict keys (ASCII identifiers)
+    'a[0][12].b'            -> list indices (zero-based, non-negative, leading
+                               zeroes allowed)
+    '$.a[0].b', '$[0]'      -> optional leading '$' followed by '.' or '['
+    '[0][1].x'              -> path may start directly with a bracket index
+
+Rejected (ValueError)
+---------------------
+    whitespace anywhere, negative indices, quoted keys, wildcards, leading /
+    repeated / trailing dots, an identifier directly following a bracket
+    without a dot (e.g. 'a[0]b'), '$' followed directly by an identifier
+    (e.g. '$a'), unterminated / empty brackets, non-ASCII identifiers, etc.
+
+Lookup semantics
+----------------
+    * keys apply only to dicts, indices only to lists
+    * missing keys, out-of-range indices, or type mismatches return `default`
+      (the very same object that was passed in)
+    * a present value of None is returned as None (not replaced by default)
+    * data is never mutated
+"""
+
+import re
+
+__all__ = ["get_path"]
+
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_INDEX_RE = re.compile(r"\[([0-9]+)\]")
+
+
+def _parse_path(path):
+    """Parse a path string into a list of ('key', str) / ('index', int) tuples.
+
+    Raises ValueError on malformed syntax.
+    """
+    if not isinstance(path, str):
+        raise TypeError("path must be a str, got %s" % type(path).__name__)
+
+    if path == "" or path == "$":
+        return []
+
+    n = len(path)
+    i = 0
+    comps = []
+
+    if path[0] == "$":
+        i = 1
+        # After '$' the next character must be '.' or '['.
+        if i >= n or path[i] not in ".[":
+            raise ValueError("malformed path: %r" % (path,))
+
+    while i < n:
+        c = path[i]
+        if c == ".":
+            i += 1
+            m = _IDENT_RE.match(path, i)
+            if m is None:
+                # leading/repeated/trailing dot, quoted key, wildcard,
+                # whitespace, non-ASCII, etc.
+                raise ValueError("malformed path: %r" % (path,))
+            comps.append(("key", m.group(0)))
+            i = m.end()
+        elif c == "[":
+            m = _INDEX_RE.match(path, i)
+            if m is None:
+                # negative index, quoted key, wildcard, empty/unterminated
+                # bracket, whitespace, etc.
+                raise ValueError("malformed path: %r" % (path,))
+            comps.append(("index", int(m.group(1))))
+            i = m.end()
+        else:
+            # A bare identifier is only allowed at the very start of the
+            # path (when there is no leading '$').
+            if i != 0:
+                raise ValueError("malformed path: %r" % (path,))
+            m = _IDENT_RE.match(path, 0)
+            if m is None:
+                raise ValueError("malformed path: %r" % (path,))
+            comps.append(("key", m.group(0)))
+            i = m.end()
+
+    return comps
+
+
+def get_path(data, path, default=None):
+    """Return the value found in `data` at `path`, or `default` if absent.
+
+    See module docstring for the full specification.
+    """
+    comps = _parse_path(path)  # always validate syntax first
+
+    cur = data
+    for kind, value in comps:
+        if kind == "key":
+            if not isinstance(cur, dict):
+                return default
+            try:
+                if value not in cur:
+                    return default
+            except TypeError:
+                # unhashable-key edge cases cannot occur for str keys, but
+                # stay defensive against exotic dict subclasses
+                return default
+            cur = cur[value]
+        else:  # 'index'
+            if not isinstance(cur, list):
+                return default
+            if value >= len(cur):
+                return default
+            cur = cur[value]
+    return cur
+
+
+if __name__ == "__main__":
+    # Minimal self-checks.
+    sentinel = object()
+    d = {"users": [{"name": "ann", "tags": None}, {"name": "bob"}], "x": [[1, {"x": 2}]]}
+
+    assert get_path(d, "") is d
+    assert get_path(d, "$") is d
+    assert get_path(d, "users[0].name") == "ann"
+    assert get_path(d, "$.users[01].name") == "bob"
+    assert get_path(d, "x[0][1].x") == 2
+    assert get_path(d["x"], "[0][1].x") == 2
+    assert get_path(d["users"], "$[0]") is d["users"][0]
+    assert get_path(d, "users[0].tags", sentinel) is None
+    assert get_path(d, "users[5].name", sentinel) is sentinel
+    assert get_path(d, "users.name", sentinel) is sentinel
+    assert get_path(d, "nope", sentinel) is sentinel
+    assert get_path(d, "users[0][0]", sentinel) is sentinel
+
+    bad = [
+        " users", "users ", "users[ 0]", "users[-1]", "users['a']", 'users["a"]',
+        "users[*]", "users..name", "users.", ".users", "users[0]name", "[0]x",
+        "$users", "$.", "users[]", "users[0", "users]", "1abc", "a.1", "a.b-c",
+        "a[0].", "users[0]..name", "é", "a[0][]",
+    ]
+    for p in bad:
+        try:
+            get_path(d, p, sentinel)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError for %r" % (p,))
+
+    # malformed syntax raises even if earlier components would be missing
+    try:
+        get_path(d, "missing..x")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError
+
+    print("ok")
+```

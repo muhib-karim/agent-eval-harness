@@ -1,0 +1,69 @@
+models:
+- name: claude-opus-5-5
+  runner: anthropic
+  options:
+    model: claude-opus-5-5
+    base_url_env: ANTHROPIC_BASE_URL
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 8192
+    timeout_s: 240
+- name: claude-fable-5-1
+  runner: anthropic
+  options:
+    model: claude-fable-5-1
+    base_url_env: ANTHROPIC_BASE_URL
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 8192
+    timeout_s: 240
+- name: claude-sonnet-5-5
+  runner: anthropic
+  options:
+    model: claude-sonnet-5-5
+    base_url_env: ANTHROPIC_BASE_URL
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 8192
+    timeout_s: 240
+- name: claude-sonnet-5
+  runner: anthropic
+  options:
+    model: claude-sonnet-5
+    base_url_env: ANTHROPIC_BASE_URL
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 8192
+    timeout_s: 240
+- name: claude-haiku-4-5
+  runner: anthropic
+  options:
+    model: claude-haiku-4-5
+    base_url_env: ANTHROPIC_BASE_URL
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 8192
+    timeout_s: 240
+- name: gpt-6-sol
+  runner: openai
+  options:
+    model: gpt-6-sol
+    base_url_env: OPENAI_BASE_URL
+    api_key_env: OPENAI_API_KEY
+    max_tokens: 16384
+    token_param: max_completion_tokens
+    timeout_s: 300
+tasks:
+- ./tasks/arithmetic/task.yaml
+- ./tasks/fix_binary_search/task.yaml
+- ./tasks/fix_memoize/task.yaml
+- ./tasks/fix_running_stats/task.yaml
+- ./tasks/fix_slugify/task.yaml
+- ./tasks/ini_parser/task.yaml
+- ./tasks/intervals/task.yaml
+- ./tasks/json_path/task.yaml
+- ./tasks/ledger/task.yaml
+- ./tasks/levenshtein/task.yaml
+- ./tasks/lru_ttl/task.yaml
+- ./tasks/rate_limiter/task.yaml
+- ./tasks/roman/task.yaml
+- ./tasks/semver/task.yaml
+- ./tasks/topo_sort/task.yaml
+- ./tasks/undo_buffer/task.yaml
+repeats: 3
+concurrency: 4

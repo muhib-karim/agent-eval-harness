@@ -1,0 +1,85 @@
+The bug is in `merge()`: it added the two `M2` values but left out the term for the gap between the two means. When the inputs have different means, the combined spread includes that gap, so it has to be added:
+
+```
+M2 = M2_a + M2_b + delta² · n_a · n_b / n      where delta = mean_b − mean_a
+```
+
+This is the standard parallel form of Welford's algorithm (Chan et al.). It stays numerically stable for large offsets because it only uses differences of means, never raw sums of squares.
+
+Applied to the reproduction:
+- `a`: mean 2, M2 2. `b`: mean 11, M2 2.
+- delta = 9, so the gap term is 81 · 3 · 3 / 6 = 121.5.
+- Combined M2 = 2 + 2 + 121.5 = 125.5, and 125.5 / 5 = **25.1**, as expected.
+
+Two further changes in `merge()`:
+- **Empty inputs:** if one side is empty, the result now copies the other side's state directly. This avoids rounding from computing `mean * n / n`.
+- **Type check:** passing something that is not a `RunningStats` now raises `TypeError` instead of failing with an unclear error.
+
+```python
+"""Streaming mean and sample variance (Welford), mergeable across shards."""
+
+import math
+
+
+class RunningStats:
+    def __init__(self):
+        self._n = 0
+        self._mean = 0.0
+        self._m2 = 0.0
+
+    def push(self, x):
+        if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x):
+            raise ValueError("x must be a finite number")
+        self._n += 1
+        delta = x - self._mean
+        self._mean += delta / self._n
+        self._m2 += delta * (x - self._mean)
+
+    @property
+    def count(self):
+        return self._n
+
+    @property
+    def mean(self):
+        if self._n < 1:
+            raise ValueError("mean needs at least one value")
+        return self._mean
+
+    @property
+    def variance(self):
+        if self._n < 2:
+            raise ValueError("variance needs at least two values")
+        return self._m2 / (self._n - 1)
+
+    @property
+    def stdev(self):
+        return math.sqrt(self.variance)
+
+    def _copy(self):
+        result = RunningStats()
+        result._n = self._n
+        result._mean = self._mean
+        result._m2 = self._m2
+        return result
+
+    def merge(self, other):
+        if not isinstance(other, RunningStats):
+            raise TypeError("other must be a RunningStats instance")
+        if other._n == 0:
+            return self._copy()
+        if self._n == 0:
+            return other._copy()
+
+        n_a = self._n
+        n_b = other._n
+        n = n_a + n_b
+        delta = other._mean - self._mean
+
+        result = RunningStats()
+        result._n = n
+        result._mean = self._mean + delta * (n_b / n)
+        # Chan et al. parallel combination: the between-group term accounts
+        # for the difference in means of the two partitions.
+        result._m2 = self._m2 + other._m2 + delta * delta * (n_a * n_b / n)
+        return result
+```

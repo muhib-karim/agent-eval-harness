@@ -1,0 +1,117 @@
+```python
+from contextlib import contextmanager
+
+
+class TextBuffer:
+    """A text buffer with insert/delete, unbounded undo/redo and grouping."""
+
+    def __init__(self, text: str = ""):
+        if not isinstance(text, str):
+            raise ValueError("text must be a str")
+        self._text = text
+        self._undo = []       # list of groups; each group is a list of ops
+        self._redo = []
+        self._pending = []    # ops recorded while inside a group
+        self._depth = 0       # group nesting depth
+
+    # ------------------------------------------------------------------ #
+    @property
+    def text(self) -> str:
+        return self._text
+
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _check_int(value, name):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{name} must be an int")
+
+    def _record(self, op):
+        """Record an effective op either into the pending group or history."""
+        if self._depth > 0:
+            self._pending.append(op)
+        else:
+            self._undo.append([op])
+            self._redo.clear()
+
+    # ------------------------------------------------------------------ #
+    def insert(self, index: int, s: str) -> None:
+        self._check_int(index, "index")
+        if not isinstance(s, str):
+            raise ValueError("s must be a str")
+        if index < 0 or index > len(self._text):
+            raise ValueError("index out of range")
+        if s == "":
+            return
+        self._text = self._text[:index] + s + self._text[index:]
+        self._record(("insert", index, s))
+
+    def delete(self, start: int, end: int) -> None:
+        self._check_int(start, "start")
+        self._check_int(end, "end")
+        n = len(self._text)
+        if start < 0 or end > n or start > end:
+            raise ValueError("invalid range")
+        if start == end:
+            return
+        removed = self._text[start:end]
+        self._text = self._text[:start] + self._text[end:]
+        self._record(("delete", start, removed))
+
+    # ------------------------------------------------------------------ #
+    def _apply(self, op):
+        kind, pos, s = op
+        if kind == "insert":
+            self._text = self._text[:pos] + s + self._text[pos:]
+        else:
+            self._text = self._text[:pos] + self._text[pos + len(s):]
+
+    def _revert(self, op):
+        kind, pos, s = op
+        if kind == "insert":
+            self._text = self._text[:pos] + self._text[pos + len(s):]
+        else:
+            self._text = self._text[:pos] + s + self._text[pos:]
+
+    def undo(self) -> bool:
+        if not self._undo:
+            return False
+        ops = self._undo.pop()
+        for op in reversed(ops):
+            self._revert(op)
+        self._redo.append(ops)
+        return True
+
+    def redo(self) -> bool:
+        if not self._redo:
+            return False
+        ops = self._redo.pop()
+        for op in ops:
+            self._apply(op)
+        self._undo.append(ops)
+        return True
+
+    # ------------------------------------------------------------------ #
+    @contextmanager
+    def group(self):
+        start = len(self._pending)
+        self._depth += 1
+        try:
+            yield self
+        except BaseException:
+            # roll back edits made in this (sub)block
+            for op in reversed(self._pending[start:]):
+                self._revert(op)
+            del self._pending[start:]
+            self._depth -= 1
+            if self._depth == 0:
+                self._pending = []
+            raise
+        else:
+            self._depth -= 1
+            if self._depth == 0:
+                ops = self._pending
+                self._pending = []
+                if ops:
+                    self._undo.append(ops)
+                    self._redo.clear()
+```

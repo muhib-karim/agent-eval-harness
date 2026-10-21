@@ -28,3 +28,4 @@ timeout_s: 5
 tags:
 - parsing
 - data
+category: parsing

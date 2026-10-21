@@ -1,0 +1,39 @@
+def parse_ini(text: str) -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+    current_section = ""
+
+    for line_number, raw_line in enumerate(text.split("\n"), start=1):
+        line = raw_line.removesuffix("\r").strip()
+
+        if not line or line.startswith((";", "#")):
+            continue
+
+        if line.startswith("["):
+            if not line.endswith("]"):
+                raise ValueError(f"malformed section header on line {line_number}")
+
+            name = line[1:-1].strip()
+            if not name:
+                raise ValueError(f"empty section name on line {line_number}")
+
+            current_section = name
+            result.setdefault(name, {})
+            continue
+
+        if "=" not in line:
+            raise ValueError(f"invalid line {line_number}")
+
+        key, value = line.split("=", 1)
+        key = key.strip().lower()
+        value = value.strip()
+
+        if not key:
+            raise ValueError(f"empty key on line {line_number}")
+
+        section = result.setdefault(current_section, {})
+        if key in section:
+            raise ValueError(f"duplicate key on line {line_number}")
+
+        section[key] = value
+
+    return result

@@ -1,0 +1,28 @@
+id: fix_binary_search
+title: "Bug fix: find_last misses present targets"
+category: bug-fix
+prompt: |
+  Issue #412: find_last() returns -1 for values that are in the list.
+
+  Reproduction:
+      >>> find_last([1, 2, 2, 3], 2)
+      -1            # expected 2, the index of the last 2
+      >>> find_last([5], 5)
+      -1            # expected 0
+
+  search.py provides three helpers over a list sorted in ascending order:
+  find_first(items, target) and find_last(items, target) return the index of the first /
+  last element equal to target, or -1 if absent; count_range(items, low, high) returns how
+  many elements x satisfy low <= x <= high (0 if low > high).
+
+  Fix the bug without changing the public API or the behaviour of the other functions.
+  All three functions must stay O(log n): they may only index into items, never iterate
+  over it, slice it or call len() more than once per call.
+entrypoint: search.py
+starter: starter.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- binary-search
+- off-by-one

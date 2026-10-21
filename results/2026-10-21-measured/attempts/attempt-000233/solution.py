@@ -1,0 +1,118 @@
+import re
+
+def parse(text: str) -> tuple:
+    """
+    Parse a semantic version string according to SemVer 2.0.0.
+
+    Returns (major, minor, patch, prerelease, build) where:
+    - major, minor, patch are ints
+    - prerelease is a tuple of identifiers (int for numeric, str for alphanumeric)
+    - build is a tuple of str identifiers
+    - Missing prerelease or build returns ()
+    """
+    if not isinstance(text, str):
+        raise ValueError("Input must be a string")
+
+    # SemVer 2.0.0 regex pattern
+    pattern = r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-]+)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]+))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$'
+
+    match = re.match(pattern, text)
+    if not match:
+        raise ValueError(f"Invalid semantic version: {text}")
+
+    major = int(match.group(1))
+    minor = int(match.group(2))
+    patch = int(match.group(3))
+    prerelease_str = match.group(4)
+    build_str = match.group(5)
+
+    # Parse prerelease
+    prerelease = ()
+    if prerelease_str:
+        prerelease_parts = prerelease_str.split('.')
+        prerelease_list = []
+        for part in prerelease_parts:
+            # Check if it's a numeric identifier
+            if part.isdigit():
+                prerelease_list.append(int(part))
+            else:
+                prerelease_list.append(part)
+        prerelease = tuple(prerelease_list)
+
+    # Parse build metadata
+    build = ()
+    if build_str:
+        build = tuple(build_str.split('.'))
+
+    return (major, minor, patch, prerelease, build)
+
+
+def compare(a: str, b: str) -> int:
+    """
+    Compare two semantic version strings according to SemVer 2.0.0 precedence rules.
+
+    Returns:
+    - -1 if a < b
+    - 0 if a == b
+    - 1 if a > b
+
+    Build metadata is ignored in comparison.
+    """
+    parsed_a = parse(a)
+    parsed_b = parse(b)
+
+    major_a, minor_a, patch_a, prerelease_a, _ = parsed_a
+    major_b, minor_b, patch_b, prerelease_b, _ = parsed_b
+
+    # Compare major.minor.patch
+    if major_a != major_b:
+        return -1 if major_a < major_b else 1
+    if minor_a != minor_b:
+        return -1 if minor_a < minor_b else 1
+    if patch_a != patch_b:
+        return -1 if patch_a < patch_b else 1
+
+    # When a major, minor, and patch are equal, a pre-release version has lower precedence
+    has_prerelease_a = len(prerelease_a) > 0
+    has_prerelease_b = len(prerelease_b) > 0
+
+    if has_prerelease_a != has_prerelease_b:
+        # One has prerelease, one doesn't
+        return -1 if has_prerelease_a else 1
+
+    # Both have or both don't have prerelease
+    if not has_prerelease_a:
+        # Neither has prerelease, they're equal
+        return 0
+
+    # Compare prerelease identifiers
+    for i in range(max(len(prerelease_a), len(prerelease_b))):
+        if i >= len(prerelease_a):
+            # a's prerelease is shorter, so a < b
+            return -1
+        if i >= len(prerelease_b):
+            # b's prerelease is shorter, so a > b
+            return 1
+
+        id_a = prerelease_a[i]
+        id_b = prerelease_b[i]
+
+        is_numeric_a = isinstance(id_a, int)
+        is_numeric_b = isinstance(id_b, int)
+
+        if is_numeric_a and is_numeric_b:
+            # Both numeric, compare numerically
+            if id_a != id_b:
+                return -1 if id_a < id_b else 1
+        elif is_numeric_a:
+            # Only a is numeric, numeric identifiers have lower precedence
+            return -1
+        elif is_numeric_b:
+            # Only b is numeric, numeric identifiers have lower precedence
+            return 1
+        else:
+            # Both are alphanumeric strings, compare lexically
+            if id_a != id_b:
+                return -1 if id_a < id_b else 1
+
+    return 0

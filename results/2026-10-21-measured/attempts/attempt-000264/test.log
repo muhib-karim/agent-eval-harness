@@ -1,0 +1,9 @@
+.....................F....                                               [100%]
+=================================== FAILURES ===================================
+_____________________ test_invalid_even_if_missing[$.[0]] ______________________
+_hidden_kz4ds6ze/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_kz4ds6ze/test_000.py::test_invalid_even_if_missing[$.[0]] - Fa...
+1 failed, 25 passed in 1.01s

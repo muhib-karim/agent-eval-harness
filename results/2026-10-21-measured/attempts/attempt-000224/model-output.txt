@@ -1,0 +1,107 @@
+```python
+import time
+from collections import OrderedDict
+
+class LRUCache:
+    def __init__(self, capacity: int, ttl: float, clock=time.monotonic):
+        # Validate capacity
+        if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+        
+        # Validate ttl
+        if not isinstance(ttl, (int, float)) or ttl <= 0 or ttl != ttl or ttl == float('inf'):
+            raise ValueError("ttl must be positive and finite")
+        
+        self.capacity = capacity
+        self.ttl = ttl
+        self.clock = clock
+        self.cache = OrderedDict()  # {key: (value, expiry_time)}
+    
+    def _purge_expired(self):
+        """Remove all expired entries."""
+        current_time = self.clock()
+        keys_to_delete = [
+            key for key, (value, expiry) in self.cache.items()
+            if current_time >= expiry
+        ]
+        for key in keys_to_delete:
+            del self.cache[key]
+    
+    def put(self, key, value):
+        """Insert or update a key-value pair and reset its expiry time."""
+        self._purge_expired()
+        
+        expiry_time = self.clock() + self.ttl
+        
+        # If key exists, remove it first to update its position
+        if key in self.cache:
+            del self.cache[key]
+        
+        # If cache is at capacity, evict LRU entry
+        if len(self.cache) >= self.capacity:
+            # Remove the first (least recently used) item
+            self.cache.popitem(last=False)
+        
+        # Add the new entry
+        self.cache[key] = (value, expiry_time)
+    
+    def get(self, key, default=None):
+        """
+        Return the value for a key if it exists and is not expired.
+        Mark the key as most recently used without extending TTL.
+        """
+        self._purge_expired()
+        
+        if key not in self.cache:
+            return default
+        
+        value, expiry = self.cache[key]
+        current_time = self.clock()
+        
+        # Check if entry is expired
+        if current_time >= expiry:
+            del self.cache[key]
+            return default
+        
+        # Mark as most recently used by moving to end
+        self.cache.move_to_end(key)
+        
+        return value
+    
+    def __len__(self):
+        """Return the count of live (non-expired) entries."""
+        self._purge_expired()
+        return len(self.cache)
+```
+
+**Key Implementation Details:**
+
+1. **Validation in `__init__`:**
+   - `capacity` must be a positive integer (excluding `bool` type check)
+   - `ttl` must be positive and finite (checks for infinity and NaN)
+
+2. **`_purge_expired()` helper:**
+   - Called before eviction and before `len()` to remove expired entries
+   - Compares current clock time against stored expiry times
+
+3. **`put(key, value)` method:**
+   - Purges expired entries first
+   - Calculates expiry as `clock() + ttl`
+   - If key exists, removes it to update recency ordering
+   - Evicts LRU entry if at capacity
+   - Uses `OrderedDict.popitem(last=False)` to remove oldest entry
+
+4. **`get(key, default=None)` method:**
+   - Purges expired entries first
+   - Returns default if key missing or expired
+   - Moves accessed key to end of OrderedDict (most recently used)
+   - Does NOT extend TTL - only marks as recently used
+
+5. **`__len__()` method:**
+   - Purges expired entries
+   - Returns count of remaining live entries
+
+6. **OrderedDict usage:**
+   - Maintains insertion/access order for LRU tracking
+   - `move_to_end(key)` marks key as most recently used
+   - `popitem(last=False)` removes least recently used entry

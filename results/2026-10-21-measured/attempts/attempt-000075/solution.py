@@ -1,0 +1,114 @@
+"""Thread-safe in-memory ledger."""
+
+import threading
+from typing import Dict, List, Tuple
+
+
+class InsufficientFunds(ValueError):
+    """Raised when a withdrawal or transfer would make a balance negative."""
+
+
+def _is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _check_account_id(account) -> None:
+    if not isinstance(account, str) or account == "":
+        raise ValueError("account id must be a non-empty str")
+
+
+def _check_amount(amount) -> None:
+    if not _is_int(amount) or amount <= 0:
+        raise ValueError("amount must be a positive int")
+
+
+class _Account:
+    __slots__ = ("balance", "history")
+
+    def __init__(self, balance: int) -> None:
+        self.balance = balance
+        self.history: List[Tuple[str, int]] = [("open", balance)]
+
+
+class Ledger:
+    """An in-memory ledger whose methods may be called from many threads.
+
+    All state is guarded by a single re-entrant lock. Because every operation
+    (including transfers) takes exactly this one lock, there is no lock
+    ordering to get wrong and opposite-direction transfers cannot deadlock.
+    `total()` is computed while holding the lock, so it always observes a
+    consistent snapshot.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._accounts: Dict[str, _Account] = {}
+
+    # ------------------------------------------------------------------ helpers
+
+    def _get(self, account: str) -> _Account:
+        # Must be called with self._lock held.
+        try:
+            return self._accounts[account]
+        except KeyError:
+            raise KeyError(account) from None
+
+    # --------------------------------------------------------------- operations
+
+    def open(self, account: str, balance: int = 0) -> None:
+        _check_account_id(account)
+        if not _is_int(balance) or balance < 0:
+            raise ValueError("balance must be a non-negative int")
+        with self._lock:
+            if account in self._accounts:
+                raise ValueError("account already exists: %r" % (account,))
+            self._accounts[account] = _Account(balance)
+
+    def balance(self, account: str) -> int:
+        with self._lock:
+            return self._get(account).balance
+
+    def deposit(self, account: str, amount: int) -> None:
+        _check_amount(amount)
+        with self._lock:
+            acct = self._get(account)
+            acct.balance += amount
+            acct.history.append(("deposit", amount))
+
+    def withdraw(self, account: str, amount: int) -> None:
+        _check_amount(amount)
+        with self._lock:
+            acct = self._get(account)
+            if acct.balance - amount < 0:
+                raise InsufficientFunds(
+                    "insufficient funds in %r: balance %d, requested %d"
+                    % (account, acct.balance, amount)
+                )
+            acct.balance -= amount
+            acct.history.append(("withdraw", amount))
+
+    def transfer(self, src: str, dst: str, amount: int) -> None:
+        _check_amount(amount)
+        if src == dst:
+            raise ValueError("cannot transfer an account to itself")
+        with self._lock:
+            # Resolve both accounts (KeyError if unknown) before touching anything.
+            src_acct = self._get(src)
+            dst_acct = self._get(dst)
+            if src_acct.balance - amount < 0:
+                raise InsufficientFunds(
+                    "insufficient funds in %r: balance %d, requested %d"
+                    % (src, src_acct.balance, amount)
+                )
+            src_acct.balance -= amount
+            dst_acct.balance += amount
+            src_acct.history.append(("transfer_out", amount))
+            dst_acct.history.append(("transfer_in", amount))
+
+    def total(self) -> int:
+        with self._lock:
+            return sum(acct.balance for acct in self._accounts.values())
+
+    def history(self, account: str) -> List[Tuple[str, int]]:
+        with self._lock:
+            return list(self._get(account).history)

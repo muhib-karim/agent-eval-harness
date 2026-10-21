@@ -1,0 +1,89 @@
+import threading
+from typing import List, Tuple
+from collections import defaultdict
+
+class InsufficientFunds(ValueError):
+    pass
+
+class Ledger:
+    def __init__(self):
+        self._lock = threading.RLock()
+        self._balances = {}
+        self._histories = defaultdict(list)
+
+    def open(self, account: str, balance: int = 0) -> None:
+        if not isinstance(account, str) or not account:
+            raise ValueError("Account id must be a non-empty string")
+        if not isinstance(balance, int) or isinstance(balance, bool):
+            raise ValueError("Balance must be a non-negative integer")
+        if balance < 0:
+            raise ValueError("Balance must be a non-negative integer")
+
+        with self._lock:
+            if account in self._balances:
+                raise ValueError(f"Account {account} already exists")
+            self._balances[account] = balance
+            self._histories[account].append(("open", balance))
+
+    def balance(self, account: str) -> int:
+        with self._lock:
+            if account not in self._balances:
+                raise KeyError(f"Account {account} not found")
+            return self._balances[account]
+
+    def deposit(self, account: str, amount: int) -> None:
+        if not isinstance(amount, int) or isinstance(amount, bool):
+            raise ValueError("Amount must be a positive integer")
+        if amount <= 0:
+            raise ValueError("Amount must be a positive integer")
+
+        with self._lock:
+            if account not in self._balances:
+                raise KeyError(f"Account {account} not found")
+            self._balances[account] += amount
+            self._histories[account].append(("deposit", amount))
+
+    def withdraw(self, account: str, amount: int) -> None:
+        if not isinstance(amount, int) or isinstance(amount, bool):
+            raise ValueError("Amount must be a positive integer")
+        if amount <= 0:
+            raise ValueError("Amount must be a positive integer")
+
+        with self._lock:
+            if account not in self._balances:
+                raise KeyError(f"Account {account} not found")
+            if self._balances[account] < amount:
+                raise InsufficientFunds(f"Insufficient funds in {account}")
+            self._balances[account] -= amount
+            self._histories[account].append(("withdraw", amount))
+
+    def transfer(self, src: str, dst: str, amount: int) -> None:
+        if src == dst:
+            raise ValueError("Cannot transfer to the same account")
+        if not isinstance(amount, int) or isinstance(amount, bool):
+            raise ValueError("Amount must be a positive integer")
+        if amount <= 0:
+            raise ValueError("Amount must be a positive integer")
+
+        with self._lock:
+            if src not in self._balances:
+                raise KeyError(f"Account {src} not found")
+            if dst not in self._balances:
+                raise KeyError(f"Account {dst} not found")
+            if self._balances[src] < amount:
+                raise InsufficientFunds(f"Insufficient funds in {src}")
+
+            self._balances[src] -= amount
+            self._balances[dst] += amount
+            self._histories[src].append(("transfer_out", amount))
+            self._histories[dst].append(("transfer_in", amount))
+
+    def total(self) -> int:
+        with self._lock:
+            return sum(self._balances.values())
+
+    def history(self, account: str) -> List[Tuple[str, int]]:
+        with self._lock:
+            if account not in self._balances:
+                raise KeyError(f"Account {account} not found")
+            return list(self._histories[account])

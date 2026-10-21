@@ -1,0 +1,106 @@
+from contextlib import contextmanager
+
+
+class TextBuffer:
+    def __init__(self, text: str = ""):
+        if not isinstance(text, str):
+            raise ValueError("text must be a str")
+        self._text = text
+        self._undo = []
+        self._redo = []
+        self._depth = 0
+        self._ops = []
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    @staticmethod
+    def _is_int(v):
+        return isinstance(v, int) and not isinstance(v, bool)
+
+    def _apply(self, op):
+        kind, idx, s = op
+        if kind == 'i':
+            self._text = self._text[:idx] + s + self._text[idx:]
+        else:
+            self._text = self._text[:idx] + self._text[idx + len(s):]
+
+    @staticmethod
+    def _inverse(op):
+        kind, idx, s = op
+        return ('d' if kind == 'i' else 'i', idx, s)
+
+    def _record(self, op):
+        if self._depth > 0:
+            self._ops.append(op)
+        else:
+            self._undo.append([op])
+            self._redo.clear()
+
+    def insert(self, index: int, s: str) -> None:
+        if not self._is_int(index) or not isinstance(s, str):
+            raise ValueError("invalid arguments")
+        if index < 0 or index > len(self._text):
+            raise ValueError("index out of range")
+        if s == "":
+            return
+        op = ('i', index, s)
+        self._apply(op)
+        self._record(op)
+
+    def delete(self, start: int, end: int) -> None:
+        if not self._is_int(start) or not self._is_int(end):
+            raise ValueError("invalid arguments")
+        if start < 0 or end < start or end > len(self._text):
+            raise ValueError("range out of bounds")
+        if start == end:
+            return
+        op = ('d', start, self._text[start:end])
+        self._apply(op)
+        self._record(op)
+
+    def undo(self) -> bool:
+        if self._depth > 0:
+            raise RuntimeError("cannot undo inside a group")
+        if not self._undo:
+            return False
+        entry = self._undo.pop()
+        for op in reversed(entry):
+            self._apply(self._inverse(op))
+        self._redo.append(entry)
+        return True
+
+    def redo(self) -> bool:
+        if self._depth > 0:
+            raise RuntimeError("cannot redo inside a group")
+        if not self._redo:
+            return False
+        entry = self._redo.pop()
+        for op in entry:
+            self._apply(op)
+        self._undo.append(entry)
+        return True
+
+    @contextmanager
+    def group(self):
+        if self._depth == 0:
+            self._ops = []
+        mark = len(self._ops)
+        self._depth += 1
+        try:
+            try:
+                yield self
+            except BaseException:
+                while len(self._ops) > mark:
+                    op = self._ops.pop()
+                    self._apply(self._inverse(op))
+                raise
+        finally:
+            self._depth -= 1
+        if self._depth == 0:
+            ops = self._ops
+            self._ops = []
+            if ops:
+                self._undo.append(ops)
+                self._redo.clear()

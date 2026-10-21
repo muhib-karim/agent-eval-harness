@@ -1,0 +1,99 @@
+import re
+from typing import Tuple, Union
+
+_SEMVER_RE = re.compile(
+    r"""^
+    (0|[1-9]\d*)\.
+    (0|[1-9]\d*)\.
+    (0|[1-9]\d*)
+    (?:-(?P<prerelease>
+        (?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)
+        (?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*
+    ))?
+    (?:\+(?P<build>
+        [0-9a-zA-Z-]+
+        (?:\.[0-9a-zA-Z-]+)*
+    ))?
+    $""",
+    re.VERBOSE,
+)
+
+_NUMERIC_ID_RE = re.compile(r"^(0|[1-9]\d*)$")
+
+
+def parse(text: str) -> tuple:
+    if not isinstance(text, str):
+        raise ValueError("Input must be a string")
+
+    m = _SEMVER_RE.match(text)
+    if not m:
+        raise ValueError(f"Invalid semantic version: {text!r}")
+
+    major_s, minor_s, patch_s = m.group(1), m.group(2), m.group(3)
+    major, minor, patch = int(major_s), int(minor_s), int(patch_s)
+
+    prerelease_str = m.group("prerelease")
+    build_str = m.group("build")
+
+    prerelease: Tuple[Union[int, str], ...] = ()
+    if prerelease_str is not None:
+        ids = prerelease_str.split(".")
+        parsed_ids = []
+        for ident in ids:
+            if _NUMERIC_ID_RE.match(ident):
+                parsed_ids.append(int(ident))
+            else:
+                parsed_ids.append(ident)
+        prerelease = tuple(parsed_ids)
+
+    build: Tuple[str, ...] = ()
+    if build_str is not None:
+        build = tuple(build_str.split("."))
+
+    return (major, minor, patch, prerelease, build)
+
+
+def _compare_identifiers(a: Tuple[Union[int, str], ...], b: Tuple[Union[int, str], ...]) -> int:
+    # No prerelease has higher precedence than having one
+    if not a and not b:
+        return 0
+    if not a and b:
+        return 1
+    if a and not b:
+        return -1
+
+    for ai, bi in zip(a, b):
+        if isinstance(ai, int) and isinstance(bi, int):
+            if ai < bi:
+                return -1
+            if ai > bi:
+                return 1
+        elif isinstance(ai, int) and isinstance(bi, str):
+            return -1
+        elif isinstance(ai, str) and isinstance(bi, int):
+            return 1
+        else:
+            if ai < bi:
+                return -1
+            if ai > bi:
+                return 1
+
+    if len(a) < len(b):
+        return -1
+    if len(a) > len(b):
+        return 1
+    return 0
+
+
+def compare(a: str, b: str) -> int:
+    major_a, minor_a, patch_a, pre_a, _ = parse(a)
+    major_b, minor_b, patch_b, pre_b, _ = parse(b)
+
+    if major_a != major_b:
+        return -1 if major_a < major_b else 1
+    if minor_a != minor_b:
+        return -1 if minor_a < minor_b else 1
+    if patch_a != patch_b:
+        return -1 if patch_a < patch_b else 1
+
+    return _compare_identifiers(pre_a, pre_b)

@@ -1,0 +1,42 @@
+```python
+"""A small memoizing decorator with hit/miss counters."""
+
+import functools
+
+
+def memoize(func):
+    cache = {}
+    stats = {"hits": 0, "misses": 0}
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        # Create a cache key that includes both args and sorted kwargs items
+        # to ensure different keyword arguments produce different cache entries
+        key = (args, tuple(sorted(kwargs.items())))
+        if key in cache:
+            stats["hits"] += 1
+            return cache[key]
+        result = func(*args, **kwargs)
+        stats["misses"] += 1
+        cache[key] = result
+        return result
+
+    def cache_info():
+        return stats["hits"], stats["misses"]
+
+    def cache_clear():
+        cache.clear()
+        stats["hits"] = stats["misses"] = 0
+
+    wrapper.cache_info = cache_info
+    wrapper.cache_clear = cache_clear
+    return wrapper
+```
+
+The bug was that the cache key only used `args` and ignored `kwargs` entirely. This meant that calls with different keyword arguments but the same positional arguments would return the same cached result.
+
+The fix creates a cache key that includes both:
+1. The positional arguments tuple: `args`
+2. The keyword arguments as a sorted tuple of items: `tuple(sorted(kwargs.items()))`
+
+Sorting the kwargs items ensures that different orderings of the same keyword arguments still produce the same cache key (as specified in the requirements), while different keyword argument values produce different cache keys.

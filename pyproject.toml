@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-eval-harness"
-version = "1.2.0"
+version = "1.3.0"
 description = "Reproducible coding-agent comparisons with withheld tests and offline fixtures"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,6 +40,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
+# Reference solutions are task answers written like model output, not project source.
+exclude = ["^tests/fixtures/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

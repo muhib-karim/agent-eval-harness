@@ -15,6 +15,7 @@ from agent_eval.engine import run_config, validate_task
 from agent_eval.report import ReportFormat, render_report
 from agent_eval.results import load_attempts, summarize
 from agent_eval.specs import discover_tasks
+from agent_eval.stats import DEFAULT_RESAMPLES, DEFAULT_SEED
 
 
 def parser() -> argparse.ArgumentParser:
@@ -26,15 +27,32 @@ def parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="execute a run and write results plus an HTML report")
     run.add_argument("config", type=Path)
     run.add_argument("--out", type=Path)
+    run.add_argument(
+        "--resume",
+        action="store_true",
+        help="continue an interrupted run in --out, running only unrecorded attempts",
+    )
     report = sub.add_parser("report", help="render saved attempts")
     report.add_argument("results", type=Path)
     report.add_argument("--format", choices=["md", "html", "json"], default="md")
     report.add_argument("--out", type=Path)
     report.add_argument("--k", type=int, action="append", help="pass@k to include; repeatable")
+    report.add_argument(
+        "--seed", type=int, default=DEFAULT_SEED, help="bootstrap seed (default: %(default)s)"
+    )
+    report.add_argument(
+        "--resamples",
+        type=int,
+        default=DEFAULT_RESAMPLES,
+        help="bootstrap resamples (default: %(default)s)",
+    )
     listing = sub.add_parser("list-tasks", help="list matching task specs")
     listing.add_argument("patterns", nargs="*", default=["tasks/*/task.yaml"])
     validate = sub.add_parser("validate-task", help="grade a task's reference implementation")
     validate.add_argument("path", type=Path)
+    validate.add_argument(
+        "--reference", type=Path, help="solution file to grade instead of the task's reference"
+    )
     return root
 
 
@@ -71,15 +89,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         if args.command == "run":
+            if args.resume and args.out is None:
+                raise ValueError("--resume needs --out")
             out = args.out or Path("runs") / datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-            attempts = asyncio.run(run_config(args.config, out))
+            attempts = asyncio.run(run_config(args.config, out, resume=args.resume))
             passed = sum(row.outcome == "pass" for row in attempts)
             print(
                 f"Completed {len(attempts)} attempts; {passed} passed. "
                 f"Report: {out / 'report.html'}"
             )
         elif args.command == "report":
-            summary = summarize(load_attempts(args.results), tuple(args.k or (1, 2, 5, 10)))
+            summary = summarize(
+                load_attempts(args.results),
+                tuple(args.k or (1, 2, 5, 10)),
+                seed=args.seed,
+                resamples=args.resamples,
+            )
             report = render_report(summary, cast(ReportFormat, args.format))
             if args.out:
                 args.out.write_text(report, encoding="utf-8")
@@ -89,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
             for path, task in discover_tasks(args.patterns, Path.cwd()):
                 print(f"{task.id}\t{task.title}\t{path}")
         else:
-            result = asyncio.run(validate_task(args.path))
+            result = asyncio.run(validate_task(args.path, args.reference))
             print(f"{result.outcome}: {result.passed}/{result.total} tests passed")
             if result.outcome != "pass":
                 print(result.log, file=sys.stderr)

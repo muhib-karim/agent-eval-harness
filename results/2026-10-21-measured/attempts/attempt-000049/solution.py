@@ -1,0 +1,145 @@
+"""Simple arithmetic tokenizer and evaluator (no eval/exec)."""
+
+from __future__ import annotations
+
+_OPERATORS = set("+-*/()")
+
+
+def tokenize(text: str) -> list[str]:
+    """Split text into tokens: numbers and single-char operators.
+
+    Raises ValueError on any unexpected character or malformed number.
+    """
+    if not isinstance(text, str):
+        raise ValueError("input must be a string")
+
+    tokens: list[str] = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        ch = text[i]
+
+        if ch.isspace():
+            i += 1
+            continue
+
+        if ch in _OPERATORS:
+            tokens.append(ch)
+            i += 1
+            continue
+
+        if "0" <= ch <= "9":
+            start = i
+            while i < n and "0" <= text[i] <= "9":
+                i += 1
+            # Optional fractional part: '.' must be followed by at least one digit.
+            if i < n and text[i] == ".":
+                i += 1
+                if i >= n or not ("0" <= text[i] <= "9"):
+                    raise ValueError(
+                        f"malformed number at position {start}: {text[start:i]!r}"
+                    )
+                while i < n and "0" <= text[i] <= "9":
+                    i += 1
+            # A number immediately followed by another '.' is malformed (e.g. 1.2.3).
+            if i < n and text[i] == ".":
+                raise ValueError(
+                    f"malformed number at position {start}: {text[start:i + 1]!r}"
+                )
+            tokens.append(text[start:i])
+            continue
+
+        raise ValueError(f"unexpected character {ch!r} at position {i}")
+
+    return tokens
+
+
+class _Parser:
+    """Recursive-descent parser/evaluator over a token list."""
+
+    def __init__(self, tokens: list[str]) -> None:
+        self.tokens = tokens
+        self.pos = 0
+
+    def peek(self) -> str | None:
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos]
+        return None
+
+    def advance(self) -> str:
+        tok = self.tokens[self.pos]
+        self.pos += 1
+        return tok
+
+    def parse_expr(self) -> float:
+        value = self.parse_term()
+        while True:
+            tok = self.peek()
+            if tok == "+":
+                self.advance()
+                value = value + self.parse_term()
+            elif tok == "-":
+                self.advance()
+                value = value - self.parse_term()
+            else:
+                return value
+
+    def parse_term(self) -> float:
+        value = self.parse_factor()
+        while True:
+            tok = self.peek()
+            if tok == "*":
+                self.advance()
+                value = value * self.parse_factor()
+            elif tok == "/":
+                self.advance()
+                divisor = self.parse_factor()
+                if divisor == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / divisor
+            else:
+                return value
+
+    def parse_factor(self) -> float:
+        tok = self.peek()
+        if tok is None:
+            raise ValueError("unexpected end of expression")
+        if tok == "+":
+            self.advance()
+            return +self.parse_factor()
+        if tok == "-":
+            self.advance()
+            return -self.parse_factor()
+        if tok == "(":
+            self.advance()
+            value = self.parse_expr()
+            if self.peek() != ")":
+                raise ValueError("missing closing parenthesis")
+            self.advance()
+            return value
+        if tok == ")":
+            raise ValueError("unexpected ')'")
+        if tok in ("*", "/"):
+            raise ValueError(f"unexpected operator {tok!r}")
+        # Must be a number token.
+        self.advance()
+        return float(tok)
+
+
+def evaluate(text: str) -> float:
+    """Evaluate an arithmetic expression and return a float.
+
+    Supports + - * /, parentheses, unary signs, standard precedence,
+    and left-associative binary operators.
+    """
+    tokens = tokenize(text)
+    if not tokens:
+        raise ValueError("empty expression")
+    parser = _Parser(tokens)
+    result = parser.parse_expr()
+    if parser.pos != len(tokens):
+        raise ValueError(
+            f"unexpected token {tokens[parser.pos]!r} at token index {parser.pos}"
+        )
+    return float(result)

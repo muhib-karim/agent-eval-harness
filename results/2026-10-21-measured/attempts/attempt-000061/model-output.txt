@@ -1,0 +1,20 @@
+The bug: `[^a-z0-9]` replaces each non-alphanumeric character individually, so a run of them becomes a run of dashes. Adding `+` collapses the whole run into one `-`.
+
+```python
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug
+```

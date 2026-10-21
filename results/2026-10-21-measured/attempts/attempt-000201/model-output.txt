@@ -1,0 +1,43 @@
+Looking at the bug, the issue is that the cache key is only based on `args`, completely ignoring `kwargs`. This means calls with different keyword arguments will return the same cached result.
+
+The fix is to include `kwargs` in the cache key. Since dictionaries aren't hashable, I need to convert `kwargs` to a frozenset of items.
+
+```python
+"""A small memoizing decorator with hit/miss counters."""
+
+import functools
+
+
+def memoize(func):
+    cache = {}
+    stats = {"hits": 0, "misses": 0}
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        key = (args, frozenset(kwargs.items()))
+        if key in cache:
+            stats["hits"] += 1
+            return cache[key]
+        result = func(*args, **kwargs)
+        stats["misses"] += 1
+        cache[key] = result
+        return result
+
+    def cache_info():
+        return stats["hits"], stats["misses"]
+
+    def cache_clear():
+        cache.clear()
+        stats["hits"] = stats["misses"] = 0
+
+    wrapper.cache_info = cache_info
+    wrapper.cache_clear = cache_clear
+    return wrapper
+```
+
+The key change is on this line:
+```python
+key = (args, frozenset(kwargs.items()))
+```
+
+This creates a hashable cache key that includes both positional arguments and keyword arguments. Now calls like `scale(3, factor=2)` and `scale(3, factor=10)` will generate different cache keys and return correct results.

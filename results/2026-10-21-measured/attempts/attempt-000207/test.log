@@ -1,0 +1,13 @@
+
+==================================== ERRORS ====================================
+________________ ERROR collecting _hidden_gg0fkj7y/test_000.py _________________
+_hidden_gg0fkj7y/test_000.py:2: in <module>
+    from slug import slugify
+slug.py:18: in <module>
+    slug = re.sub(r"[^a-z0-9]", "-", ascii_text.lower()).strip("-")
+                                     ^^^^^^^^^^
+E   NameError: name 'ascii_text' is not defined
+=========================== short test summary info ============================
+ERROR _hidden_gg0fkj7y/test_000.py - NameError: name 'ascii_text' is not defined
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.90s

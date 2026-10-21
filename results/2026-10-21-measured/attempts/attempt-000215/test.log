@@ -1,0 +1,39 @@
+.......FF.F.........FFFF..                                               [100%]
+=================================== FAILURES ===================================
+_______________________ test_invalid_even_if_missing[$.] _______________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+_____________________ test_invalid_even_if_missing[$name] ______________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+______________________ test_invalid_even_if_missing[a..b] ______________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+____________________ test_invalid_even_if_missing[$.a.[0]] _____________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+_____________________ test_invalid_even_if_missing[$.[0]] ______________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+___________________ test_invalid_even_if_missing[missing..x] ___________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+______________________ test_invalid_even_if_missing[\xe9] ______________________
+_hidden_w8pzp1mp/test_000.py:53: in test_invalid_even_if_missing
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[$.] - Faile...
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[$name] - Fa...
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[a..b] - Fai...
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[$.a.[0]] - ...
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[$.[0]] - Fa...
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[missing..x]
+FAILED _hidden_w8pzp1mp/test_000.py::test_invalid_even_if_missing[\xe9] - Fai...
+7 failed, 19 passed in 0.82s

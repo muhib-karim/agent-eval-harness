@@ -1,0 +1,55 @@
+_ROMAN_VALUES = {
+    "I": 1,
+    "V": 5,
+    "X": 10,
+    "L": 50,
+    "C": 100,
+    "D": 500,
+    "M": 1000,
+}
+
+_ROMAN_PARTS = (
+    (1000, "M"),
+    (900, "CM"),
+    (500, "D"),
+    (400, "CD"),
+    (100, "C"),
+    (90, "XC"),
+    (50, "L"),
+    (40, "XL"),
+    (10, "X"),
+    (9, "IX"),
+    (5, "V"),
+    (4, "IV"),
+    (1, "I"),
+)
+
+
+def to_roman(value: int) -> str:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 3999:
+        raise ValueError("value must be an integer from 1 to 3999")
+
+    result = []
+    for amount, numeral in _ROMAN_PARTS:
+        count, value = divmod(value, amount)
+        result.append(numeral * count)
+    return "".join(result)
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str) or not text:
+        raise ValueError("text must be a nonempty canonical Roman numeral")
+
+    total = 0
+    for index, symbol in enumerate(text):
+        current = _ROMAN_VALUES.get(symbol)
+        if current is None:
+            raise ValueError("invalid Roman numeral")
+
+        next_value = _ROMAN_VALUES.get(text[index + 1], 0) if index + 1 < len(text) else 0
+        total += -current if current < next_value else current
+
+    if not 1 <= total <= 3999 or to_roman(total) != text:
+        raise ValueError("invalid Roman numeral")
+
+    return total

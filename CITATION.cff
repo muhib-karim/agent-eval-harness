@@ -12,8 +12,8 @@ authors:
 repository-code: "https://github.com/muhib-karim/agent-eval-harness"
 url: "https://muhib-karim.github.io/agent-eval-harness/"
 license: MIT
-version: 1.2.0
-date-released: "2026-10-18"
+version: 1.3.0
+date-released: "2026-10-21"
 keywords:
   - llm-evaluation
   - code-generation

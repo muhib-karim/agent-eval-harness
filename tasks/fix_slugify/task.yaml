@@ -1,0 +1,28 @@
+id: fix_slugify
+title: "Bug fix: slugify repeats separators"
+category: bug-fix
+prompt: |
+  Issue #58: slugify() emits runs of dashes instead of a single separator.
+
+  Reproduction:
+      >>> slugify("Hello -- World")
+      'hello----world'      # expected 'hello-world'
+      >>> slugify("Tom & Jerry")
+      'tom---jerry'         # expected 'tom-jerry'
+
+  slug.py provides slugify(text, max_length=None) -> str: normalise with Unicode NFKD,
+  drop characters that are not ASCII (so "é" becomes "e"), lowercase, turn every run of
+  characters other than a-z and 0-9 into a single "-", and strip leading and trailing
+  "-". If max_length (an int >= 1, not bool) is given, cut the slug to at most max_length
+  characters and then strip any trailing "-". A non-str text raises TypeError; an invalid
+  max_length raises ValueError. The result may be "".
+
+  Fix the bug without changing the public API.
+entrypoint: slug.py
+starter: starter.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- strings
+- unicode

@@ -1,0 +1,30 @@
+id: ini_parser
+title: Strict INI parser
+category: parsing
+prompt: |
+  Implement parse_ini(text: str) -> dict[str, dict[str, str]] for this INI dialect.
+
+  Lines are split on "\n" (a trailing "\r" on a line is removed). After stripping
+  surrounding whitespace:
+  - empty lines, and lines starting with ";" or "#", are ignored (no inline comments);
+  - "[name]" starts a section; name is stripped and must be non-empty; a repeated section
+    name continues the earlier section;
+  - otherwise the line must contain "=" and is "key = value", split at the FIRST "=";
+    key and value are stripped; the key must be non-empty; values may be empty and may
+    contain "=", ";" or "#".
+  Keys are case-insensitive: store them lowercased. Section names are case-sensitive.
+  Key/value lines before any section go into the "" (empty-name) section, which is only
+  present in the result if it has at least one key. Every declared section appears, even
+  if it is empty. Result sections and keys keep first-seen order.
+
+  Raise ValueError (the message must contain the 1-based line number, e.g. "line 3") for:
+  a line that is neither blank, comment, section nor key/value; an empty key; an empty or
+  malformed section header (e.g. "[a", "[]", "[a]x"); and a duplicate key within the same
+  section (including across repeated headers of that section).
+entrypoint: solution.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- config
+- error-reporting

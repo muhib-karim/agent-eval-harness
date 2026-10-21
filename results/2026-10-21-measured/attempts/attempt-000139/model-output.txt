@@ -1,0 +1,47 @@
+The approach is Kahn's algorithm with a min-heap, so whenever several nodes are ready the smallest is emitted first. This yields the lexicographically smallest valid order.
+
+- **Collecting nodes:** every key and every dependency is added to the node set, so nodes that appear only as dependencies are included.
+- **Duplicates:** each node's dependencies go into a `set`, so a repeated dependency counts once.
+- **Graph structure:** for each node I record how many distinct dependencies it has (its indegree). I also keep a map from each dependency to the nodes that depend on it.
+- **Processing:** nodes with zero dependencies go into the heap. Popping a node appends it to the result and decrements the indegree of its dependents. Any dependent that reaches zero is pushed onto the heap.
+- **Cycles:** a self-dependency means a node waits on itself, so it never reaches zero indegree. If the result is shorter than the node set, a cycle exists and `ValueError` is raised.
+- **Long chains:** the algorithm is iterative, so there are no recursion limit problems.
+- **Input:** the input is never mutated, since I only read from it and build new structures.
+
+```python
+import heapq
+
+
+def topo_sort(graph):
+    deps = {}
+    for node, ds in graph.items():
+        s = deps.setdefault(node, set())
+        for d in ds:
+            s.add(d)
+    for ds in list(deps.values()):
+        for d in ds:
+            if d not in deps:
+                deps[d] = set()
+
+    indegree = {}
+    dependents = {n: [] for n in deps}
+    for node, ds in deps.items():
+        indegree[node] = len(ds)
+        for d in ds:
+            dependents[d].append(node)
+
+    heap = [n for n, c in indegree.items() if c == 0]
+    heapq.heapify(heap)
+    result = []
+    while heap:
+        n = heapq.heappop(heap)
+        result.append(n)
+        for m in dependents[n]:
+            indegree[m] -= 1
+            if indegree[m] == 0:
+                heapq.heappush(heap, m)
+
+    if len(result) != len(deps):
+        raise ValueError("graph contains a cycle")
+    return result
+```

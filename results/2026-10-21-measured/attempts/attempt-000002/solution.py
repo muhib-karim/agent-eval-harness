@@ -1,0 +1,119 @@
+"""Arithmetic expression tokenizer and evaluator (no eval/exec)."""
+
+_WHITESPACE = " \t\n\r\f\v"
+_OPERATORS = "+-*/()"
+
+
+def _is_digit(c: str) -> bool:
+    return "0" <= c <= "9"
+
+
+def tokenize(text: str) -> list[str]:
+    tokens: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c in _WHITESPACE:
+            i += 1
+            continue
+        if c in _OPERATORS:
+            tokens.append(c)
+            i += 1
+            continue
+        if _is_digit(c):
+            start = i
+            while i < n and _is_digit(text[i]):
+                i += 1
+            if i < n and text[i] == ".":
+                i += 1
+                frac_start = i
+                while i < n and _is_digit(text[i]):
+                    i += 1
+                if i == frac_start:
+                    raise ValueError("malformed number: missing digits after decimal point")
+                if i < n and text[i] == ".":
+                    raise ValueError("malformed number: multiple decimal points")
+            tokens.append(text[start:i])
+            continue
+        if c == ".":
+            raise ValueError("malformed number: missing digits before decimal point")
+        raise ValueError(f"invalid character: {c!r}")
+    return tokens
+
+
+class _Parser:
+    def __init__(self, tokens: list[str]):
+        self.tokens = tokens
+        self.pos = 0
+
+    def peek(self):
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos]
+        return None
+
+    def advance(self):
+        tok = self.peek()
+        if tok is None:
+            raise ValueError("unexpected end of expression")
+        self.pos += 1
+        return tok
+
+    def parse_expr(self) -> float:
+        value = self.parse_term()
+        while self.peek() in ("+", "-"):
+            op = self.advance()
+            rhs = self.parse_term()
+            value = value + rhs if op == "+" else value - rhs
+        return value
+
+    def parse_term(self) -> float:
+        value = self.parse_unary()
+        while self.peek() in ("*", "/"):
+            op = self.advance()
+            rhs = self.parse_unary()
+            if op == "*":
+                value = value * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / rhs
+        return value
+
+    def parse_unary(self) -> float:
+        negative = False
+        while self.peek() in ("+", "-"):
+            if self.advance() == "-":
+                negative = not negative
+        value = self.parse_primary()
+        return -value if negative else value
+
+    def parse_primary(self) -> float:
+        tok = self.peek()
+        if tok is None:
+            raise ValueError("unexpected end of expression")
+        if tok == "(":
+            self.advance()
+            value = self.parse_expr()
+            if self.peek() != ")":
+                raise ValueError("unbalanced parentheses")
+            self.advance()
+            return value
+        if _is_digit(tok[0]):
+            self.advance()
+            return float(tok)
+        raise ValueError(f"unexpected token: {tok!r}")
+
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    if not tokens:
+        raise ValueError("empty expression")
+    parser = _Parser(tokens)
+    value = parser.parse_expr()
+    if parser.pos != len(tokens):
+        tok = tokens[parser.pos]
+        if tok == ")":
+            raise ValueError("unbalanced parentheses")
+        raise ValueError(f"unexpected trailing token: {tok!r}")
+    return float(value)

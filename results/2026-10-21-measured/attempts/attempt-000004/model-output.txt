@@ -1,0 +1,69 @@
+The bug is an off-by-one in `find_last()`. `_right()` returns the insertion point *after* the last element equal to `target`. That position holds the next larger element, or is past the end of the list. So the last match, if there is one, sits at `_right(...) - 1`.
+
+I also changed how `len()` is used. The current code calls it more than once per public call:
+- `find_first` calls it in `_left()` and again in its own bounds check.
+- `count_range` calls it in both `_left()` and `_right()`.
+
+To meet the stated constraint, each public function now calls `len()` once and passes the length to the helpers. The results of the other functions do not change.
+
+```python
+"""Binary-search helpers over an ascending list."""
+
+
+def _left(items, target, n):
+    """First index i in [0, n] such that items[i] >= target."""
+    lo, hi = 0, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _right(items, target, n):
+    """First index i in [0, n] such that items[i] > target."""
+    lo, hi = 0, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] <= target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def find_first(items, target):
+    """Index of the first element equal to target, or -1."""
+    n = len(items)
+    index = _left(items, target, n)
+    if index < n and items[index] == target:
+        return index
+    return -1
+
+
+def find_last(items, target):
+    """Index of the last element equal to target, or -1."""
+    n = len(items)
+    # _right gives the position just past the last element <= target,
+    # so the last candidate equal to target is one before it.
+    index = _right(items, target, n) - 1
+    if index >= 0 and items[index] == target:
+        return index
+    return -1
+
+
+def count_range(items, low, high):
+    """Number of elements x with low <= x <= high."""
+    if low > high:
+        return 0
+    n = len(items)
+    return _right(items, high, n) - _left(items, low, n)
+```
+
+Checking the reproductions:
+- `find_last([1, 2, 2, 3], 2)`: `_right` returns 3, so the index is 2. `items[2] == 2`, so it returns **2**.
+- `find_last([5], 5)`: `_right` returns 1, so the index is 0. `items[0] == 5`, so it returns **0**.
+- `find_last([], 1)`: the index is -1, which fails the `index >= 0` guard, so it returns **-1**.
+- `find_last([1, 3], 2)`: `_right` returns 1, so the index is 0. `items[0]` is 1, not 2, so it returns **-1**.

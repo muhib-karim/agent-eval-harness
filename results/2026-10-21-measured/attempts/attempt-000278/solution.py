@@ -1,0 +1,45 @@
+import re
+
+_ROMAN_PATTERN = re.compile(
+    r"M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})"
+)
+
+_ROMAN_VALUES = (
+    (1000, "M"),
+    (900, "CM"),
+    (500, "D"),
+    (400, "CD"),
+    (100, "C"),
+    (90, "XC"),
+    (50, "L"),
+    (40, "XL"),
+    (10, "X"),
+    (9, "IX"),
+    (5, "V"),
+    (4, "IV"),
+    (1, "I"),
+)
+
+
+def to_roman(value: int) -> str:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 3999:
+        raise ValueError("value must be an integer from 1 to 3999")
+
+    parts = []
+    for amount, numeral in _ROMAN_VALUES:
+        count, value = divmod(value, amount)
+        parts.append(numeral * count)
+    return "".join(parts)
+
+
+def from_roman(text: str) -> int:
+    if not isinstance(text, str) or not text or _ROMAN_PATTERN.fullmatch(text) is None:
+        raise ValueError("text must be a canonical uppercase Roman numeral")
+
+    value = 0
+    position = 0
+    for amount, numeral in _ROMAN_VALUES:
+        while text.startswith(numeral, position):
+            value += amount
+            position += len(numeral)
+    return value

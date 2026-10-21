@@ -22,11 +22,44 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: python -m pip install -e '.[dev]'
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy --strict
-      - run: pytest --cov-report=xml
+      - name: Lint
+        run: ruff check --output-format=github .
+      - name: Format
+        run: ruff format --check .
+      - name: Type check (strict)
+        run: mypy --strict
+      - name: Tests with coverage gate (fail under 85%)
+        run: pytest --cov-report=xml
+      - name: Coverage summary
+        if: always()
+        run: |
+          python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12'
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
       - run: python -m build
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.21.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tgz gitleaks
+          rm gitleaks.tgz
+      - name: Scan history and working tree
+        run: |
+          ./gitleaks git --no-banner --redact .
+          ./gitleaks dir --no-banner --redact .
 
   offline-demo:
     runs-on: ubuntu-latest

@@ -1,0 +1,76 @@
+Each key keeps a deque of accepted timestamps plus the last time it was seen, including denied calls. That stored time is used to enforce the nondecreasing-time rule per key.
+
+```python
+import math
+from collections import deque
+from numbers import Real
+
+
+def _is_real_number(x):
+    return isinstance(x, Real) and not isinstance(x, bool)
+
+
+class SlidingWindowLimiter:
+    """Per-key sliding window rate limiter.
+
+    Accepts at most `limit` calls per key within the half-open window
+    (now - window_s, now]. Denied calls do not consume capacity.
+    """
+
+    def __init__(self, limit, window_s):
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise ValueError("limit must be a positive integer")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if not _is_real_number(window_s):
+            raise ValueError("window_s must be a positive finite number")
+        try:
+            w = float(window_s)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("window_s must be a positive finite number")
+        if not math.isfinite(w) or w <= 0:
+            raise ValueError("window_s must be a positive finite number")
+        self._limit = limit
+        self._window = window_s
+        # key -> [deque of accepted timestamps, last seen time]
+        self._state = {}
+
+    @property
+    def limit(self):
+        return self._limit
+
+    @property
+    def window_s(self):
+        return self._window
+
+    def allow(self, key, now):
+        # Validate time before touching state.
+        if not _is_real_number(now):
+            raise ValueError("now must be a finite real number")
+        try:
+            fnow = float(now)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("now must be a finite real number")
+        if not math.isfinite(fnow):
+            raise ValueError("now must be a finite real number")
+
+        entry = self._state.get(key)  # raises TypeError for unhashable key
+        if entry is not None and now < entry[1]:
+            raise ValueError("time must be nondecreasing per key")
+
+        if entry is None:
+            entry = [deque(), now]
+            self._state[key] = entry
+        else:
+            entry[1] = now
+
+        history = entry[0]
+        cutoff = now - self._window
+        while history and history[0] <= cutoff:
+            history.popleft()
+
+        if len(history) < self._limit:
+            history.append(now)
+            return True
+        return False
+```

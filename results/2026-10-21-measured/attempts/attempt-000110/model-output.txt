@@ -1,0 +1,22 @@
+The bug is in the regex: `[^a-z0-9]` matches one character at a time, so each non-alphanumeric character becomes its own dash. Adding `+` collapses a whole run into a single dash.
+
+I left the rest alone. Truncation happens after the slug is built, so cutting at `max_length` and stripping trailing dashes still works.
+
+```python
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug
+```

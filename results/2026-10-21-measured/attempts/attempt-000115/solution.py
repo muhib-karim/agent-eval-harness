@@ -1,0 +1,39 @@
+def merge_intervals(intervals):
+    """Merge closed integer intervals; touching or overlapping ones are combined.
+
+    Input: an iterable (possibly one-shot) of pairs of integers (bool is invalid).
+    Returns a sorted list of disjoint (start, end) tuples.
+    Raises ValueError for malformed pairs, non-integer endpoints, or start > end.
+    The input and its members are never mutated.
+    """
+    cleaned = []
+    for item in intervals:
+        try:
+            pair = tuple(item)
+        except TypeError:
+            raise ValueError(f"interval is not a pair: {item!r}") from None
+        if len(pair) != 2:
+            raise ValueError(f"interval must have exactly 2 endpoints: {item!r}")
+        start, end = pair
+        for v in (start, end):
+            if isinstance(v, bool) or not isinstance(v, int):
+                raise ValueError(f"endpoints must be integers: {item!r}")
+        if start > end:
+            raise ValueError(f"start greater than end: {item!r}")
+        cleaned.append((start, end))
+
+    if not cleaned:
+        return []
+
+    cleaned.sort()
+    result = []
+    cur_start, cur_end = cleaned[0]
+    for s, e in cleaned[1:]:
+        if s <= cur_end:
+            if e > cur_end:
+                cur_end = e
+        else:
+            result.append((cur_start, cur_end))
+            cur_start, cur_end = s, e
+    result.append((cur_start, cur_end))
+    return result

@@ -1,0 +1,29 @@
+id: fix_running_stats
+title: "Bug fix: variance wrong after merge"
+category: bug-fix
+prompt: |
+  Issue #87: RunningStats.variance is wrong after merge() when the two inputs have
+  different means.
+
+  Reproduction:
+      >>> a = RunningStats(); [a.push(x) for x in (1, 2, 3)]
+      >>> b = RunningStats(); [b.push(x) for x in (10, 11, 12)]
+      >>> a.merge(b).variance   # the variance of 1, 2, 3, 10, 11, 12 is 25.1
+      0.8
+
+  running_stats.py keeps streaming statistics: push(x) adds a finite number (int or
+  float, not bool; otherwise ValueError); count, mean, variance (sample variance, n - 1
+  denominator) and stdev are read-only properties; mean needs at least 1 value and
+  variance/stdev at least 2, otherwise they raise ValueError. merge(other) returns a NEW
+  RunningStats equal to having pushed both inputs' values, leaving both inputs unchanged.
+  Results must stay numerically stable for large offsets (e.g. values near 1e9).
+
+  Fix the bug without changing the public API.
+entrypoint: running_stats.py
+starter: starter.py
+hidden_tests:
+- hidden_tests.py
+timeout_s: 5
+tags:
+- statistics
+- numerical-stability

@@ -1,0 +1,76 @@
+"""
+solution.py
+
+Implements merge_intervals: merge overlapping or touching closed integer
+intervals, returning a sorted list of disjoint (start, end) tuples.
+"""
+
+from typing import Iterable, List, Tuple, Any
+
+
+def _is_valid_int(value: Any) -> bool:
+    """Return True if value is an int and not a bool."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def merge_intervals(intervals: Iterable[Any]) -> List[Tuple[int, int]]:
+    """
+    Merge a collection of closed integer intervals.
+
+    Parameters
+    ----------
+    intervals : iterable of pairs (start, end) of integers
+        May be a one-shot iterable (e.g., a generator).
+
+    Returns
+    -------
+    list of (int, int) tuples
+        Sorted, disjoint, merged closed intervals. Overlapping intervals
+        and intervals that touch at an endpoint are merged together.
+
+    Raises
+    ------
+    ValueError
+        If any element is not a pair, contains non-integer (or bool)
+        endpoints, or has start > end.
+    """
+    validated: List[Tuple[int, int]] = []
+
+    for item in intervals:
+        # Attempt to unpack exactly two values without mutating `item`.
+        try:
+            start, end = item
+        except (TypeError, ValueError):
+            raise ValueError(f"Invalid interval (must be a pair): {item!r}")
+
+        if not _is_valid_int(start) or not _is_valid_int(end):
+            raise ValueError(
+                f"Interval endpoints must be integers (not bool): {item!r}"
+            )
+
+        if start > end:
+            raise ValueError(
+                f"Interval start must not exceed end: {item!r}"
+            )
+
+        validated.append((start, end))
+
+    if not validated:
+        return []
+
+    # Sort by start, then by end for stable, deterministic merging.
+    validated.sort(key=lambda pair: (pair[0], pair[1]))
+
+    merged: List[Tuple[int, int]] = [validated[0]]
+
+    for cur_start, cur_end in validated[1:]:
+        last_start, last_end = merged[-1]
+        if cur_start <= last_end:
+            # Overlapping or touching (shared endpoint) -> merge.
+            if cur_end > last_end:
+                merged[-1] = (last_start, cur_end)
+            # else: fully contained, nothing to do
+        else:
+            merged.append((cur_start, cur_end))
+
+    return merged

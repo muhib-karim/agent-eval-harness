@@ -1,0 +1,91 @@
+import sys
+
+try:
+    sys.set_int_max_str_digits(0)
+except AttributeError:
+    pass
+
+_ALNUM = frozenset("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-")
+_DIGITS = frozenset("0123456789")
+
+
+def _check_ident(s):
+    if not s or not all(c in _ALNUM for c in s):
+        raise ValueError("invalid identifier: %r" % (s,))
+
+
+def _parse_num(s):
+    if not s or not all(c in _DIGITS for c in s):
+        raise ValueError("invalid numeric field: %r" % (s,))
+    if len(s) > 1 and s[0] == "0":
+        raise ValueError("leading zero: %r" % (s,))
+    return int(s)
+
+
+def parse(text):
+    if not isinstance(text, str):
+        raise ValueError("version must be a str")
+
+    rest, plus, build_s = text.partition("+")
+    core, dash, pre_s = rest.partition("-")
+
+    parts = core.split(".")
+    if len(parts) != 3:
+        raise ValueError("invalid version core: %r" % (core,))
+    major, minor, patch = (_parse_num(p) for p in parts)
+
+    prerelease = ()
+    if dash:
+        ids = []
+        for ident in pre_s.split("."):
+            _check_ident(ident)
+            if all(c in _DIGITS for c in ident):
+                ids.append(_parse_num(ident))
+            else:
+                ids.append(ident)
+        prerelease = tuple(ids)
+
+    build = ()
+    if plus:
+        ids = build_s.split(".")
+        for ident in ids:
+            _check_ident(ident)
+        build = tuple(ids)
+
+    return (major, minor, patch, prerelease, build)
+
+
+def _cmp(a, b):
+    return (a > b) - (a < b)
+
+
+def _cmp_ident(a, b):
+    ai = isinstance(a, int)
+    bi = isinstance(b, int)
+    if ai and bi:
+        return _cmp(a, b)
+    if ai:
+        return -1
+    if bi:
+        return 1
+    return _cmp(a, b)
+
+
+def compare(a, b):
+    pa = parse(a)
+    pb = parse(b)
+    for x, y in zip(pa[:3], pb[:3]):
+        if x != y:
+            return _cmp(x, y)
+    ra, rb = pa[3], pb[3]
+    if not ra and not rb:
+        return 0
+    if not ra:
+        return 1
+    if not rb:
+        return -1
+    for x, y in zip(ra, rb):
+        c = _cmp_ident(x, y)
+        if c:
+            return c
+    return _cmp(len(ra), len(rb))

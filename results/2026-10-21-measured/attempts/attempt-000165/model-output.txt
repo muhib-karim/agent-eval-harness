@@ -1,0 +1,80 @@
+```python
+def merge_intervals(intervals):
+    """
+    Merge a collection of closed integer intervals.
+
+    Parameters
+    ----------
+    intervals : iterable of pairs of int
+        Each element must be a 2-tuple/list of integers (start, end) with
+        start <= end. Booleans are not accepted as integers.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        Sorted list of disjoint closed intervals, where any intervals that
+        overlap or touch (share an endpoint) have been merged into one.
+
+    Raises
+    ------
+    ValueError
+        If any interval does not have exactly two elements, if any endpoint
+        is not an integer (bool excluded), or if start > end for any
+        interval.
+    """
+    validated = []
+
+    for item in intervals:
+        # Work with a local tuple copy; do not mutate original item/container.
+        try:
+            length = len(item)
+        except TypeError:
+            raise ValueError(f"Invalid interval (not a sized pair): {item!r}")
+
+        if length != 2:
+            raise ValueError(f"Invalid interval length: {item!r}")
+
+        start, end = item[0], item[1]
+
+        # Reject bool explicitly since bool is a subclass of int.
+        if isinstance(start, bool) or isinstance(end, bool):
+            raise ValueError(f"Interval endpoints must be int, not bool: {item!r}")
+
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise ValueError(f"Interval endpoints must be integers: {item!r}")
+
+        if start > end:
+            raise ValueError(f"Interval start must be <= end: {item!r}")
+
+        validated.append((start, end))
+
+    if not validated:
+        return []
+
+    validated.sort(key=lambda pair: (pair[0], pair[1]))
+
+    merged = []
+    cur_start, cur_end = validated[0]
+
+    for start, end in validated[1:]:
+        if start <= cur_end + 1:
+            # Overlapping or touching (adjacent/shared endpoint) -> merge.
+            if end > cur_end:
+                cur_end = end
+        else:
+            merged.append((cur_start, cur_end))
+            cur_start, cur_end = start, end
+
+    merged.append((cur_start, cur_end))
+
+    return merged
+
+
+if __name__ == "__main__":
+    # Simple smoke tests
+    print(merge_intervals([]))
+    print(merge_intervals([(1, 3), (2, 6), (8, 10), (15, 18)]))
+    print(merge_intervals([(1, 4), (4, 5)]))
+    print(merge_intervals([(-5, -1), (0, 2), (3, 3)]))
+    print(merge_intervals([(5, 5)]))
+```
