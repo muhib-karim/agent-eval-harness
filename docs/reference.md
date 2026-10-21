@@ -189,20 +189,29 @@ attempts/attempt-000001/
     test.log                  # pytest stdout+stderr
 ```
 
-`metadata.json` hashes the config, each task spec, its hidden tests, its reference (if present),
-and any custom mock fixtures in use.
+`metadata.json` hashes the config, each task spec, its hidden tests, its starter and reference
+(if present), and any mock fixtures or `reference_dir` solutions in use. A resumed run adds a
+`resumed_at` list of timestamps.
 
 Each JSONL line has: `attempt_id`, `model`, `runner`, `task_id`, `repeat`, `outcome`,
 `tests_passed`, `tests_total`, `wall_time_s`, `generation_time_s`, `grading_time_s`,
 `input_tokens`, `output_tokens`, `cost_usd` (the last three nullable), `error`, and `artifacts`
-(path relative to the run directory). Lines are appended and flushed as attempts complete, so
+(path relative to the run directory), plus the optional `category` (added in 1.3.0; older files
+without it load as `uncategorized`, and `schema_version` stays `"1.0"`). Lines are appended and flushed as attempts complete, so
 the file is in completion order. Attempt ids follow scheduling order and are deterministic for a
 given config.
 
-Every configured `api_key_env` value present in the environment is replaced with `[REDACTED]`
-in all saved text. This is exact string matching on known keys, not a general secret scanner.
+Every configured `api_key_env` value present in the environment, and every value of 8 or more
+characters forwarded to a CLI agent, is replaced with `[REDACTED]` in all saved text. This is exact string matching on known keys, not a general secret scanner.
 
 Output directories must not already exist. The harness never overwrites a previous run.
+
+`agent-eval run CONFIG --out DIR --resume` continues an interrupted run in `DIR`. It refuses to
+start unless the resolved config and every task hash match the original run. It keeps every
+recorded attempt, including errors, so a resumed run never retries a failure away. It drops a
+half-written final JSONL line, replaces leftover artifacts of unrecorded attempts, and runs only
+the missing model/task/repeat combinations under their original attempt ids. With `--resume` and
+no existing `DIR`, it starts a fresh run.
 
 ## Outcomes and scoring
 
@@ -227,6 +236,22 @@ k ∈ {1, 2, 5, 10}, limited to values where every task for that model has at le
 attempts; pass `--k` one or more times to choose others. The estimator assumes attempts are
 independent samples. That holds approximately for sampled API calls at nonzero temperature. It
 does not hold for deterministic fixtures, or for agent sessions that share state.
+
+**Confidence intervals.** Each model's pass@1 gets a 95% task-level percentile bootstrap
+interval: tasks are drawn with replacement (repeats of a task stay together, because they are
+correlated), the per-task pass rates of each draw are averaged, and the interval is the 2.5th to
+97.5th percentile of 2000 such means. The seed (default 20261021) and resample count are fixed
+and recorded in every summary; change them with `report --seed` and `--resamples`. The
+interval reflects uncertainty about which tasks were sampled, not run-to-run noise on a fixed
+task.
+
+**Paired comparisons.** For every pair of models whose intervals overlap, the report bootstraps
+the mean per-task difference over the tasks both models ran, using the same seed. If that
+interval excludes zero, the models differ on this suite even though their marginal intervals
+overlap. Pairing removes the between-task variance that two separate intervals count twice.
+
+**Categories.** Pass@1 is also averaged within each task `category`; tasks without one are
+`uncategorized`.
 
 If models were run on different task sets, their averages cover different tasks. The per-task
 matrix shows `—` for missing cells.
