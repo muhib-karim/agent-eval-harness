@@ -1,7 +1,7 @@
 # Handoff: v1.3.0 upgrade (in progress)
 
 Branch `upgrade/v1.3.0`. Model used in these sessions: **claude-opus-5-5** (Claude Code).
-Status by item: see `TASKS.md`. Items 1, 2, 3, 4, 5 and 8 are done; 6, 7 and the final push/CI (10) remain.
+Status by item: see `TASKS.md`. Items 1–8 are done; only the final push with green CI (10) remains.
 
 ## What changed
 
@@ -24,7 +24,7 @@ Status by item: see `TASKS.md`. Items 1, 2, 3, 4, 5 and 8 are done; 6, 7 and the
   redaction of forwarded credential values. Docs in `docs/reference.md`,
   `examples/agent-clis.yaml`.
 
-### Slice 3 (local commits b670efd..167a4b0 plus this handoff commit, NOT pushed per the slice instructions)
+### Slice 3 (pushed, head 187a051; CI 39635710585 and CodeQL 39635710548 green)
 - HTML report redesigned as one self-contained file (CSP `default-src 'none'`, no external
   assets): leaderboard sortable by a ~40-line inline script that turns headers into
   keyboard-operable buttons and moves `aria-sort` (a plain table, ordered by pass@1, without
@@ -38,7 +38,40 @@ Status by item: see `TASKS.md`. Items 1, 2, 3, 4, 5 and 8 are done; 6, 7 and the
 - CHANGELOG `## [1.3.0] - 2026-10-21` (Keep a Changelog), version 1.3.0 in pyproject,
   `__init__` and CITATION.cff (date 2026-10-21). `SKILLS_USED.md` created.
 
+### Slice 4 (local commits 5ec4dd7..HEAD, NOT pushed per the slice instructions)
+- `agent-eval run --resume`, with `tests/test_resume.py`.
+- Measured run v2 in `results/2026-10-21-measured/`: claude-opus-5-5, claude-fable-5-1,
+  claude-sonnet-5-5, claude-sonnet-5, claude-haiku-4-5 (Messages API) and gpt-6-sol (Chat
+  Completions), 16 tasks, 3 repeats, 288 attempts, 2026-10-21 17:53:41Z to 18:11:34Z, uninterrupted.
+  pass@1: 100 / 100 / 100 / 97.9 / 79.2 / 66.7%. 27 non-passing attempts (16 fail, 8 error,
+  3 timeout), none retried, all explained in `METHODOLOGY.md`. claude-haiku-4-5 answered too
+  but was left out to stay under the attempt budget.
+- Run hygiene: the key mapping and the API version path for the base URL existed only in a
+  scratch launcher's environment. Output went to scratch, was copied with machine paths replaced
+  (repo root, one temp workdir in a test log), then scanned for machine paths, endpoint hosts and
+  credentials (none). The reports were regenerated with `--k 1 --k 3`, and task and config hashes
+  were verified against the repository.
+- Pages workflow: the landing page is the new run (plus METHODOLOGY.md); the 17 Oct run is under
+  `/history/2026-10-17/`.
+- README rewritten (badges, Showcase screenshot `docs/assets/report-2026-10-21.png` rendered with
+  headless Chromium, quickstart, usage, task catalogue, Mermaid architecture, results, roadmap,
+  links). The release install line now targets v1.3.0 with the `grade` extra. The stale
+  `docs/assets/demo-report.png` was removed. `docs/sample-report.md` (16-task demo),
+  CONTRIBUTING, `docs/reference.md` and the CHANGELOG were updated.
+
 ## Checks
+
+RUN (slice 4, before the handoff commit):
+- `ruff check .`, `ruff format --check .` → clean. `mypy --strict` → no issues in 29 source files.
+- `pytest -x -q -p no:cacheprovider` → 229 passed in 100.77s; coverage 98.94% (gate 85%).
+- Live run: 288/288 attempts recorded, `agent-eval` exit 0; log lines `start 2026-10-21T17:53:41Z`,
+  `Completed 288 attempts; 261 passed.`, `exit 0 2026-10-21T18:11:34Z`.
+- `metadata.json` hashes: 36 task files and the config hash match the repository.
+- Scrub check: no machine paths, endpoint hosts or credentials in `results/2026-10-21-measured/`;
+  `gitleaks dir` on it → no leaks.
+- A fresh venv with `pip install '.[grade]'` (non-editable) → `agent-eval --version` 1.3.0;
+  `list-tasks` lists 16 tasks.
+- Every README finding was checked against `results.jsonl`; one overstatement was corrected.
 
 RUN (slice 3, Python 3.11.6, before the handoff commit):
 - `ruff check .`, `ruff format --check .` → clean. `mypy --strict` → no issues in 28 source files.
@@ -65,6 +98,11 @@ RUN (slice 2, Python 3.11.6, head fc6f2eb):
 - Slice 1 CI on GitHub: CI run 39579363695 success, CodeQL run 39579363919 success (head 611997a).
 
 INFERRED (not run):
+- `pipx install '.[grade]'` (pipx is not installed on this machine; the plain pip path was run).
+- The Mermaid diagram rendering on GitHub (syntax kept to basic flowchart features; not rendered
+  locally). The Pages workflow change (it runs only on `main`).
+- The README release install line resolves only after `v1.3.0` is tagged and the release
+  workflow attaches the wheel.
 - Screen-reader output of the report (structure checked by tests and by reading the markup, not
   with NVDA/VoiceOver). Contrast ratios were computed from the colour tokens, not measured with
   an automated checker such as axe.
@@ -80,7 +118,13 @@ INFERRED (not run):
 - When an HTTP runner errors on a bug-fix task, the saved `solution.py` artifact is the
   untouched starter (the outcome is still correctly `error`). Possible follow-up: skip saving
   the solution when it is byte-identical to the starter, or label it.
-- README still installs the published v1.2.0 wheel and `docs/sample-report.md` shows the old
-  6-task mock demo; both belong to item 7.
+- Extraction rule: replies with several Python blocks are joined (documented). For single-block
+  prompts this turned four claude-haiku-4-5 replies into import errors. A stricter rule, such as
+  taking the largest block when the prompt asks for one block, is on the roadmap; it was not
+  applied to this run's results.
+- The HTTP runner does not record the provider's stop reason, so "used the whole output budget"
+  is inferred from reported output tokens equal to `max_tokens`. Recording `stop_reason` would be
+  a small additive schema extension.
+- The coverage badge is a static number (98.9%) from this slice's local run; CI enforces the 85% gate.
 - HANDOFF.md was not written at the end of slice 1 (that session hit its time box after the push);
   this file covers both slices.
