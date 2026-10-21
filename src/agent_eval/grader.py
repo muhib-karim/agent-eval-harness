@@ -16,6 +16,12 @@ from agent_eval.specs import TaskSpec, task_file
 
 Outcome = Literal["pass", "fail", "error", "timeout"]
 
+# Import the installed pytest before putting the generated source directory on sys.path.
+_PYTEST_BOOTSTRAP = (
+    "import os,sys,pytest; sys.path.insert(0,os.getcwd()); "
+    "raise SystemExit(pytest.main(sys.argv[1:]))"
+)
+
 
 @dataclass(frozen=True)
 class Grade:
@@ -53,14 +59,12 @@ async def grade(task: TaskSpec, task_path: Path, workdir: Path) -> Grade:
         for index, filename in enumerate(task.hidden_tests):
             shutil.copyfile(task_file(task_path, filename), test_dir / f"test_{index:03d}.py")
         junit_path = test_dir / "results.xml"
-        # Import the installed pytest before adding the generated source directory.
         # Disable generated config and plugins; this is not a security boundary.
         command = [
             sys.executable,
             "-I",
             "-c",
-            "import os,sys,pytest; sys.path.insert(0,os.getcwd()); "
-            "raise SystemExit(pytest.main(sys.argv[1:]))",
+            _PYTEST_BOOTSTRAP,
             "-q",
             "-p",
             "no:cacheprovider",

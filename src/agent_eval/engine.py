@@ -163,7 +163,6 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
                 shutil.rmtree(artifact_dir, ignore_errors=True)
                 artifact_dir.mkdir(parents=True)
                 start = time.perf_counter()
-                generation_end = start
                 grading_time = 0.0
                 generated = Generation("")
                 graded = Grade("error")

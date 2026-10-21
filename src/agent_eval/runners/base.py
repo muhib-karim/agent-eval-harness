@@ -37,11 +37,13 @@ class RunnerError(Exception):
 
 
 class Runner(Protocol):
-    async def generate(self, task: TaskSpec, workdir: Path) -> Generation: ...
+    async def generate(self, task: TaskSpec, workdir: Path) -> Generation:
+        """Write ``task.entrypoint`` into ``workdir`` and return the raw output and usage."""
 
 
 class RunnerFactory(Protocol):
-    def __call__(self, options: dict[str, Any], *, task_path: Path) -> Runner: ...
+    def __call__(self, options: dict[str, Any], *, task_path: Path) -> Runner:
+        """Build a runner from a model's ``options`` for the task at ``task_path``."""
 
 
 def extract_code(reply: str) -> str:

@@ -102,7 +102,7 @@ def test_cancellation_cleans_up(tmp_path: Path) -> None:
         await asyncio.sleep(0.1)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await task
+            await asyncio.wait_for(task, timeout=5)
 
     asyncio.run(run())
 
