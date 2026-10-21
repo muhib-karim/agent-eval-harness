@@ -1,0 +1,27 @@
+# Live-model run for results/2026-10-21-measured/ (16 tasks, 3 repeats, 288 attempts).
+# Endpoints are named by environment variable only. *_BASE_URL must include the API version
+# path (the runner appends /messages or /chat/completions); keys stay in the environment.
+# Sampling uses each provider's default temperature, as in the 2026-10-17 run.
+models:
+  - name: claude-opus-5-5
+    runner: anthropic
+    options: {model: claude-opus-5-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 240}
+  - name: claude-fable-5-1
+    runner: anthropic
+    options: {model: claude-fable-5-1, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 240}
+  - name: claude-sonnet-5-5
+    runner: anthropic
+    options: {model: claude-sonnet-5-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 240}
+  - name: claude-sonnet-5
+    runner: anthropic
+    options: {model: claude-sonnet-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 240}
+  - name: claude-haiku-4-5
+    runner: anthropic
+    options: {model: claude-haiku-4-5, base_url_env: ANTHROPIC_BASE_URL, api_key_env: ANTHROPIC_API_KEY, max_tokens: 8192, timeout_s: 240}
+  - name: gpt-6-sol
+    runner: openai
+    options: {model: gpt-6-sol, base_url_env: OPENAI_BASE_URL, api_key_env: OPENAI_API_KEY, max_tokens: 16384, token_param: max_completion_tokens, timeout_s: 300}
+tasks:
+  - ../tasks/*/task.yaml
+repeats: 3
+concurrency: 4

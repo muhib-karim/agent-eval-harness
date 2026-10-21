@@ -1,0 +1,56 @@
+I used Kahn's algorithm with a min-heap, so the smallest ready node is always emitted next. It is iterative, so a 10,000-node chain cannot hit the recursion limit.
+
+```python
+"""Topological sort with deterministic (lexicographically smallest) ordering."""
+
+import heapq
+
+
+def topo_sort(graph) -> list:
+    """Return all nodes of `graph` ordered so dependencies precede dependents.
+
+    `graph` maps each node to an iterable of the nodes it depends on.
+    Among nodes that are ready at the same time, the smallest is emitted first.
+    Raises ValueError if the graph contains a cycle (including self-loops).
+    The input is not mutated.
+    """
+    # Collect deduplicated dependencies for every node, including nodes that
+    # only appear as dependencies.
+    deps = {}
+    for node, node_deps in graph.items():
+        deps.setdefault(node, set()).update(node_deps)
+    for node in list(deps):
+        for d in deps[node]:
+            if d not in deps:
+                deps[d] = set()
+
+    # Build reverse adjacency (dependency -> dependents) and in-degrees.
+    dependents = {node: [] for node in deps}
+    indegree = {}
+    for node, node_deps in deps.items():
+        indegree[node] = len(node_deps)
+        for d in node_deps:
+            dependents[d].append(node)
+
+    heap = [node for node, deg in indegree.items() if deg == 0]
+    heapq.heapify(heap)
+
+    result = []
+    while heap:
+        node = heapq.heappop(heap)
+        result.append(node)
+        for nxt in dependents[node]:
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                heapq.heappush(heap, nxt)
+
+    if len(result) != len(deps):
+        raise ValueError("graph contains a cycle")
+    return result
+```
+
+- **Edges:** each node's dependencies go into a set, so duplicates count once.
+- **Dependency-only nodes:** nodes that appear only as dependencies are added with no dependencies of their own.
+- **Ordering:** the heap starts with every node that has no dependencies. Each time a node is emitted, its dependents' counts drop, and any that reach zero are pushed onto the heap.
+- **Cycles:** if fewer nodes are emitted than exist, a cycle blocked the rest, so it raises `ValueError`. A node that depends on itself never reaches zero, so self-loops are caught this way too.
+- **Input safety and empty graphs:** all working data is built separately, so the input dict is never changed. Dependency iterables are read only once, so generators work. An empty graph returns `[]`.

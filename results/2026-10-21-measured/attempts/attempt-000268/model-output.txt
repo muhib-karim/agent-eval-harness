@@ -1,0 +1,92 @@
+```python
+def levenshtein(a: str, b: str, max_distance: int | None = None) -> int:
+    if not isinstance(a, str) or not isinstance(b, str):
+        raise TypeError("a and b must be strings")
+    if max_distance is not None and (
+        isinstance(max_distance, bool)
+        or not isinstance(max_distance, int)
+        or max_distance < 0
+    ):
+        raise ValueError("max_distance must be a non-negative int or None")
+
+    # Remove matching ends without making copies of either string.
+    a_start = b_start = 0
+    a_end, b_end = len(a), len(b)
+
+    while a_start < a_end and b_start < b_end and a[a_start] == b[b_start]:
+        a_start += 1
+        b_start += 1
+
+    while a_start < a_end and b_start < b_end and a[a_end - 1] == b[b_end - 1]:
+        a_end -= 1
+        b_end -= 1
+
+    if a_end - a_start > b_end - b_start:
+        a, b = b, a
+        a_start, b_start = b_start, a_start
+        a_end, b_end = b_end, a_end
+
+    m = a_end - a_start  # Columns: the shorter remaining string.
+    n = b_end - b_start
+
+    if max_distance is not None and n - m > max_distance:
+        return max_distance + 1
+    if m == 0:
+        return n
+
+    if max_distance is None or max_distance >= n:
+        previous = list(range(m + 1))
+        current = [0] * (m + 1)
+
+        for i in range(1, n + 1):
+            current[0] = i
+            b_char = b[b_start + i - 1]
+            for j in range(1, m + 1):
+                current[j] = min(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + (a[a_start + j - 1] != b_char),
+                )
+            previous, current = current, previous
+
+        return previous[m]
+
+    limit = max_distance
+    beyond = limit + 1
+    previous = [beyond] * (m + 1)
+    current = [beyond] * (m + 1)
+
+    for j in range(min(m, limit) + 1):
+        previous[j] = j
+
+    for i in range(1, n + 1):
+        left = max(0, i - limit)
+        right = min(m, i + limit)
+
+        if left == 0:
+            current[0] = i
+        else:
+            current[left - 1] = beyond
+        if right < m:
+            current[right + 1] = beyond
+
+        row_min = current[0] if left == 0 else beyond
+        b_char = b[b_start + i - 1]
+
+        for j in range(max(1, left), right + 1):
+            value = min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + (a[a_start + j - 1] != b_char),
+            )
+            current[j] = value
+            if value < row_min:
+                row_min = value
+
+        if row_min > limit:
+            return beyond
+
+        previous, current = current, previous
+
+    return min(previous[m], beyond)
+```

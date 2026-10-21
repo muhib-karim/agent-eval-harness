@@ -1,0 +1,99 @@
+"""
+solution.py
+
+A sliding-window rate limiter implemented with the Python standard library.
+
+SlidingWindowLimiter(limit: int, window_s: float)
+    limit:     maximum number of accepted calls allowed inside any
+               half-open window (now - window_s, now].
+    window_s:  size of the sliding window, in seconds (must be positive
+               and finite).
+
+allow(key, now: float) -> bool
+    Records a call attempt for `key` at time `now`.
+    Returns True if the call is accepted (i.e. there is capacity left
+    in the window), False otherwise.
+
+    Rules enforced:
+      * `limit` must be a positive int (bool is rejected even though
+        bool is a subclass of int) -- otherwise ValueError.
+      * `window_s` must be a positive, finite number -- otherwise
+        ValueError.
+      * `now` must be finite (not NaN/inf) -- otherwise ValueError.
+      * For a given key, `now` values across *all* calls (accepted or
+        denied) must be nondecreasing. Equal timestamps are allowed.
+        A decrease raises ValueError and must not alter any state
+        (including the "last seen time" bookkeeping).
+      * Timestamps <= now - window_s are discarded (expired) before
+        checking capacity.
+      * Denied calls do not consume capacity (nothing is recorded for
+        them beyond updating the "last seen time" bookkeeping, which
+        only happens after validation succeeds).
+"""
+
+import math
+from collections import deque
+from typing import Any, Deque, Dict, Hashable
+
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float) -> None:
+        # Validate limit: must be a positive int, and explicitly not a bool.
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise ValueError("limit must be a positive integer (not bool)")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        # Validate window_s: must be a real number, positive and finite.
+        if isinstance(window_s, bool) or not isinstance(window_s, (int, float)):
+            raise ValueError("window_s must be a positive finite number")
+        if not math.isfinite(window_s):
+            raise ValueError("window_s must be finite")
+        if window_s <= 0:
+            raise ValueError("window_s must be positive")
+
+        self.limit: int = limit
+        self.window_s: float = float(window_s)
+
+        # Per-key accepted timestamps (monotonic nondecreasing order).
+        self._history: Dict[Hashable, Deque[float]] = {}
+        # Per-key last seen 'now' value (for validating nondecreasing order),
+        # updated on every valid call (accepted or denied).
+        self._last_time: Dict[Hashable, float] = {}
+
+    def allow(self, key: Hashable, now: float) -> bool:
+        # Validate `now`.
+        if isinstance(now, bool) or not isinstance(now, (int, float)):
+            raise ValueError("now must be a finite real number")
+        now = float(now)
+        if not math.isfinite(now):
+            raise ValueError("now must be finite")
+
+        # Check nondecreasing constraint per key, without mutating state
+        # if it fails.
+        last_time = self._last_time.get(key)
+        if last_time is not None and now < last_time:
+            raise ValueError(
+                "now must be nondecreasing per key across all calls"
+            )
+
+        # Validation passed; update last seen time for this key.
+        self._last_time[key] = now
+
+        # Get (or create) the history deque for this key.
+        dq = self._history.get(key)
+        if dq is None:
+            dq = deque()
+            self._history[key] = dq
+
+        # Discard expired timestamps: those <= now - window_s.
+        threshold = now - self.window_s
+        while dq and dq[0] <= threshold:
+            dq.popleft()
+
+        # Check capacity.
+        if len(dq) < self.limit:
+            dq.append(now)
+            return True
+        else:
+            return False

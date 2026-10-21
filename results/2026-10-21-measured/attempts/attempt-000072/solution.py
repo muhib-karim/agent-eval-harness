@@ -1,0 +1,95 @@
+"""Safe nested access into dict/list structures using a small JSONPath-like syntax."""
+
+__all__ = ["get_path"]
+
+_IDENT_START = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+_IDENT_CHARS = _IDENT_START | frozenset("0123456789")
+_DIGITS = frozenset("0123456789")
+
+
+def _parse(path):
+    """Parse a path string into a list of ('key', str) / ('idx', int) tokens.
+
+    Raises ValueError on any malformed syntax.
+    """
+    n = len(path)
+    i = 0
+    tokens = []
+
+    def read_ident(pos):
+        if pos >= n or path[pos] not in _IDENT_START:
+            raise ValueError("expected identifier at position %d in %r" % (pos, path))
+        end = pos + 1
+        while end < n and path[end] in _IDENT_CHARS:
+            end += 1
+        return path[pos:end], end
+
+    def read_index(pos):
+        # path[pos] == '['
+        close = path.find("]", pos + 1)
+        if close == -1:
+            raise ValueError("unterminated '[' at position %d in %r" % (pos, path))
+        digits = path[pos + 1:close]
+        if not digits or any(ch not in _DIGITS for ch in digits):
+            raise ValueError("invalid index %r at position %d in %r" % (digits, pos, path))
+        return int(digits), close + 1
+
+    # Leading component.
+    if path[0] == "$":
+        i = 1
+        if i >= n or path[i] not in ".[":
+            raise ValueError("invalid character after '$' in %r" % (path,))
+    elif path[0] == "[":
+        pass  # handled by the loop
+    else:
+        name, i = read_ident(0)
+        tokens.append(("key", name))
+
+    # Remaining components: each must start with '.' (identifier) or '[' (index).
+    while i < n:
+        c = path[i]
+        if c == ".":
+            name, i = read_ident(i + 1)
+            tokens.append(("key", name))
+        elif c == "[":
+            idx, i = read_index(i)
+            tokens.append(("idx", idx))
+        else:
+            raise ValueError("unexpected character %r at position %d in %r" % (c, i, path))
+
+    return tokens
+
+
+def get_path(data, path: str, default=None):
+    """Return the value found in ``data`` at ``path``, or ``default`` if absent.
+
+    - An empty path or ``'$'`` returns ``data`` itself.
+    - Dot-separated ASCII identifiers index into dicts.
+    - ``[digits]`` (zero-based, nonnegative, leading zeros allowed) indexes into lists.
+    - Missing keys, out-of-range indices, or type mismatches yield ``default``
+      (returned by identity, never copied).
+    - A present ``None`` value is returned as ``None``.
+    - Malformed syntax raises ``ValueError`` regardless of the data contents.
+    - ``data`` is never mutated.
+    """
+    if not isinstance(path, str):
+        raise TypeError("path must be a str, got %s" % type(path).__name__)
+
+    if path == "" or path == "$":
+        return data
+
+    tokens = _parse(path)  # validate fully before touching data
+
+    current = data
+    for kind, value in tokens:
+        if kind == "key":
+            if isinstance(current, dict) and value in current:
+                current = current[value]
+            else:
+                return default
+        else:  # 'idx'
+            if isinstance(current, list) and 0 <= value < len(current):
+                current = current[value]
+            else:
+                return default
+    return current

@@ -1,0 +1,80 @@
+```python
+def levenshtein(a: str, b: str, max_distance: int | None = None) -> int:
+    if not isinstance(a, str) or not isinstance(b, str):
+        raise TypeError("a and b must be str")
+    if max_distance is not None:
+        if isinstance(max_distance, bool) or not isinstance(max_distance, int):
+            raise ValueError("max_distance must be a non-negative int")
+        if max_distance < 0:
+            raise ValueError("max_distance must be a non-negative int")
+
+    # Make a the longer string; b the shorter one.
+    if len(a) < len(b):
+        a, b = b, a
+
+    # Trim common prefix and suffix using indices (no copies).
+    la, lb = len(a), len(b)
+    s = 0
+    while s < lb and a[s] == b[s]:
+        s += 1
+    ea, eb = la, lb
+    while ea > s and eb > s and a[ea - 1] == b[eb - 1]:
+        ea -= 1
+        eb -= 1
+    n = ea - s  # effective length of a (>= m)
+    m = eb - s  # effective length of b
+
+    if max_distance is not None and (la - lb) > max_distance:
+        return max_distance + 1
+    if m == 0:
+        d = n
+        if max_distance is not None and d > max_distance:
+            return max_distance + 1
+        return d
+
+    k = n if max_distance is None else max_distance
+    big = k + 1
+
+    prev = [j if j <= k else big for j in range(m + 1)]
+    cur = [big] * (m + 1)
+
+    for i in range(1, n + 1):
+        lo = i - k
+        if lo < 1:
+            lo = 1
+        hi = i + k
+        if hi > m:
+            hi = m
+        if lo > hi:
+            return big
+        if lo == 1:
+            cur[0] = i if i <= k else big
+        else:
+            cur[lo - 1] = big
+        ca = a[s + i - 1]
+        left = cur[lo - 1]
+        row_min = left if lo == 1 else big
+        for j in range(lo, hi + 1):
+            cost = 0 if ca == b[s + j - 1] else 1
+            v = prev[j - 1] + cost
+            t = prev[j] + 1
+            if t < v:
+                v = t
+            t = left + 1
+            if t < v:
+                v = t
+            cur[j] = v
+            left = v
+            if v < row_min:
+                row_min = v
+        if hi + 1 <= m:
+            cur[hi + 1] = big
+        if row_min > k:
+            return big
+        prev, cur = cur, prev
+
+    res = prev[m]
+    if res > k:
+        return big if max_distance is not None else res
+    return res
+```

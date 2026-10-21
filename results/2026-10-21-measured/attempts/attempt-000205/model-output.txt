@@ -1,0 +1,26 @@
+Looking at the issue, the bug is that `re.sub(r"[^a-z0-9]", "-", ...)` replaces every non-alphanumeric character with a dash, creating runs of dashes when there are consecutive non-alphanumeric characters.
+
+For example:
+- `"Hello -- World"` → after lowercase and replace: `"hello---world"` (two dashes become two replacement dashes, plus the space between them)
+- `"Tom & Jerry"` → after lowercase and replace: `"tom-*-jerry"` where `*` represents the space
+
+The fix is to replace runs of non-alphanumeric characters with a single dash using `+` quantifier in the regex pattern: `r"[^a-z0-9]+"` instead of `r"[^a-z0-9]"`.
+
+```python
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug
+```

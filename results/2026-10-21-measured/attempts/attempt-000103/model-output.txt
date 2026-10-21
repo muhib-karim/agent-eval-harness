@@ -1,0 +1,42 @@
+The bug is that the cache key only contains the positional arguments, so keyword arguments never affect it. The fix builds the key from both the positional arguments and the keyword arguments, with the keywords sorted so that order doesn't matter.
+
+Details:
+- A key like `(args, tuple(sorted(kwargs.items())))` can't collide between positional and keyword calls. The spec allows those to be cached separately.
+- Sorting `kwargs.items()` compares only the names, because keyword names are unique strings. The values are never compared, so unorderable values are safe.
+- Unhashable arguments must raise `TypeError` before `func` is called. The `key in cache` lookup does this by hashing the key, so unhashable values raise `TypeError` there. To make this explicit, I call `hash(key)` first.
+- Exceptions from `func` propagate without being cached or counted as a miss. The miss counter is only incremented after a successful call, as in the original code.
+- `functools.wraps` already provides `__name__`, `__doc__` and `__wrapped__`.
+
+```python
+"""A small memoizing decorator with hit/miss counters."""
+
+import functools
+
+
+def memoize(func):
+    cache = {}
+    stats = {"hits": 0, "misses": 0}
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        key = (args, tuple(sorted(kwargs.items(), key=lambda item: item[0])))
+        hash(key)  # raises TypeError for unhashable arguments before calling func
+        if key in cache:
+            stats["hits"] += 1
+            return cache[key]
+        result = func(*args, **kwargs)
+        stats["misses"] += 1
+        cache[key] = result
+        return result
+
+    def cache_info():
+        return stats["hits"], stats["misses"]
+
+    def cache_clear():
+        cache.clear()
+        stats["hits"] = stats["misses"] = 0
+
+    wrapper.cache_info = cache_info
+    wrapper.cache_clear = cache_clear
+    return wrapper
+```

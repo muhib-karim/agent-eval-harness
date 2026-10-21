@@ -1,0 +1,196 @@
+```python
+"""Tokenizer and evaluator for simple arithmetic expressions.
+
+Supported grammar:
+
+    expr    := term (('+' | '-') term)*
+    term    := unary (('*' | '/') unary)*
+    unary   := ('+' | '-') unary | primary
+    primary := NUMBER | '(' expr ')'
+
+Numbers are ASCII unsigned integers or decimals with digits on both sides
+of the decimal point.  No exponents, implicit multiplication, names, or
+function calls are supported.
+"""
+
+from __future__ import annotations
+
+_DIGITS = frozenset("0123456789")
+_WHITESPACE = frozenset(" \t\n\r\f\v")
+_OPERATORS = frozenset("+-*/()")
+
+
+def tokenize(text: str) -> list[str]:
+    """Split ``text`` into a list of tokens.
+
+    Tokens are numbers (their spelling preserved exactly as written) and the
+    single-character operators ``+ - * / ( )``.  Whitespace is ignored.
+    Any other character, or a malformed number, raises ``ValueError``.
+    """
+    if not isinstance(text, str):
+        raise ValueError("input must be a string")
+
+    tokens: list[str] = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        ch = text[i]
+
+        if ch in _WHITESPACE:
+            i += 1
+            continue
+
+        if ch in _OPERATORS:
+            tokens.append(ch)
+            i += 1
+            continue
+
+        if ch in _DIGITS:
+            start = i
+            while i < n and text[i] in _DIGITS:
+                i += 1
+            if i < n and text[i] == ".":
+                # A decimal point must be followed by at least one digit.
+                if i + 1 >= n or text[i + 1] not in _DIGITS:
+                    raise ValueError(
+                        f"malformed number at position {start}: "
+                        f"{text[start:i + 1]!r}"
+                    )
+                i += 1
+                while i < n and text[i] in _DIGITS:
+                    i += 1
+            tokens.append(text[start:i])
+            continue
+
+        # Anything else (including a leading '.', letters, unicode digits...)
+        raise ValueError(f"invalid character {ch!r} at position {i}")
+
+    return tokens
+
+
+class _Parser:
+    """Recursive-descent parser/evaluator over a token list."""
+
+    def __init__(self, tokens: list[str]) -> None:
+        self._tokens = tokens
+        self._pos = 0
+
+    # -- helpers -----------------------------------------------------------
+
+    def _peek(self) -> str | None:
+        if self._pos < len(self._tokens):
+            return self._tokens[self._pos]
+        return None
+
+    def _advance(self) -> str:
+        tok = self._tokens[self._pos]
+        self._pos += 1
+        return tok
+
+    def _expect(self, expected: str) -> None:
+        tok = self._peek()
+        if tok != expected:
+            if tok is None:
+                raise ValueError(f"expected {expected!r} but reached end of input")
+            raise ValueError(f"expected {expected!r} but found {tok!r}")
+        self._advance()
+
+    # -- grammar -----------------------------------------------------------
+
+    def parse(self) -> float:
+        if not self._tokens:
+            raise ValueError("empty expression")
+        value = self._expr()
+        if self._pos != len(self._tokens):
+            raise ValueError(
+                f"unexpected token {self._tokens[self._pos]!r} after expression"
+            )
+        return value
+
+    def _expr(self) -> float:
+        value = self._term()
+        while self._peek() in ("+", "-"):
+            op = self._advance()
+            rhs = self._term()
+            if op == "+":
+                value = value + rhs
+            else:
+                value = value - rhs
+        return value
+
+    def _term(self) -> float:
+        value = self._unary()
+        while self._peek() in ("*", "/"):
+            op = self._advance()
+            rhs = self._unary()
+            if op == "*":
+                value = value * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / rhs
+        return value
+
+    def _unary(self) -> float:
+        tok = self._peek()
+        if tok == "+":
+            self._advance()
+            return +self._unary()
+        if tok == "-":
+            self._advance()
+            return -self._unary()
+        return self._primary()
+
+    def _primary(self) -> float:
+        tok = self._peek()
+        if tok is None:
+            raise ValueError("unexpected end of expression")
+        if tok == "(":
+            self._advance()
+            value = self._expr()
+            self._expect(")")
+            return value
+        if tok[0] in _DIGITS:
+            self._advance()
+            return float(tok)
+        raise ValueError(f"unexpected token {tok!r}")
+
+
+def evaluate(text: str) -> float:
+    """Evaluate an arithmetic expression and return the result as a float.
+
+    Raises ``ValueError`` for malformed input (bad characters, malformed
+    numbers, empty expressions, adjacent operands, trailing tokens, or
+    unbalanced parentheses) and ``ZeroDivisionError`` for division by zero.
+    """
+    tokens = tokenize(text)
+    return float(_Parser(tokens).parse())
+
+
+if __name__ == "__main__":
+    # Small self-check.
+    assert tokenize("") == []
+    assert tokenize(" 1 + 2.50*(3-4) ") == ["1", "+", "2.50", "*", "(", "3", "-", "4", ")"]
+    assert evaluate("1 + 2 * 3") == 7.0
+    assert evaluate("(1 + 2) * 3") == 9.0
+    assert evaluate("--2") == 2.0
+    assert evaluate("-+-2") == 2.0
+    assert evaluate("2 * -3") == -6.0
+    assert evaluate("8 / 2 / 2") == 2.0
+    assert evaluate("10 - 3 - 2") == 5.0
+    for bad in ["", "1 2", "1 +", "(1", "1)", "1.", ".5", "1..2", "2(3)", "a", "1 ^ 2"]:
+        try:
+            evaluate(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for {bad!r}")
+    try:
+        evaluate("1 / 0")
+    except ZeroDivisionError:
+        pass
+    else:
+        raise AssertionError("expected ZeroDivisionError")
+    print("ok")
+```

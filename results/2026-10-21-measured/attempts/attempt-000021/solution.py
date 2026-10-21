@@ -1,0 +1,52 @@
+from typing import Iterable
+
+
+def _is_valid_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def merge_intervals(intervals) -> list[tuple[int, int]]:
+    """Merge closed integer intervals into a sorted list of disjoint intervals.
+
+    Overlapping intervals and intervals that share an endpoint are merged.
+    Raises ValueError for malformed pairs, non-integer endpoints, or start > end.
+    The input and its members are never mutated.
+    """
+    try:
+        iterator = iter(intervals)
+    except TypeError:
+        raise ValueError("intervals must be an iterable of pairs") from None
+
+    parsed: list[tuple[int, int]] = []
+    for item in iterator:
+        if isinstance(item, (str, bytes, bytearray)):
+            raise ValueError(f"invalid interval: {item!r}")
+        try:
+            pair = tuple(item)
+        except TypeError:
+            raise ValueError(f"interval must be a pair, got {item!r}") from None
+        if len(pair) != 2:
+            raise ValueError(f"interval must have exactly 2 endpoints, got {len(pair)}")
+        start, end = pair
+        if not _is_valid_int(start) or not _is_valid_int(end):
+            raise ValueError(f"interval endpoints must be integers, got {pair!r}")
+        start, end = int(start), int(end)
+        if start > end:
+            raise ValueError(f"interval start {start} is greater than end {end}")
+        parsed.append((start, end))
+
+    if not parsed:
+        return []
+
+    parsed.sort()
+    merged: list[tuple[int, int]] = []
+    cur_start, cur_end = parsed[0]
+    for start, end in parsed[1:]:
+        if start <= cur_end:
+            if end > cur_end:
+                cur_end = end
+        else:
+            merged.append((cur_start, cur_end))
+            cur_start, cur_end = start, end
+    merged.append((cur_start, cur_end))
+    return merged

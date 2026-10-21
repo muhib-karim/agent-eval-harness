@@ -1,0 +1,71 @@
+_ID_START = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+_ID_CHARS = _ID_START | set("0123456789")
+_DIGITS = set("0123456789")
+
+
+def _parse(path):
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    n = len(path)
+    tokens = []
+    i = 0
+
+    def parse_ident(i):
+        if i >= n or path[i] not in _ID_START:
+            raise ValueError("expected identifier at position %d" % i)
+        j = i + 1
+        while j < n and path[j] in _ID_CHARS:
+            j += 1
+        tokens.append(("key", path[i:j]))
+        return j
+
+    def parse_index(i):
+        # path[i] == '['
+        j = i + 1
+        start = j
+        while j < n and path[j] in _DIGITS:
+            j += 1
+        if j == start:
+            raise ValueError("expected digits in index at position %d" % start)
+        if j >= n or path[j] != "]":
+            raise ValueError("expected ']' at position %d" % j)
+        tokens.append(("idx", int(path[start:j])))
+        return j + 1
+
+    if path.startswith("$"):
+        i = 1
+        if i < n and path[i] not in ".[":
+            raise ValueError("unexpected character after '$'")
+    elif path[0] == "[":
+        i = 0
+    else:
+        i = parse_ident(0)
+
+    while i < n:
+        c = path[i]
+        if c == ".":
+            i = parse_ident(i + 1)
+        elif c == "[":
+            i = parse_index(i)
+        else:
+            raise ValueError("unexpected character %r at position %d" % (c, i))
+    return tokens
+
+
+def get_path(data, path: str, default=None):
+    if path == "" or path == "$":
+        if not isinstance(path, str):
+            raise ValueError("path must be a string")
+        return data
+    tokens = _parse(path)
+    cur = data
+    for kind, val in tokens:
+        if kind == "key":
+            if not isinstance(cur, dict) or val not in cur:
+                return default
+            cur = cur[val]
+        else:
+            if not isinstance(cur, list) or val >= len(cur):
+                return default
+            cur = cur[val]
+    return cur

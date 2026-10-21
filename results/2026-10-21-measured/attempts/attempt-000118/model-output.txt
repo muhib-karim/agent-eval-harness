@@ -1,0 +1,79 @@
+```python
+def get_path(data, path: str, default=None):
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    if path == "" or path == "$":
+        return data
+
+    ident_start = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")
+    ident_rest = ident_start | set("0123456789")
+    digits = set("0123456789")
+
+    n = len(path)
+    i = 0
+    tokens = []  # ("k", name) or ("i", int or None if huge)
+
+    def parse_ident(pos):
+        if pos >= n or path[pos] not in ident_start:
+            raise ValueError("invalid path syntax at position %d" % pos)
+        j = pos + 1
+        while j < n and path[j] in ident_rest:
+            j += 1
+        return path[pos:j], j
+
+    def parse_index(pos):
+        # path[pos] == '['
+        j = pos + 1
+        start = j
+        while j < n and path[j] in digits:
+            j += 1
+        if j == start or j >= n or path[j] != "]":
+            raise ValueError("invalid index at position %d" % pos)
+        text = path[start:j].lstrip("0") or "0"
+        val = int(text) if len(text) <= 18 else None
+        return val, j + 1
+
+    if path[0] == "$":
+        i = 1
+        if i < n:
+            if path[i] == ".":
+                name, i = parse_ident(i + 1)
+                tokens.append(("k", name))
+            elif path[i] == "[":
+                val, i = parse_index(i)
+                tokens.append(("i", val))
+            else:
+                raise ValueError("invalid path syntax at position %d" % i)
+    else:
+        if path[0] == "[":
+            val, i = parse_index(0)
+            tokens.append(("i", val))
+        else:
+            name, i = parse_ident(0)
+            tokens.append(("k", name))
+
+    while i < n:
+        c = path[i]
+        if c == ".":
+            name, i = parse_ident(i + 1)
+            tokens.append(("k", name))
+        elif c == "[":
+            val, i = parse_index(i)
+            tokens.append(("i", val))
+        else:
+            raise ValueError("invalid path syntax at position %d" % i)
+
+    cur = data
+    for kind, val in tokens:
+        if kind == "k":
+            if isinstance(cur, dict) and val in cur:
+                cur = cur[val]
+            else:
+                return default
+        else:
+            if isinstance(cur, list) and val is not None and val < len(cur):
+                cur = cur[val]
+            else:
+                return default
+    return cur
+```

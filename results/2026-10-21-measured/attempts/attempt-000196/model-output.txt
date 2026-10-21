@@ -1,0 +1,61 @@
+Looking at this bug, I need to trace through what `find_last` does:
+
+1. `_right(items, target)` returns the index of the first element **greater than** target (or len(items) if all elements are <= target)
+2. `find_last` then checks if `items[index] == target`, but `index` points to the first element *greater than* target, so this will always be False
+
+For example, with `find_last([1, 2, 2, 3], 2)`:
+- `_right([1, 2, 2, 3], 2)` returns 3 (the index of 3, the first element > 2)
+- Then it checks `items[3] == 2`, which is False, so returns -1
+
+The fix is to check the element **before** the position returned by `_right`:
+
+```python
+"""Binary-search helpers over an ascending list."""
+
+
+def _left(items, target):
+    lo, hi = 0, len(items)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _right(items, target):
+    lo, hi = 0, len(items)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] <= target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def find_first(items, target):
+    """Index of the first element equal to target, or -1."""
+    index = _left(items, target)
+    if index < len(items) and items[index] == target:
+        return index
+    return -1
+
+
+def find_last(items, target):
+    """Index of the last element equal to target, or -1."""
+    index = _right(items, target) - 1
+    if index >= 0 and items[index] == target:
+        return index
+    return -1
+
+
+def count_range(items, low, high):
+    """Number of elements x with low <= x <= high."""
+    if low > high:
+        return 0
+    return _right(items, high) - _left(items, low)
+```
+
+The key change: `find_last` now checks `index - 1` (the last element <= target) instead of `index` (the first element > target), and verifies `index >= 0` instead of `index < len(items)`.

@@ -1,0 +1,130 @@
+```python
+"""
+solution.py
+
+Implementation of the Levenshtein (edit) distance using only the
+Python standard library.
+
+The public entry point is ``levenshtein(a, b, max_distance=None)``.
+
+Design notes
+------------
+* Memory:  O(min(len(a), len(b))) -- we always keep only two
+  "rows" (or in the bounded case, two small windows) of the DP
+  matrix alive at any time, and we always make sure the shorter
+  string is the one whose length determines the row size.
+
+* Speed:
+    - When ``max_distance`` is None we run the classic full
+      O(n*m) dynamic program, which is fast enough for strings up
+      to a few thousand characters.
+    - When ``max_distance`` is given, we additionally restrict the
+      computation to a diagonal band of width
+      ``2*max_distance + 1`` around the main diagonal, since any
+      alignment path that strays further from the diagonal than
+      ``max_distance`` can never produce an edit distance of
+      ``max_distance`` or less.  This turns the algorithm into
+      O((n + m) * max_distance) time, which stays fast even for
+      very long strings provided ``max_distance`` is small.
+"""
+
+from __future__ import annotations
+
+
+def levenshtein(a: str, b: str, max_distance: int | None = None) -> int:
+    """
+    Compute the Levenshtein edit distance between ``a`` and ``b``.
+
+    The distance is the minimum number of single-character
+    insertions, deletions, and substitutions required to transform
+    ``a`` into ``b``.  Comparisons are case-sensitive and operate on
+    Unicode code points.
+
+    If ``max_distance`` is given, it must be a non-negative ``int``
+    (an actual ``int``, not a ``bool``).  If the true edit distance
+    would exceed ``max_distance``, this function returns
+    ``max_distance + 1`` instead of the true distance (this allows
+    the implementation to avoid doing unbounded work for very
+    different / very long strings).
+
+    Raises
+    ------
+    TypeError
+        If ``a`` or ``b`` is not a ``str``.
+    ValueError
+        If ``max_distance`` is not ``None`` and is not a
+        non-negative ``int`` (``bool`` is rejected even though it is
+        technically a subclass of ``int``).
+    """
+    if not isinstance(a, str) or not isinstance(b, str):
+        raise TypeError("a and b must be str")
+
+    if max_distance is not None:
+        if isinstance(max_distance, bool) or not isinstance(max_distance, int):
+            raise ValueError("max_distance must be a non-negative int or None")
+        if max_distance < 0:
+            raise ValueError("max_distance must be a non-negative int or None")
+
+    n, m = len(a), len(b)
+
+    # Ensure `a` (length n) is the shorter (or equal) string so that
+    # our O(min(n, m)) buffers are sized by the smaller length.
+    if n > m:
+        a, b = b, a
+        n, m = m, n
+
+    if max_distance is None:
+        return _levenshtein_full(a, b, n, m)
+
+    # A lower bound on the edit distance is the difference in
+    # lengths; if that already exceeds max_distance we can bail out
+    # immediately without doing any further work.
+    if m - n > max_distance:
+        return max_distance + 1
+
+    return _levenshtein_banded(a, b, n, m, max_distance)
+
+
+def _levenshtein_full(a: str, b: str, n: int, m: int) -> int:
+    """
+    Classic O(n*m) time, O(min(n, m)) memory edit distance.
+
+    ``a`` has length ``n``, ``b`` has length ``m``, with ``n <= m``.
+    """
+    # prev holds the DP row for the previous column (j-1), indexed
+    # by i (0..n), i.e. prev[i] = distance(a[:i], b[:j-1])
+    prev = list(range(n + 1))
+    curr = [0] * (n + 1)
+
+    for j in range(1, m + 1):
+        bj = b[j - 1]
+        curr[0] = j
+        for i in range(1, n + 1):
+            cost = 0 if a[i - 1] == bj else 1
+            deletion = prev[i] + 1
+            insertion = curr[i - 1] + 1
+            substitution = prev[i - 1] + cost
+            best = deletion
+            if insertion < best:
+                best = insertion
+            if substitution < best:
+                best = substitution
+            curr[i] = best
+        prev, curr = curr, prev
+
+    return prev[n]
+
+
+def _levenshtein_banded(a: str, b: str, n: int, m: int, max_distance: int) -> int:
+    """
+    Banded edit distance: only cells within ``max_distance`` of the
+    main diagonal are computed; everything else is treated as
+    "effectively infinite" (represented by the sentinel value
+    ``INF = max_distance + 1``).
+
+    ``a`` has length ``n``, ``b`` has length ``m``, with ``n <= m``
+    and ``m - n <= max_distance`` (checked by the caller).
+    """
+    INF = max_distance + 1
+
+    # prev[i] = distance(a[:i], b[:0]) capped by INF, for column

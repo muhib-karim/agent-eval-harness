@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "harness_version": "1.3.0",
+  "python_version": "3.11.16",
+  "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+  "started_at": "2026-10-21T17:53:41.921937+00:00",
+  "task_hashes": {
+    "arithmetic": {
+      "./tasks/arithmetic/task.yaml": "fcc0291e6f28b53eecb414085ffa7af9971fdf42256bc5158557bc1f520aa19d",
+      "./tasks/arithmetic/hidden_tests.py": "20510d6124978567ece6e782fc0e9ec10979e4ce005e92c21d77dd98ee8dad67"
+    },
+    "fix_binary_search": {
+      "./tasks/fix_binary_search/task.yaml": "916ee59c6c29fcdba5aed5793da366f5f0c699a8b1d712666726d4875a791d57",
+      "./tasks/fix_binary_search/hidden_tests.py": "5697d394931d8f8a8395b9c30f7fb0e602c31cb6a29d2552f1c27e2a5f4aca54",
+      "./tasks/fix_binary_search/starter.py": "1abf35a9179b0fe511a4d6fc73915c0439c199b70b0551eafb8cc1e1040172c9"
+    },
+    "fix_memoize": {
+      "./tasks/fix_memoize/task.yaml": "d9e581255efb24ac20ffca6ff7b0659d253ab7ad4f807b9b9d008524d5ad48bf",
+      "./tasks/fix_memoize/hidden_tests.py": "2571f75cc99b51a3e1b75ec4514be3451ba420123440155657dd88cfa9e93261",
+      "./tasks/fix_memoize/starter.py": "384b01853b067f3ca07407631e115231f8e35bc54d17f117e5cbb769a9b4c6e9"
+    },
+    "fix_running_stats": {
+      "./tasks/fix_running_stats/task.yaml": "45427fd22ca795c705ff8986301a026a21bfc8b31c252f2f71b14b4bb752e3b4",
+      "./tasks/fix_running_stats/hidden_tests.py": "84a3b6f09de6d01c1bc7918c480948e08983b4dd068a8d7b08b43388ea38a7fb",
+      "./tasks/fix_running_stats/starter.py": "e4f100ceb80777d7c537571b01ff985c74e850cd90328481a94848622dc61451"
+    },
+    "fix_slugify": {
+      "./tasks/fix_slugify/task.yaml": "c44ff47beb4aa93fad5f486f16433d2ac86cef1b497fbacdc35b673e8e52aaf0",
+      "./tasks/fix_slugify/hidden_tests.py": "d2ca1f9010b618928f5fb30f079dfc24e1a2aec2456735b44235b1f2d56b44aa",
+      "./tasks/fix_slugify/starter.py": "f923fb8f6d6354c3d980a88c067958a45d4c5d2b6940cbd40ff098862a7dc3a1"
+    },
+    "ini_parser": {
+      "./tasks/ini_parser/task.yaml": "81688bc924f6953865960ca29896d9a1b24e43870e73a5fb4dc901581b7bf486",
+      "./tasks/ini_parser/hidden_tests.py": "d175f02297a3594382d14c7f4f6774a718a046d5ff551c1520ff393d31eea4ef"
+    },
+    "intervals": {
+      "./tasks/intervals/task.yaml": "f84245f2c0152f26722e3b23c04061f6cb7a734f07d707d1b2c899e0f0b2afb9",
+      "./tasks/intervals/hidden_tests.py": "7c5136a57e6f2a77f31920eea6136a9ef2eea786c32a0ce7d4d90b34331fb5c4"
+    },
+    "json_path": {
+      "./tasks/json_path/task.yaml": "bea7b7a45cb362a7e8608b079c544048ed1013ed0a3002233fc85b55679b557b",
+      "./tasks/json_path/hidden_tests.py": "b2c8a8daa8ef0c95e119215f1f36b7f2a7443ca2ea8861e84273790307977f2c"
+    },
+    "ledger": {
+      "./tasks/ledger/task.yaml": "ebfe851dea816007020945c4900ee6d164cc988faa8187963e4ec7418814599d",
+      "./tasks/ledger/hidden_tests.py": "3acee342c73a5655dee55c92a6b91e8e116f8b9f5f2fdcc89e2bf4a683738213"
+    },
+    "levenshtein": {
+      "./tasks/levenshtein/task.yaml": "11b95594a110b50b85c1990bd6209dc6812e8b4a2b250acc6a9a6c33b4c82a34",
+      "./tasks/levenshtein/hidden_tests.py": "5e7c37df2784133f97f08cfe252d19940f9c9fbd1ce2eb49f0b5a99b88eec397"
+    },
+    "lru_ttl": {
+      "./tasks/lru_ttl/task.yaml": "7e047277fe18d229985757b4a05945f8688c2f6d6de1b78e5deea1692d4943da",
+      "./tasks/lru_ttl/hidden_tests.py": "ee049a1cd0471da1440098968fa86cba7483b4416ebf0c75561e42284cddf4ce"
+    },
+    "rate_limiter": {
+      "./tasks/rate_limiter/task.yaml": "8ec67ae6df6d3301c193f3b10a3070c7b46d616cc84e44996883bb8573aa18a8",
+      "./tasks/rate_limiter/hidden_tests.py": "5523fe5dbe53d4b97a70971c70fde8c60c778ec69a882317f34b8d000fb56234"
+    },
+    "roman": {
+      "./tasks/roman/task.yaml": "d820c08b814f491f607bc33734001c011a32d9cc10e19bdd86733338e649317e",
+      "./tasks/roman/hidden_tests.py": "936d0bb42e97ad533826e9a794b13461f8d1c5d80bae853481b5341fef90c0eb"
+    },
+    "semver": {
+      "./tasks/semver/task.yaml": "19b6ea2c5280e61db07b9c720adaf83cad4ec6beb4d9439146ff951770e75f13",
+      "./tasks/semver/hidden_tests.py": "f22b8b65fe64f8bb80f309dff6d7ac1122b3aac897ab33b988b62e67633bdb4a"
+    },
+    "topo_sort": {
+      "./tasks/topo_sort/task.yaml": "12f6fafc40e055cbc0afbdf38a64b5da1c3a1494a626872ea1c8bf994735b47b",
+      "./tasks/topo_sort/hidden_tests.py": "511d17ae669ca92bf4fe28baa23420619bb6d220fd8156e813f3430f58a941b2"
+    },
+    "undo_buffer": {
+      "./tasks/undo_buffer/task.yaml": "1b89178d0b686bd49feaa75833954287987329f778a1d20f9c41bf6f3a6b95b9",
+      "./tasks/undo_buffer/hidden_tests.py": "9bc2b45587f82d9cd55a3fbb309b75812ea5d27200b7a4ba68ec330a7de57659"
+    }
+  },
+  "config_sha256": "5eddf985b85bc2943cedbd7ac7a8a2aba89930274b2d287466ebb38a4ceea642"
+}

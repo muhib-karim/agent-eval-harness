@@ -1,0 +1,74 @@
+Looking at this bug, the issue is in the `merge()` method's calculation of `_m2` (which tracks the sum of squared differences from the mean, used to compute variance).
+
+When merging two `RunningStats` objects with different means, we need to account for the shift in the combined mean. The current code simply adds `self._m2 + other._m2`, but this doesn't account for how each dataset's deviations change when the overall mean shifts.
+
+The correct formula for merging `_m2` values is:
+```
+result._m2 = self._m2 + other._m2 + delta² × (self._n × other._n / n)
+```
+
+where `delta = other._mean - self._mean`.
+
+This accounts for the additional variance contribution from the offset between the two means.
+
+Let me verify with the reproduction case:
+- a: values [1, 2, 3], mean=2, m2=2
+- b: values [10, 11, 12], mean=11, m2=2
+- Combined [1, 2, 3, 10, 11, 12]: mean=6.5, variance=25.1
+
+Using the corrected formula:
+- delta = 11 - 2 = 9
+- result._m2 = 2 + 2 + (9² × (3 × 3 / 6)) = 4 + 81 × 1.5 = 4 + 121.5 = 125.5
+- variance = 125.5 / (6 - 1) = 125.5 / 5 = 25.1 ✓
+
+```python
+"""Streaming mean and sample variance (Welford), mergeable across shards."""
+
+import math
+
+
+class RunningStats:
+    def __init__(self):
+        self._n = 0
+        self._mean = 0.0
+        self._m2 = 0.0
+
+    def push(self, x):
+        if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x):
+            raise ValueError("x must be a finite number")
+        self._n += 1
+        delta = x - self._mean
+        self._mean += delta / self._n
+        self._m2 += delta * (x - self._mean)
+
+    @property
+    def count(self):
+        return self._n
+
+    @property
+    def mean(self):
+        if self._n < 1:
+            raise ValueError("mean needs at least one value")
+        return self._mean
+
+    @property
+    def variance(self):
+        if self._n < 2:
+            raise ValueError("variance needs at least two values")
+        return self._m2 / (self._n - 1)
+
+    @property
+    def stdev(self):
+        return math.sqrt(self.variance)
+
+    def merge(self, other):
+        result = RunningStats()
+        n = self._n + other._n
+        if n == 0:
+            return result
+        delta = other._mean - self._mean
+        result._n = n
+        result._mean = self._mean + delta * other._n / n
+        result._m2 = self._m2 + other._m2 + delta * delta * self._n * other._n / n
+        return result
+```

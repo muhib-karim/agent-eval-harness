@@ -28,13 +28,21 @@ jobs:
       - run: python -m pip install '.[grade]'
       - run: agent-eval run examples/mock-demo.yaml --out runs/pages-demo
       - name: Assemble site
+        env:
+          LATEST: results/2026-10-21-measured
+          HISTORY: results/2026-10-17-measured
         run: |
-          mkdir -p site/demo site/measured
-          # Landing page: the measured live-model run committed under results/.
-          agent-eval report results/2026-10-17-measured/results.jsonl --format html --k 1 --k 3 --out site/index.html
-          agent-eval report results/2026-10-17-measured/results.jsonl --format md --k 1 --k 3 > site/measured/report.md
-          agent-eval report results/2026-10-17-measured/results.jsonl --format json --k 1 --k 3 > site/measured/summary.json
-          cp results/2026-10-17-measured/results.jsonl site/measured/results.jsonl
+          mkdir -p site/demo site/measured site/history/2026-10-17
+          # Landing page: the latest measured live-model run committed under results/.
+          agent-eval report "$LATEST/results.jsonl" --format html --k 1 --k 3 --out site/index.html
+          agent-eval report "$LATEST/results.jsonl" --format md --k 1 --k 3 > site/measured/report.md
+          agent-eval report "$LATEST/results.jsonl" --format json --k 1 --k 3 > site/measured/summary.json
+          cp "$LATEST/results.jsonl" "$LATEST/METHODOLOGY.md" site/measured/
+          # Earlier measured runs stay published as history.
+          agent-eval report "$HISTORY/results.jsonl" --format html --k 1 --k 3 --out site/history/2026-10-17/index.html
+          agent-eval report "$HISTORY/results.jsonl" --format md --k 1 --k 3 > site/history/2026-10-17/report.md
+          agent-eval report "$HISTORY/results.jsonl" --format json --k 1 --k 3 > site/history/2026-10-17/summary.json
+          cp "$HISTORY/results.jsonl" site/history/2026-10-17/results.jsonl
           # Offline mock demo, rebuilt from main on every push.
           cp runs/pages-demo/report.html site/demo/index.html
           agent-eval report runs/pages-demo/results.jsonl --format md > site/demo/report.md

@@ -1,0 +1,50 @@
+The approach is Kahn's algorithm with a min-heap, so the smallest ready node is always emitted first. This gives the lexicographically smallest valid order and uses no recursion.
+
+Steps:
+1. Collect all nodes, including those that appear only as dependencies.
+2. Convert each node's dependencies to a set, so duplicates count once.
+3. Build a reverse map from each dependency to its dependents, and an indegree count per node (its number of unique dependencies).
+4. Push all nodes with indegree 0 onto the heap.
+5. Pop the smallest node, emit it, and decrement the indegree of each of its dependents. Push any that reach 0.
+6. If fewer nodes were emitted than exist, there is a cycle, so raise `ValueError`. A self-dependency gives that node an indegree it can never clear, so it is caught the same way.
+
+The input is only read, never mutated. The graph's values are iterated once each and stored in local sets, which also handles one-shot iterators.
+
+```python
+import heapq
+
+
+def topo_sort(graph):
+    deps = {}
+    for node, ds in graph.items():
+        s = set(ds)
+        deps[node] = s
+    # include nodes that appear only as dependencies
+    for node, s in list(deps.items()):
+        for d in s:
+            if d not in deps:
+                deps[d] = set()
+
+    dependents = {node: [] for node in deps}
+    indegree = {}
+    for node, s in deps.items():
+        indegree[node] = len(s)
+        for d in s:
+            dependents[d].append(node)
+
+    heap = [n for n, k in indegree.items() if k == 0]
+    heapq.heapify(heap)
+
+    result = []
+    while heap:
+        n = heapq.heappop(heap)
+        result.append(n)
+        for m in dependents[n]:
+            indegree[m] -= 1
+            if indegree[m] == 0:
+                heapq.heappush(heap, m)
+
+    if len(result) != len(deps):
+        raise ValueError("graph contains a cycle")
+    return result
+```

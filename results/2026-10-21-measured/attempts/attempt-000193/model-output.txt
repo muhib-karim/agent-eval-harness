@@ -1,0 +1,153 @@
+```python
+def tokenize(text: str) -> list[str]:
+    """
+    Tokenize a mathematical expression into tokens.
+    Tokens: unsigned integers/decimals (digits on both sides of decimal point),
+    operators (+ - * / ( )), whitespace ignored.
+    """
+    if not text:
+        return []
+    
+    tokens = []
+    i = 0
+    
+    while i < len(text):
+        # Skip whitespace
+        if text[i].isspace():
+            i += 1
+            continue
+        
+        # Check for operators and parentheses
+        if text[i] in '+-*/()':
+            tokens.append(text[i])
+            i += 1
+            continue
+        
+        # Check for number (integer or decimal)
+        if text[i].isdigit():
+            j = i
+            has_decimal = False
+            
+            # Parse the number
+            while j < len(text) and (text[j].isdigit() or text[j] == '.'):
+                if text[j] == '.':
+                    if has_decimal:
+                        # Multiple decimal points
+                        raise ValueError(f"Invalid number: multiple decimal points")
+                    has_decimal = True
+                j += 1
+            
+            number_str = text[i:j]
+            
+            # Validate decimal number format (must have digits on both sides)
+            if has_decimal:
+                parts = number_str.split('.')
+                if len(parts[0]) == 0 or len(parts[1]) == 0:
+                    raise ValueError(f"Invalid decimal number: {number_str}")
+            
+            tokens.append(number_str)
+            i = j
+            continue
+        
+        # Invalid character
+        raise ValueError(f"Invalid character: {text[i]}")
+    
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    """
+    Evaluate a mathematical expression.
+    Supports parentheses, unary +/-, binary operators with precedence,
+    and left-associativity.
+    """
+    tokens = tokenize(text)
+    
+    if not tokens:
+        raise ValueError("Empty expression")
+    
+    pos = [0]  # Use list to allow modification in nested functions
+    
+    def peek():
+        if pos[0] < len(tokens):
+            return tokens[pos[0]]
+        return None
+    
+    def consume():
+        token = peek()
+        pos[0] += 1
+        return token
+    
+    def parse_primary():
+        """Parse primary expression: number, unary +/-, or parenthesized expression"""
+        token = peek()
+        
+        if token is None:
+            raise ValueError("Unexpected end of expression")
+        
+        # Handle unary operators
+        if token == '+':
+            consume()
+            return parse_primary()
+        elif token == '-':
+            consume()
+            return -parse_primary()
+        
+        # Handle parentheses
+        if token == '(':
+            consume()
+            result = parse_expression()
+            if peek() != ')':
+                raise ValueError("Missing closing parenthesis")
+            consume()
+            return result
+        
+        # Handle number
+        if token and (token[0].isdigit()):
+            consume()
+            return float(token)
+        
+        raise ValueError(f"Expected number or expression, got {token}")
+    
+    def parse_multiplicative():
+        """Parse multiplication and division (higher precedence)"""
+        left = parse_primary()
+        
+        while peek() in ('*', '/'):
+            op = consume()
+            right = parse_primary()
+            if op == '*':
+                left = left * right
+            else:  # op == '/'
+                if right == 0:
+                    raise ZeroDivisionError("Division by zero")
+                left = left / right
+        
+        return left
+    
+    def parse_additive():
+        """Parse addition and subtraction (lower precedence)"""
+        left = parse_multiplicative()
+        
+        while peek() in ('+', '-'):
+            op = consume()
+            right = parse_multiplicative()
+            if op == '+':
+                left = left + right
+            else:  # op == '-'
+                left = left - right
+        
+        return left
+    
+    def parse_expression():
+        """Parse full expression"""
+        return parse_additive()
+    
+    result = parse_expression()
+    
+    # Check for trailing tokens
+    if pos[0] < len(tokens):
+        raise ValueError(f"Unexpected token: {peek()}")
+    
+    return result
+```

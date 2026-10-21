@@ -1,0 +1,113 @@
+"""Semantic Versioning 2.0.0 parsing and precedence comparison."""
+
+_DIGITS = frozenset("0123456789")
+_IDENT_CHARS = frozenset(
+    "0123456789"
+    "abcdefghijklmnopqrstuvwxyz"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "-"
+)
+
+
+def _to_int(s):
+    # Convert an ASCII digit string to int without hitting the str->int
+    # digit limit present in newer Python versions.
+    if len(s) <= 1000:
+        return int(s)
+    value = 0
+    for i in range(0, len(s), 1000):
+        chunk = s[i:i + 1000]
+        value = value * (10 ** len(chunk)) + int(chunk)
+    return value
+
+
+def _is_numeric(s):
+    return len(s) > 0 and all(c in _DIGITS for c in s)
+
+
+def _parse_core_number(s, text):
+    if not _is_numeric(s):
+        raise ValueError("invalid version: %r" % (text,))
+    if len(s) > 1 and s[0] == "0":
+        raise ValueError("leading zero in version number: %r" % (text,))
+    return _to_int(s)
+
+
+def _check_ident(ident, text):
+    if not ident or not all(c in _IDENT_CHARS for c in ident):
+        raise ValueError("invalid identifier in version: %r" % (text,))
+
+
+def parse(text):
+    if not isinstance(text, str):
+        raise ValueError("version must be a str")
+
+    rest = text
+    build = ()
+    if "+" in rest:
+        rest, build_part = rest.split("+", 1)
+        build_ids = build_part.split(".")
+        for ident in build_ids:
+            _check_ident(ident, text)
+        build = tuple(build_ids)
+
+    prerelease = ()
+    if "-" in rest:
+        rest, pre_part = rest.split("-", 1)
+        items = []
+        for ident in pre_part.split("."):
+            _check_ident(ident, text)
+            if _is_numeric(ident):
+                if len(ident) > 1 and ident[0] == "0":
+                    raise ValueError(
+                        "leading zero in numeric prerelease identifier: %r" % (text,)
+                    )
+                items.append(_to_int(ident))
+            else:
+                items.append(ident)
+        prerelease = tuple(items)
+
+    parts = rest.split(".")
+    if len(parts) != 3:
+        raise ValueError("invalid version: %r" % (text,))
+    major, minor, patch = (_parse_core_number(p, text) for p in parts)
+    return (major, minor, patch, prerelease, build)
+
+
+def _cmp(x, y):
+    return (x > y) - (x < y)
+
+
+def _cmp_ident(x, y):
+    xi = isinstance(x, int)
+    yi = isinstance(y, int)
+    if xi and yi:
+        return _cmp(x, y)
+    if xi:
+        return -1
+    if yi:
+        return 1
+    return _cmp(x, y)  # Python str comparison is codepoint (ASCII) order
+
+
+def compare(a, b):
+    pa = parse(a)
+    pb = parse(b)
+
+    c = _cmp(pa[:3], pb[:3])
+    if c:
+        return c
+
+    pre_a, pre_b = pa[3], pb[3]
+    if not pre_a and not pre_b:
+        return 0
+    if not pre_a:
+        return 1
+    if not pre_b:
+        return -1
+
+    for x, y in zip(pre_a, pre_b):
+        c = _cmp_ident(x, y)
+        if c:
+            return c
+    return _cmp(len(pre_a), len(pre_b))

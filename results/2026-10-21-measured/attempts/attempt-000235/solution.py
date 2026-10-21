@@ -1,0 +1,143 @@
+def topo_sort(graph):
+    """
+    Topologically sort a graph where each node maps to its dependencies.
+
+    Args:
+        graph: dict mapping each node to an iterable of nodes it depends on
+
+    Returns:
+        list of nodes in topologically sorted order (dependencies before dependents)
+        with ties broken by lexicographic order
+
+    Raises:
+        ValueError: if the graph contains a cycle
+    """
+    # Build a new graph structure to avoid mutating input
+    # Also discover all nodes (including those that only appear as dependencies)
+    all_nodes = set(graph.keys())
+    dependencies = {}
+
+    for node, deps in graph.items():
+        dependencies[node] = set()
+        for dep in deps:
+            all_nodes.add(dep)
+            dependencies[node].add(dep)
+
+    # Ensure all nodes are in the dependencies dict
+    for node in all_nodes:
+        if node not in dependencies:
+            dependencies[node] = set()
+
+    # Kahn's algorithm with priority queue (using sorted list for lexicographic order)
+    # Calculate in-degree for each node
+    in_degree = {node: 0 for node in all_nodes}
+    for node in all_nodes:
+        for dep in dependencies[node]:
+            in_degree[dep] += 1
+
+    # Start with nodes that have no dependents (in-degree 0)
+    # Note: in_degree tracks how many nodes depend on this node
+    # We actually need to track how many dependencies each node has
+
+    # Recalculate: in-degree is the number of dependencies a node has
+    in_degree = {node: len(dependencies[node]) for node in all_nodes}
+
+    # Queue of nodes with no dependencies (in-degree 0)
+    ready = [node for node in all_nodes if in_degree[node] == 0]
+    ready.sort()  # Sort for lexicographic order
+
+    result = []
+
+    while ready:
+        # Take the smallest node lexicographically
+        current = ready.pop(0)
+        result.append(current)
+
+        # Find nodes that depend on current
+        # For each node, check if current is a dependency
+        for node in all_nodes:
+            if current in dependencies[node]:
+                # Remove this dependency
+                dependencies[node].discard(current)
+                in_degree[node] -= 1
+
+                # If this node now has no dependencies, add to ready queue
+                if in_degree[node] == 0:
+                    # Insert in sorted order
+                    import bisect
+                    bisect.insort(ready, node)
+
+    # Check for cycles
+    if len(result) != len(all_nodes):
+        raise ValueError("Cycle detected in graph")
+
+    return result
+
+def topo_sort(graph):
+    """
+    Topologically sort a graph where each node maps to its dependencies.
+
+    Args:
+        graph: dict mapping each node to an iterable of nodes it depends on
+
+    Returns:
+        list of nodes in topologically sorted order (dependencies before dependents)
+        with ties broken by lexicographic order
+
+    Raises:
+        ValueError: if the graph contains a cycle
+    """
+    import bisect
+
+    # Build a new graph structure to avoid mutating input
+    # Also discover all nodes (including those that only appear as dependencies)
+    all_nodes = set(graph.keys())
+    dependencies = {}
+    dependents_map = {}  # Maps each node to nodes that depend on it
+
+    for node, deps in graph.items():
+        dependencies[node] = set()
+        for dep in deps:
+            all_nodes.add(dep)
+            dependencies[node].add(dep)
+
+    # Ensure all nodes are in both maps
+    for node in all_nodes:
+        if node not in dependencies:
+            dependencies[node] = set()
+        if node not in dependents_map:
+            dependents_map[node] = set()
+
+    # Build reverse map: for each node, track which nodes depend on it
+    for node in all_nodes:
+        for dep in dependencies[node]:
+            if dep not in dependents_map:
+                dependents_map[dep] = set()
+            dependents_map[dep].add(node)
+
+    # In-degree: number of dependencies each node has
+    in_degree = {node: len(dependencies[node]) for node in all_nodes}
+
+    # Start with nodes that have no dependencies
+    ready = [node for node in all_nodes if in_degree[node] == 0]
+    ready.sort()  # Sort for lexicographic order
+
+    result = []
+
+    while ready:
+        # Take the smallest node lexicographically
+        current = ready.pop(0)
+        result.append(current)
+
+        # Process all nodes that depend on current
+        for dependent in dependents_map[current]:
+            in_degree[dependent] -= 1
+            if in_degree[dependent] == 0:
+                # Insert in sorted order to maintain lexicographic ordering
+                bisect.insort(ready, dependent)
+
+    # Check for cycles: if we didn't process all nodes, there's a cycle
+    if len(result) != len(all_nodes):
+        raise ValueError("Cycle detected in graph")
+
+    return result

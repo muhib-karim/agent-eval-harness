@@ -1,0 +1,129 @@
+"""
+solution.py
+
+Implements get_path(data, path, default=None): a small, strict path accessor
+for nested dict/list structures using a JSONPath-like mini-syntax.
+
+Supported syntax:
+    - ''  or '$'                 -> refers to `data` itself
+    - '.' IDENT                  -> dict key access (IDENT = [A-Za-z_][A-Za-z0-9_]*)
+    - '[' DIGITS ']'              -> list index access (DIGITS = one or more 0-9,
+                                      leading zeroes allowed, no sign)
+    - An optional leading '$' marks the root explicitly.
+    - If there is no leading '$', the very first segment may be a bare
+      identifier (no leading dot) or a bracketed index.
+    - After the optional leading '$' (or after the first segment), every
+      identifier access MUST be preceded by a '.', and every index access
+      is written as '[...]' with no dot before it.
+    - Whitespace, quoted keys, wildcards, negative indices, repeated or
+      trailing dots, and identifiers immediately following a ']' without an
+      intervening '.' are all malformed and raise ValueError.
+
+Traversal semantics:
+    - Dict keys only apply to dicts; list indices only apply to lists.
+    - Missing keys, out-of-range indices, or type mismatches (e.g. using a
+      key on a list or an index on a dict) cause `default` to be returned.
+    - A key present with value None returns None (not default).
+    - `data` is never mutated.
+    - Malformed syntax always raises ValueError, even if some earlier
+      component of the path would already be "missing" in `data` -- the
+      path string is fully validated/parsed before any traversal happens.
+"""
+
+import re
+
+_IDENT_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+
+def _parse_path(path: str):
+    """Parse `path` into a list of ('key', name) / ('index', i) tuples.
+
+    Raises ValueError on any malformed syntax.
+    """
+    if path == '':
+        return []
+
+    s = path
+    n = len(s)
+    i = 0
+    segments = []
+
+    # Track whether we're still allowed to accept a "bare" identifier
+    # (i.e. one with no preceding '.'). This is only true for the very
+    # first segment, and only when the path does NOT start with '$'.
+    first = True
+
+    if s[0] == '$':
+        i = 1
+        first = False  # after '$', bare identifiers are not allowed
+
+    while i < n:
+        c = s[i]
+        if c == '.':
+            i += 1
+            m = _IDENT_RE.match(s, i)
+            if not m:
+                raise ValueError(
+                    f"Malformed path {path!r}: expected identifier after '.' at position {i}"
+                )
+            name = m.group(0)
+            i += len(name)
+            segments.append(('key', name))
+            first = False
+        elif c == '[':
+            i += 1
+            j = i
+            while j < n and s[j].isdigit():
+                j += 1
+            if j == i:
+                raise ValueError(
+                    f"Malformed path {path!r}: expected digits after '[' at position {i}"
+                )
+            digits = s[i:j]
+            i = j
+            if i >= n or s[i] != ']':
+                raise ValueError(
+                    f"Malformed path {path!r}: expected ']' at position {i}"
+                )
+            i += 1
+            segments.append(('index', int(digits)))
+            first = False
+        elif first:
+            m = _IDENT_RE.match(s, i)
+            if not m:
+                raise ValueError(
+                    f"Malformed path {path!r}: expected identifier at position {i}"
+                )
+            name = m.group(0)
+            i += len(name)
+            segments.append(('key', name))
+            first = False
+        else:
+            raise ValueError(
+                f"Malformed path {path!r}: unexpected character {s[i]!r} at position {i}"
+            )
+
+    return segments
+
+
+def get_path(data, path: str, default=None):
+    """Retrieve a nested value from `data` using a restricted path syntax.
+
+    See module docstring for the supported syntax and semantics.
+    """
+    segments = _parse_path(path)
+
+    current = data
+    for kind, value in segments:
+        if kind == 'key':
+            if isinstance(current, dict) and value in current:
+                current = current[value]
+            else:
+                return default
+        else:  # kind == 'index'
+            if isinstance(current, list) and 0 <= value < len(current):
+                current = current[value]
+            else:
+                return default
+
+    return current

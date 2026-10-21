@@ -1,0 +1,29 @@
+```python
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug
+```
+
+The bug was in this line:
+```python
+slug = re.sub(r"[^a-z0-9]", "-", ascii_text.lower()).strip("-")
+```
+
+The regex pattern `r"[^a-z0-9]"` matches a single character that is not alphanumeric. When there are consecutive non-alphanumeric characters (like `--` or ` & `), each one gets replaced with a dash, creating runs of dashes.
+
+The fix is to change the pattern to `r"[^a-z0-9]+"` (with a `+` quantifier), which matches one or more consecutive non-alphanumeric characters and replaces each run with a single dash. This ensures that:
+- `"Hello -- World"` → `"hello-world"` (the `--` and surrounding spaces become one dash)
+- `"Tom & Jerry"` → `"tom-jerry"` (the ` & ` becomes one dash)

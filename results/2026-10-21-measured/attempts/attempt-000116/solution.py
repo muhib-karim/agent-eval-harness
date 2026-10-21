@@ -1,0 +1,32 @@
+def merge_intervals(intervals):
+    pairs = []
+    for item in intervals:
+        try:
+            pair = tuple(item)
+        except TypeError:
+            raise ValueError("each interval must be a pair of integers")
+        if len(pair) != 2:
+            raise ValueError("each interval must have exactly two endpoints")
+        start, end = pair
+        for v in (start, end):
+            if isinstance(v, bool) or not isinstance(v, int):
+                raise ValueError("endpoints must be integers")
+        if start > end:
+            raise ValueError("interval start must not exceed end")
+        pairs.append((int(start), int(end)))
+
+    if not pairs:
+        return []
+
+    pairs.sort()
+    result = []
+    cur_start, cur_end = pairs[0]
+    for s, e in pairs[1:]:
+        if s <= cur_end:
+            if e > cur_end:
+                cur_end = e
+        else:
+            result.append((cur_start, cur_end))
+            cur_start, cur_end = s, e
+    result.append((cur_start, cur_end))
+    return result

@@ -1,0 +1,50 @@
+import math
+from collections import defaultdict
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        # Validate limit
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise ValueError("limit must be a positive integer")
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        # Validate window_s
+        if not isinstance(window_s, (int, float)) or isinstance(window_s, bool):
+            raise ValueError("window_s must be positive and finite")
+        if window_s <= 0 or not math.isfinite(window_s):
+            raise ValueError("window_s must be positive and finite")
+
+        self.limit = limit
+        self.window_s = window_s
+        # Store timestamps for each key
+        self.history = defaultdict(list)
+        # Store last seen time for each key to validate nondecreasing
+        self.last_time = {}
+
+    def allow(self, key, now: float) -> bool:
+        # Validate now
+        if not isinstance(now, (int, float)) or isinstance(now, bool):
+            raise ValueError("now must be finite")
+        if not math.isfinite(now):
+            raise ValueError("now must be finite")
+
+        # Validate time is nondecreasing for this key
+        if key in self.last_time:
+            if now < self.last_time[key]:
+                raise ValueError("Time must be nondecreasing per key")
+
+        # Update last seen time for this key
+        self.last_time[key] = now
+
+        # Clean up old timestamps outside the window
+        # Keep only timestamps in (now - window_s, now]
+        window_start = now - self.window_s
+        self.history[key] = [ts for ts in self.history[key] if ts > window_start]
+
+        # Check if we can accept this call
+        if len(self.history[key]) < self.limit:
+            self.history[key].append(now)
+            return True
+        else:
+            return False

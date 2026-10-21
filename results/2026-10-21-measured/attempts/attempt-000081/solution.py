@@ -1,0 +1,89 @@
+import math
+import time
+from collections import OrderedDict
+
+
+class LRUCache:
+    """An LRU cache whose entries also expire after a fixed time-to-live."""
+
+    def __init__(self, capacity, ttl, clock=time.monotonic):
+        if isinstance(capacity, bool) or not isinstance(capacity, int):
+            raise ValueError("capacity must be a positive integer")
+        if capacity <= 0:
+            raise ValueError("capacity must be a positive integer")
+        if isinstance(ttl, bool) or not isinstance(ttl, (int, float)):
+            raise ValueError("ttl must be a positive finite number")
+        if not math.isfinite(ttl) or ttl <= 0:
+            raise ValueError("ttl must be a positive finite number")
+        if not callable(clock):
+            raise ValueError("clock must be callable")
+
+        self._capacity = capacity
+        self._ttl = float(ttl)
+        self._clock = clock
+        # key -> (value, expiry); order = recency (last item is most recent)
+        self._data = OrderedDict()
+
+    # ------------------------------------------------------------------ #
+    # internal helpers
+    # ------------------------------------------------------------------ #
+    def _purge_expired(self, now=None):
+        if now is None:
+            now = self._clock()
+        dead = [k for k, (_, exp) in self._data.items() if now >= exp]
+        for k in dead:
+            del self._data[k]
+
+    # ------------------------------------------------------------------ #
+    # public API
+    # ------------------------------------------------------------------ #
+    def put(self, key, value):
+        now = self._clock()
+        expiry = now + self._ttl
+        if key in self._data:
+            # Update: refresh value, expiry and recency.
+            del self._data[key]
+        self._data[key] = (value, expiry)
+        # Purge expired entries before considering eviction.
+        if len(self._data) > self._capacity:
+            self._purge_expired(now)
+        # Evict least recently used live entries while over capacity.
+        while len(self._data) > self._capacity:
+            self._data.popitem(last=False)
+
+    def get(self, key, default=None):
+        if key not in self._data:
+            return default
+        value, expiry = self._data[key]
+        now = self._clock()
+        if now >= expiry:
+            del self._data[key]
+            return default
+        # Mark most recently used without touching the expiry.
+        self._data.move_to_end(key)
+        return value
+
+    def __len__(self):
+        self._purge_expired()
+        return len(self._data)
+
+    def __contains__(self, key):
+        if key not in self._data:
+            return False
+        _, expiry = self._data[key]
+        if self._clock() >= expiry:
+            del self._data[key]
+            return False
+        return True
+
+    @property
+    def capacity(self):
+        return self._capacity
+
+    @property
+    def ttl(self):
+        return self._ttl
+
+    def __repr__(self):
+        return "LRUCache(capacity=%r, ttl=%r, size=%d)" % (
+            self._capacity, self._ttl, len(self._data))

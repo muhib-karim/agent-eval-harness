@@ -1,0 +1,136 @@
+```python
+"""
+solution.py
+
+Implementation of get_path(data, path, default=None).
+
+Path syntax
+-----------
+* ''  or '$'                -> returns `data` itself.
+* Dot separated ASCII identifiers:  [A-Za-z_][A-Za-z0-9_]*
+* Zero based, nonnegative bracket indices:  [<digits>]  (leading zeros allowed)
+* A path may optionally start with '$' which may be followed by '.' or '['
+  components (but not a bare identifier right after '$').
+* Without a leading '$' the very first component may be a bare identifier
+  (no leading dot) or a bracket index.
+* After the first component, a key component must always be introduced by a
+  '.' ; bracket components never need (or allow) a leading dot.
+* No whitespace, no negative indices, no quoted keys, no wildcards, no
+  repeated/trailing dots, and no identifier directly following a ']'
+  without an intervening '.'.
+
+Traversal semantics
+--------------------
+* Keys are only applied to dict values, indices only to list values.
+* A missing key, an out of range index, or a type mismatch causes the
+  function to return `default` (the exact object, not a copy).
+* A value that is legitimately `None` is returned as `None`.
+* Any syntactic problem in `path` raises `ValueError`, even if some
+  earlier component would already have resulted in a missing value.
+* `data` is never mutated.
+"""
+
+import re
+
+_IDENT_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+_DIGITS_RE = re.compile(r'[0-9]+')
+
+
+def _parse_path(path: str):
+    """Parse `path` into a list of ('key', name) / ('index', int) tuples.
+
+    Raises ValueError on any malformed syntax.
+    """
+    n = len(path)
+    pos = 0
+    dollar = False
+
+    if n > 0 and path[0] == '$':
+        dollar = True
+        pos = 1
+
+    components = []
+    first = True  # True until the first component has been consumed
+
+    while pos < n:
+        c = path[pos]
+
+        if c == '.':
+            pos += 1
+            if pos >= n:
+                raise ValueError("Trailing '.' in path")
+            m = _IDENT_RE.match(path, pos)
+            if not m:
+                raise ValueError("Expected identifier after '.'")
+            components.append(('key', m.group()))
+            pos = m.end()
+            first = False
+
+        elif c == '[':
+            pos += 1
+            m = _DIGITS_RE.match(path, pos)
+            if not m:
+                raise ValueError("Expected digits after '['")
+            idx_str = m.group()
+            pos = m.end()
+            if pos >= n or path[pos] != ']':
+                raise ValueError("Expected closing ']'")
+            pos += 1
+            components.append(('index', int(idx_str)))
+            first = False
+
+        else:
+            # A bare identifier (no leading '.') is only legal as the very
+            # first component, and only when the path did not start with
+            # '$'.
+            if dollar or not first:
+                raise ValueError(
+                    "Unexpected character %r at position %d" % (c, pos)
+                )
+            m = _IDENT_RE.match(path, pos)
+            if not m:
+                raise ValueError(
+                    "Invalid identifier at position %d" % pos
+                )
+            components.append(('key', m.group()))
+            pos = m.end()
+            first = False
+
+    if first:
+        # Nothing was consumed after an optional leading '$' (e.g. path
+        # was just '$' followed by nothing extra). This situation is
+        # already handled earlier for the exact strings '' and '$', so
+        # reaching this point means something odd happened; treat it as
+        # malformed for safety.
+        raise ValueError("Empty or invalid path")
+
+    return components
+
+
+def get_path(data, path: str, default=None):
+    """Retrieve a nested value from `data` described by `path`.
+
+    See module docstring for the exact syntax and semantics.
+    """
+    if path == '' or path == '$':
+        return data
+
+    components = _parse_path(path)
+
+    current = data
+    for kind, value in components:
+        if kind == 'key':
+            if not isinstance(current, dict):
+                return default
+            if value not in current:
+                return default
+            current = current[value]
+        else:  # 'index'
+            if not isinstance(current, list):
+                return default
+            if value < 0 or value >= len(current):
+                return default
+            current = current[value]
+
+    return current
+```

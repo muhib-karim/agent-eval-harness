@@ -1,0 +1,117 @@
+def to_roman(value: int) -> str:
+    """Convert an integer (1-3999) to Roman numeral string."""
+    if isinstance(value, bool):
+        raise ValueError("bool is not a valid input type")
+    if not isinstance(value, int):
+        raise ValueError("input must be an integer")
+    if not (1 <= value <= 3999):
+        raise ValueError("integer must be in range 1-3999")
+
+    val_to_roman = [
+        (1000, 'M'),
+        (900, 'CM'),
+        (500, 'D'),
+        (400, 'CD'),
+        (100, 'C'),
+        (90, 'XC'),
+        (50, 'L'),
+        (40, 'XL'),
+        (10, 'X'),
+        (9, 'IX'),
+        (5, 'V'),
+        (4, 'IV'),
+        (1, 'I'),
+    ]
+
+    result = []
+    for num, roman in val_to_roman:
+        count = value // num
+        if count:
+            result.append(roman * count)
+            value -= num * count
+
+    return ''.join(result)
+
+
+def from_roman(text: str) -> int:
+    """Convert a Roman numeral string to an integer (1-3999)."""
+    if not isinstance(text, str):
+        raise ValueError("input must be a string")
+
+    if not text:
+        raise ValueError("Roman numeral string cannot be empty")
+
+    if not text.isupper():
+        raise ValueError("Roman numeral must be uppercase")
+
+    if not all(c in 'IVXLCDM' for c in text):
+        raise ValueError("invalid characters in Roman numeral")
+
+    if any(c.isspace() for c in text):
+        raise ValueError("whitespace not allowed in Roman numeral")
+
+    roman_to_val = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    valid_subtractive = {
+        'IV': 4,
+        'IX': 9,
+        'XL': 40,
+        'XC': 90,
+        'CD': 400,
+        'CM': 900,
+    }
+
+    subtractive_pairs = {'IV', 'IX', 'XL', 'XC', 'CD', 'CM'}
+
+    result = 0
+    i = 0
+    prev_value = float('inf')
+
+    while i < len(text):
+        if i + 1 < len(text) and text[i:i+2] in valid_subtractive:
+            pair = text[i:i+2]
+            value = valid_subtractive[pair]
+
+            if value >= prev_value:
+                raise ValueError("invalid subtractive form ordering")
+
+            result += value
+            prev_value = value
+            i += 2
+        else:
+            char = text[i]
+            value = roman_to_val[char]
+
+            if value >= prev_value:
+                raise ValueError("invalid numeral ordering")
+
+            count = 1
+            while i + count < len(text) and text[i + count] == char:
+                count += 1
+
+            if count > 3:
+                raise ValueError(f"too many consecutive {char}")
+
+            if char in 'VLD' and count > 1:
+                raise ValueError(f"{char} cannot be repeated")
+
+            result += value * count
+            prev_value = value
+            i += count
+
+    if not (1 <= result <= 3999):
+        raise ValueError("resulting value out of range 1-3999")
+
+    generated = to_roman(result)
+    if generated != text:
+        raise ValueError("non-canonical Roman numeral form")
+
+    return result

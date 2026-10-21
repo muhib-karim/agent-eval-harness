@@ -1,0 +1,125 @@
+```python
+def get_path(data, path: str, default=None):
+    """
+    Navigate through nested data structures using dot notation and bracket indices.
+    
+    Supports:
+    - Empty path or '$' returns data as-is
+    - Dot-separated identifiers: users.name
+    - Bracket indices for lists: users[0]
+    - Combined: users[0].name or $.users[0].name
+    - Leading zeroes in indices: users[01]
+    
+    Returns default for missing keys, out-of-range indices, or type mismatches.
+    Raises ValueError for malformed syntax.
+    """
+    # Handle empty path or '$'
+    if not path or path == '$':
+        return data
+    
+    # Remove leading '$' if present
+    if path.startswith('$'):
+        path = path[1:]
+    
+    # Empty path after removing '$'
+    if not path:
+        return data
+    
+    # Reject whitespace
+    if any(c.isspace() for c in path):
+        raise ValueError("Path contains whitespace")
+    
+    current = data
+    i = 0
+    
+    while i < len(path):
+        if path[i] == '.':
+            i += 1
+            # Reject repeated dots and trailing dots
+            if i >= len(path):
+                raise ValueError("Path ends with a dot")
+            if path[i] == '.':
+                raise ValueError("Repeated dots in path")
+            if path[i] == '[':
+                raise ValueError("Bracket immediately after dot")
+            
+            # Parse identifier
+            identifier = ''
+            while i < len(path) and (path[i].isalnum() or path[i] == '_'):
+                identifier += path[i]
+                i += 1
+            
+            if not identifier:
+                raise ValueError("Empty identifier")
+            
+            # Validate identifier starts with letter or underscore
+            if not (identifier[0].isalpha() or identifier[0] == '_'):
+                raise ValueError("Invalid identifier")
+            
+            # Apply to dict
+            if not isinstance(current, dict):
+                return default
+            
+            if identifier not in current:
+                return default
+            
+            current = current[identifier]
+        
+        elif path[i] == '[':
+            i += 1
+            
+            # Parse index
+            index_str = ''
+            while i < len(path) and path[i].isdigit():
+                index_str += path[i]
+                i += 1
+            
+            if not index_str:
+                raise ValueError("Empty bracket index")
+            
+            if i >= len(path) or path[i] != ']':
+                raise ValueError("Unclosed bracket")
+            
+            i += 1  # Skip closing bracket
+            
+            # Check what comes after bracket
+            if i < len(path) and path[i] != '.' and path[i] != '[':
+                raise ValueError("Invalid character after bracket")
+            
+            # Convert index to integer (handles leading zeroes naturally)
+            index = int(index_str)
+            
+            # Apply to list
+            if not isinstance(current, list):
+                return default
+            
+            if index < 0 or index >= len(current):
+                return default
+            
+            current = current[index]
+        
+        else:
+            # Parse identifier at start
+            identifier = ''
+            while i < len(path) and (path[i].isalnum() or path[i] == '_'):
+                identifier += path[i]
+                i += 1
+            
+            if not identifier:
+                raise ValueError("Invalid path syntax")
+            
+            # Validate identifier starts with letter or underscore
+            if not (identifier[0].isalpha() or identifier[0] == '_'):
+                raise ValueError("Invalid identifier")
+            
+            # Apply to dict
+            if not isinstance(current, dict):
+                return default
+            
+            if identifier not in current:
+                return default
+            
+            current = current[identifier]
+    
+    return current
+```

@@ -1,0 +1,155 @@
+```python
+import re
+from typing import Union
+
+def tokenize(text: str) -> list[str]:
+    """
+    Tokenize input text into a list of tokens.
+    Tokens: unsigned integers/decimals (digits on both sides of decimal point),
+    operators (+, -, *, /, (, )), or whitespace (ignored).
+    Raises ValueError for invalid characters or malformed numbers.
+    Returns empty list for empty input.
+    """
+    if not text:
+        return []
+    
+    tokens = []
+    i = 0
+    while i < len(text):
+        # Skip whitespace
+        if text[i].isspace():
+            i += 1
+            continue
+        
+        # Check for operators and parentheses
+        if text[i] in '+-*/()':
+            tokens.append(text[i])
+            i += 1
+            continue
+        
+        # Check for numbers (integers or decimals)
+        if text[i].isdigit():
+            j = i
+            has_decimal = False
+            while j < len(text) and (text[j].isdigit() or text[j] == '.'):
+                if text[j] == '.':
+                    if has_decimal:
+                        raise ValueError("Multiple decimal points in number")
+                    has_decimal = True
+                j += 1
+            
+            number_str = text[i:j]
+            
+            # Validate decimal format: digits on both sides of decimal point
+            if '.' in number_str:
+                parts = number_str.split('.')
+                if len(parts) != 2 or not parts[0] or not parts[1]:
+                    raise ValueError("Decimal must have digits on both sides of decimal point")
+            
+            tokens.append(number_str)
+            i = j
+            continue
+        
+        # Invalid character
+        raise ValueError(f"Invalid character: {text[i]}")
+    
+    return tokens
+
+def evaluate(text: str) -> float:
+    """
+    Evaluate a mathematical expression.
+    Supports: parentheses, unary +/- (including repeated), binary operators (+, -, *, /),
+    and standard operator precedence with left associativity.
+    Raises ValueError for malformed expressions, ZeroDivisionError for division by zero.
+    """
+    tokens = tokenize(text)
+    
+    if not tokens:
+        raise ValueError("Empty expression")
+    
+    pos = [0]  # Use list to allow modification in nested functions
+    
+    def peek():
+        if pos[0] < len(tokens):
+            return tokens[pos[0]]
+        return None
+    
+    def consume():
+        token = peek()
+        pos[0] += 1
+        return token
+    
+    def parse_expression():
+        """Parse addition and subtraction (lowest precedence)"""
+        left = parse_term()
+        
+        while peek() in ('+', '-'):
+            op = consume()
+            right = parse_term()
+            if op == '+':
+                left = left + right
+            else:
+                left = left - right
+        
+        return left
+    
+    def parse_term():
+        """Parse multiplication and division (higher precedence)"""
+        left = parse_unary()
+        
+        while peek() in ('*', '/'):
+            op = consume()
+            right = parse_unary()
+            if op == '*':
+                left = left * right
+            else:
+                if right == 0:
+                    raise ZeroDivisionError("Division by zero")
+                left = left / right
+        
+        return left
+    
+    def parse_unary():
+        """Parse unary operators and primary expressions"""
+        # Handle unary + and -
+        if peek() in ('+', '-'):
+            op = consume()
+            value = parse_unary()  # Allow repeated unary operators
+            if op == '-':
+                return -value
+            else:
+                return value
+        
+        return parse_primary()
+    
+    def parse_primary():
+        """Parse numbers and parenthesized expressions"""
+        token = peek()
+        
+        if token is None:
+            raise ValueError("Unexpected end of expression")
+        
+        # Handle parenthesized expressions
+        if token == '(':
+            consume()
+            value = parse_expression()
+            if peek() != ')':
+                raise ValueError("Unbalanced parentheses")
+            consume()
+            return value
+        
+        # Handle numbers
+        if token and (token[0].isdigit()):
+            consume()
+            return float(token)
+        
+        raise ValueError(f"Unexpected token: {token}")
+    
+    result = parse_expression()
+    
+    # Check for trailing tokens
+    if pos[0] < len(tokens):
+        raise ValueError(f"Unexpected token: {tokens[pos[0]]}")
+    
+    return result
+```

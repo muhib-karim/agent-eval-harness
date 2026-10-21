@@ -1,0 +1,55 @@
+```python
+"""Binary-search helpers over an ascending list."""
+
+
+def _left(items, target, size=None):
+    if size is None:
+        size = len(items)
+    lo, hi = 0, size
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _right(items, target, size=None):
+    if size is None:
+        size = len(items)
+    lo, hi = 0, size
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] <= target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def find_first(items, target):
+    """Index of the first element equal to target, or -1."""
+    size = len(items)
+    index = _left(items, target, size)
+    if index < size and items[index] == target:
+        return index
+    return -1
+
+
+def find_last(items, target):
+    """Index of the last element equal to target, or -1."""
+    size = len(items)
+    index = _right(items, target, size) - 1
+    if index >= 0 and items[index] == target:
+        return index
+    return -1
+
+
+def count_range(items, low, high):
+    """Number of elements x with low <= x <= high."""
+    if low > high:
+        return 0
+    size = len(items)
+    return _right(items, high, size) - _left(items, low, size)
+```

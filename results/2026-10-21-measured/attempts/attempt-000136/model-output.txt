@@ -1,0 +1,84 @@
+```python
+import re
+
+_NUM = re.compile(r'(?:0|[1-9][0-9]*)')
+_ID = re.compile(r'[0-9A-Za-z-]+')
+
+
+def _is_digits(s):
+    return all(c in '0123456789' for c in s)
+
+
+def parse(text: str) -> tuple:
+    if not isinstance(text, str):
+        raise ValueError("version must be a string")
+
+    rest = text
+    build = ()
+    if '+' in rest:
+        rest, b = rest.split('+', 1)
+        ids = b.split('.')
+        for i in ids:
+            if not _ID.fullmatch(i):
+                raise ValueError("invalid build metadata")
+        build = tuple(ids)
+
+    pre = ()
+    if '-' in rest:
+        rest, p = rest.split('-', 1)
+        ids = p.split('.')
+        out = []
+        for i in ids:
+            if not _ID.fullmatch(i):
+                raise ValueError("invalid prerelease")
+            if _is_digits(i):
+                if not _NUM.fullmatch(i):
+                    raise ValueError("leading zero in numeric prerelease identifier")
+                out.append(int(i))
+            else:
+                out.append(i)
+        pre = tuple(out)
+
+    parts = rest.split('.')
+    if len(parts) != 3:
+        raise ValueError("version core must be MAJOR.MINOR.PATCH")
+    nums = []
+    for p in parts:
+        if not _NUM.fullmatch(p):
+            raise ValueError("invalid version number")
+        nums.append(int(p))
+
+    return (nums[0], nums[1], nums[2], pre, build)
+
+
+def _cmp(a, b):
+    return (a > b) - (a < b)
+
+
+def compare(a: str, b: str) -> int:
+    va = parse(a)
+    vb = parse(b)
+    for x, y in zip(va[:3], vb[:3]):
+        if x != y:
+            return -1 if x < y else 1
+    pa, pb = va[3], vb[3]
+    if not pa and not pb:
+        return 0
+    if not pa:
+        return 1
+    if not pb:
+        return -1
+    for x, y in zip(pa, pb):
+        if x == y:
+            continue
+        xi = isinstance(x, int)
+        yi = isinstance(y, int)
+        if xi and yi:
+            return _cmp(x, y)
+        if xi:
+            return -1
+        if yi:
+            return 1
+        return _cmp(x, y)
+    return _cmp(len(pa), len(pb))
+```

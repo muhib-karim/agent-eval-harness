@@ -1,0 +1,78 @@
+```python
+import re
+
+
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def get_path(data, path: str, default=None):
+    if not isinstance(path, str):
+        raise ValueError("path must be a string")
+    if path == "" or path == "$":
+        return data
+
+    components = []
+    pos = 0
+    allow_identifier = True
+
+    if path.startswith("$"):
+        pos = 1
+        if path[pos:pos + 1] == ".":
+            pos += 1
+            allow_identifier = True
+        elif path[pos:pos + 1] == "[":
+            allow_identifier = False
+        else:
+            raise ValueError("invalid path")
+
+    while pos < len(path):
+        if path[pos] == "[":
+            end = pos + 1
+            while end < len(path) and "0" <= path[end] <= "9":
+                end += 1
+            if end == pos + 1 or end >= len(path) or path[end] != "]":
+                raise ValueError("invalid index")
+            components.append(("index", path[pos + 1:end]))
+            pos = end + 1
+        elif allow_identifier:
+            match = _IDENTIFIER.match(path, pos)
+            if match is None:
+                raise ValueError("invalid identifier")
+            components.append(("key", match.group()))
+            pos = match.end()
+        else:
+            raise ValueError("invalid path")
+
+        if pos < len(path):
+            if path[pos] == ".":
+                pos += 1
+                allow_identifier = True
+                if pos == len(path) or path[pos] == "[":
+                    raise ValueError("invalid dot")
+            elif path[pos] == "[":
+                allow_identifier = False
+            else:
+                raise ValueError("invalid path")
+
+    if not components:
+        raise ValueError("invalid path")
+
+    current = data
+    for kind, value in components:
+        if kind == "key":
+            if not isinstance(current, dict) or value not in current:
+                return default
+            current = current[value]
+        else:
+            if not isinstance(current, list) or not current:
+                return default
+            digits = value.lstrip("0") or "0"
+            maximum = str(len(current) - 1)
+            if len(digits) > len(maximum) or (
+                len(digits) == len(maximum) and digits > maximum
+            ):
+                return default
+            current = current[int(digits)]
+
+    return current
+```

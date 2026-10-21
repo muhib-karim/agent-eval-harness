@@ -1,0 +1,45 @@
+Key issue: the cache key ignores kwargs. The fix is to include kwargs in the key, sorted so that order doesn't matter.
+
+Details to preserve:
+- Unhashable arguments raise TypeError before func is called. `key in cache` hashes the key, so a TypeError is raised there, before the call.
+- Exceptions are not cached, and misses are only counted after a successful call.
+- Positional and keyword spellings may be cached separately, so no signature binding is needed.
+- Keys must not collide between args and kwargs. For example, `f(1, ("a", 2))` could look like `f(1, a=2)` under a naive flattening. I use a tuple `(args, tuple(sorted(kwargs.items())))`, which keeps the two parts separate. Sorting items sorts by key name first, and names are unique, so values are never compared.
+- Hashing the key explicitly with `hash(key)` makes the TypeError behavior obvious, even for an empty cache.
+
+One subtlety: `1` and `1.0` and `True` hash equal and compare equal, so they share a cache entry. This was already true for positional args and is standard behavior, so I leave it.
+
+```python
+"""A small memoizing decorator with hit/miss counters."""
+
+import functools
+
+
+def memoize(func):
+    cache = {}
+    stats = {"hits": 0, "misses": 0}
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        key = (args, tuple(sorted(kwargs.items())))
+        # Raises TypeError for unhashable arguments before calling func.
+        hash(key)
+        if key in cache:
+            stats["hits"] += 1
+            return cache[key]
+        result = func(*args, **kwargs)
+        stats["misses"] += 1
+        cache[key] = result
+        return result
+
+    def cache_info():
+        return stats["hits"], stats["misses"]
+
+    def cache_clear():
+        cache.clear()
+        stats["hits"] = stats["misses"] = 0
+
+    wrapper.cache_info = cache_info
+    wrapper.cache_clear = cache_clear
+    return wrapper
+```

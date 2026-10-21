@@ -1,0 +1,22 @@
+```python
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug
+```
+
+The bug was in the regex pattern on the line that creates the slug. The pattern `r"[^a-z0-9]"` matches a single character that is not alphanumeric, so each non-alphanumeric character gets replaced with a dash individually. This creates runs of dashes when there are consecutive non-alphanumeric characters.
+
+The fix is to change the pattern to `r"[^a-z0-9]+"` (adding a `+` quantifier), which matches one or more consecutive non-alphanumeric characters and replaces them with a single dash. This ensures that any run of non-alphanumeric characters becomes just one dash separator.

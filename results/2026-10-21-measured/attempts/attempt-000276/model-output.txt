@@ -1,0 +1,50 @@
+```python
+from collections import deque
+import math
+
+
+class SlidingWindowLimiter:
+    def __init__(self, limit: int, window_s: float):
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        try:
+            if not math.isfinite(window_s) or window_s <= 0:
+                raise ValueError
+            window = float(window_s)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("window_s must be positive and finite") from exc
+
+        self.limit = limit
+        self.window_s = window
+        self._history = {}  # key -> (last call time, accepted timestamps)
+
+    def allow(self, key, now: float) -> bool:
+        try:
+            if not math.isfinite(now):
+                raise ValueError
+            now = float(now)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("now must be finite") from exc
+
+        record = self._history.get(key)
+        if record is None:
+            self._history[key] = (now, deque([now]))
+            return True
+
+        last_time, accepted = record
+        if now < last_time:
+            raise ValueError("time must be nondecreasing for each key")
+
+        cutoff = now - self.window_s
+        while accepted and accepted[0] <= cutoff:
+            accepted.popleft()
+
+        allowed = len(accepted) < self.limit
+        if allowed:
+            accepted.append(now)
+
+        # Denied calls still advance the key's last call time.
+        self._history[key] = (now, accepted)
+        return allowed
+```

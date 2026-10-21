@@ -1,0 +1,97 @@
+"""Semantic Versioning 2.0.0 parser and comparator (standard library only)."""
+
+import re
+
+_NUMERIC_CORE = r"(?:0|[1-9][0-9]*)"
+_PRE_IDENT = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+_BUILD_IDENT = r"[0-9A-Za-z-]+"
+
+_SEMVER_RE = re.compile(
+    r"(?P<major>" + _NUMERIC_CORE + r")"
+    r"\.(?P<minor>" + _NUMERIC_CORE + r")"
+    r"\.(?P<patch>" + _NUMERIC_CORE + r")"
+    r"(?:-(?P<prerelease>" + _PRE_IDENT + r"(?:\." + _PRE_IDENT + r")*))?"
+    r"(?:\+(?P<build>" + _BUILD_IDENT + r"(?:\." + _BUILD_IDENT + r")*))?",
+    re.ASCII,
+)
+
+_DIGITS_RE = re.compile(r"[0-9]+", re.ASCII)
+
+
+def parse(text):
+    """Parse a SemVer 2.0.0 string.
+
+    Returns (major, minor, patch, prerelease, build) where prerelease is a
+    tuple of identifiers (ints for numeric identifiers, str otherwise) and
+    build is a tuple of str. Raises ValueError on invalid input.
+    """
+    if not isinstance(text, str):
+        raise ValueError("version must be a str")
+    m = _SEMVER_RE.fullmatch(text)
+    if m is None:
+        raise ValueError("invalid semantic version: %r" % (text,))
+
+    major = int(m.group("major"))
+    minor = int(m.group("minor"))
+    patch = int(m.group("patch"))
+
+    pre_str = m.group("prerelease")
+    if pre_str is None:
+        prerelease = ()
+    else:
+        parts = []
+        for ident in pre_str.split("."):
+            if _DIGITS_RE.fullmatch(ident):
+                parts.append(int(ident))
+            else:
+                parts.append(ident)
+        prerelease = tuple(parts)
+
+    build_str = m.group("build")
+    if build_str is None:
+        build = ()
+    else:
+        build = tuple(build_str.split("."))
+
+    return (major, minor, patch, prerelease, build)
+
+
+def _cmp(x, y):
+    if x < y:
+        return -1
+    if x > y:
+        return 1
+    return 0
+
+
+def _compare_prerelease(pa, pb):
+    if not pa and not pb:
+        return 0
+    if not pa:
+        return 1   # release > prerelease
+    if not pb:
+        return -1
+    for ia, ib in zip(pa, pb):
+        a_num = isinstance(ia, int)
+        b_num = isinstance(ib, int)
+        if a_num and b_num:
+            c = _cmp(ia, ib)
+        elif a_num:
+            c = -1  # numeric < alphanumeric
+        elif b_num:
+            c = 1
+        else:
+            c = _cmp(ia, ib)  # ASCII order for str
+        if c != 0:
+            return c
+    return _cmp(len(pa), len(pb))
+
+
+def compare(a, b):
+    """Compare two SemVer strings by precedence; returns -1, 0 or 1."""
+    va = parse(a)
+    vb = parse(b)
+    c = _cmp(va[:3], vb[:3])
+    if c != 0:
+        return c
+    return _compare_prerelease(va[3], vb[3])

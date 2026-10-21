@@ -1,0 +1,37 @@
+def merge_intervals(intervals) -> list[tuple[int, int]]:
+    normalized = []
+
+    for pair in intervals:
+        try:
+            start, end = pair
+        except (TypeError, ValueError) as exc:
+            raise ValueError("each interval must contain exactly two endpoints") from exc
+
+        if (
+            not isinstance(start, int)
+            or isinstance(start, bool)
+            or not isinstance(end, int)
+            or isinstance(end, bool)
+        ):
+            raise ValueError("interval endpoints must be integers, not bools")
+        if start > end:
+            raise ValueError("interval start must not exceed end")
+
+        normalized.append((start, end))
+
+    normalized.sort()
+    if not normalized:
+        return []
+
+    result = []
+    current_start, current_end = normalized[0]
+
+    for start, end in normalized[1:]:
+        if start <= current_end:
+            current_end = max(current_end, end)
+        else:
+            result.append((current_start, current_end))
+            current_start, current_end = start, end
+
+    result.append((current_start, current_end))
+    return result

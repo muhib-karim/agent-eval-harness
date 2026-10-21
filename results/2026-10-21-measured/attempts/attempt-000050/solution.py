@@ -1,0 +1,142 @@
+"""Tokenizer and evaluator for simple arithmetic expressions (standard library only)."""
+
+from __future__ import annotations
+
+_OPERATORS = set("+-*/()")
+
+
+def tokenize(text: str) -> list[str]:
+    """Split text into number and operator tokens.
+
+    Numbers are unsigned integers or decimals with digits on both sides of the
+    decimal point. Whitespace is ignored. Any other character, or a malformed
+    number, raises ValueError.
+    """
+    if not isinstance(text, str):
+        raise ValueError("input must be a string")
+
+    tokens: list[str] = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        ch = text[i]
+
+        if ch.isspace():
+            i += 1
+            continue
+
+        if ch in _OPERATORS:
+            tokens.append(ch)
+            i += 1
+            continue
+
+        if "0" <= ch <= "9":
+            start = i
+            while i < n and "0" <= text[i] <= "9":
+                i += 1
+            if i < n and text[i] == ".":
+                i += 1
+                digits_start = i
+                while i < n and "0" <= text[i] <= "9":
+                    i += 1
+                if i == digits_start:
+                    raise ValueError(
+                        f"malformed number at position {start}: "
+                        f"missing digits after decimal point"
+                    )
+            tokens.append(text[start:i])
+            continue
+
+        if ch == ".":
+            raise ValueError(
+                f"malformed number at position {i}: missing digits before decimal point"
+            )
+
+        raise ValueError(f"unexpected character {ch!r} at position {i}")
+
+    return tokens
+
+
+class _Parser:
+    """Recursive-descent parser/evaluator over a token list."""
+
+    def __init__(self, tokens: list[str]) -> None:
+        self._tokens = tokens
+        self._pos = 0
+
+    def _peek(self) -> str | None:
+        if self._pos < len(self._tokens):
+            return self._tokens[self._pos]
+        return None
+
+    def _advance(self) -> str:
+        tok = self._tokens[self._pos]
+        self._pos += 1
+        return tok
+
+    def parse(self) -> float:
+        if not self._tokens:
+            raise ValueError("empty expression")
+        value = self._expression()
+        if self._pos != len(self._tokens):
+            raise ValueError(
+                f"unexpected token {self._tokens[self._pos]!r} after end of expression"
+            )
+        return value
+
+    def _expression(self) -> float:
+        value = self._term()
+        while self._peek() in ("+", "-"):
+            op = self._advance()
+            rhs = self._term()
+            if op == "+":
+                value = value + rhs
+            else:
+                value = value - rhs
+        return value
+
+    def _term(self) -> float:
+        value = self._factor()
+        while self._peek() in ("*", "/"):
+            op = self._advance()
+            rhs = self._factor()
+            if op == "*":
+                value = value * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / rhs
+        return value
+
+    def _factor(self) -> float:
+        tok = self._peek()
+        if tok == "+":
+            self._advance()
+            return +self._factor()
+        if tok == "-":
+            self._advance()
+            return -self._factor()
+        return self._primary()
+
+    def _primary(self) -> float:
+        tok = self._peek()
+        if tok is None:
+            raise ValueError("unexpected end of expression")
+        if tok == "(":
+            self._advance()
+            value = self._expression()
+            if self._peek() != ")":
+                raise ValueError("unbalanced parentheses: missing ')'")
+            self._advance()
+            return value
+        if tok in _OPERATORS:
+            raise ValueError(f"unexpected token {tok!r}")
+        self._advance()
+        return float(tok)
+
+
+def evaluate(text: str) -> float:
+    """Evaluate an arithmetic expression and return the result as a float."""
+    tokens = tokenize(text)
+    return float(_Parser(tokens).parse())

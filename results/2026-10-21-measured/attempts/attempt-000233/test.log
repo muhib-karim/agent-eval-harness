@@ -1,0 +1,14 @@
+..............F...........F                                              [100%]
+=================================== FAILURES ===================================
+_____________________ test_parse_rejects_invalid[1.2.3-01] _____________________
+_hidden_9hmidu9k/test_000.py:43: in test_parse_rejects_invalid
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+________________________ test_compare_validates_inputs _________________________
+_hidden_9hmidu9k/test_000.py:92: in test_compare_validates_inputs
+    with pytest.raises(ValueError):
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ============================
+FAILED _hidden_9hmidu9k/test_000.py::test_parse_rejects_invalid[1.2.3-01] - F...
+FAILED _hidden_9hmidu9k/test_000.py::test_compare_validates_inputs - Failed: ...
+2 failed, 25 passed in 0.79s

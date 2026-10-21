@@ -1,0 +1,155 @@
+```python
+"""
+solution.py
+
+Implements:
+    tokenize(text: str) -> list[str]
+    evaluate(text: str) -> float
+
+Only the Python standard library is used. No eval/exec.
+"""
+
+import re
+
+
+def tokenize(text: str) -> list[str]:
+    """Tokenize an arithmetic expression into a list of token strings.
+
+    Tokens are:
+      - unsigned integers (digits only), e.g. "123"
+      - unsigned decimals with digits on BOTH sides of the decimal point,
+        e.g. "12.34"
+      - single-character operators: + - * / ( )
+
+    Whitespace is ignored. Any other character, or a malformed number
+    (e.g. "12.", ".5", "1.2.3"), raises ValueError.
+    """
+    tokens: list[str] = []
+    i = 0
+    n = len(text)
+    number_pattern = re.compile(r'\d+\.\d+|\d+')
+
+    while i < n:
+        c = text[i]
+
+        if c.isspace():
+            i += 1
+            continue
+
+        if c in '+-*/()':
+            tokens.append(c)
+            i += 1
+            continue
+
+        if c.isdigit() or c == '.':
+            j = i
+            while j < n and (text[j].isdigit() or text[j] == '.'):
+                j += 1
+            candidate = text[i:j]
+            m = number_pattern.fullmatch(candidate)
+            if not m:
+                raise ValueError(f"Malformed number: {candidate!r}")
+            tokens.append(candidate)
+            i = j
+            continue
+
+        raise ValueError(f"Unexpected character: {c!r}")
+
+    return tokens
+
+
+def evaluate(text: str) -> float:
+    """Evaluate an arithmetic expression string and return a float result.
+
+    Supports:
+      - parentheses
+      - unary + and - (including repeated signs)
+      - usual precedence (unary > * / > + -)
+      - left-associative binary operators
+
+    Raises:
+      ValueError for empty expressions, adjacent operands, trailing
+      tokens, unbalanced parentheses, or malformed tokens.
+      ZeroDivisionError for division by zero.
+    """
+    tokens = tokenize(text)
+
+    if not tokens:
+        raise ValueError("Empty expression")
+
+    pos = 0
+    length = len(tokens)
+
+    def peek():
+        nonlocal pos
+        return tokens[pos] if pos < length else None
+
+    def advance():
+        nonlocal pos
+        tok = tokens[pos]
+        pos += 1
+        return tok
+
+    def parse_expr():
+        value = parse_term()
+        while peek() in ('+', '-'):
+            op = advance()
+            rhs = parse_term()
+            if op == '+':
+                value = value + rhs
+            else:
+                value = value - rhs
+        return value
+
+    def parse_term():
+        value = parse_factor()
+        while peek() in ('*', '/'):
+            op = advance()
+            rhs = parse_factor()
+            if op == '*':
+                value = value * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                value = value / rhs
+        return value
+
+    def parse_factor():
+        tok = peek()
+        if tok == '+':
+            advance()
+            return parse_factor()
+        if tok == '-':
+            advance()
+            return -parse_factor()
+        return parse_primary()
+
+    def parse_primary():
+        tok = peek()
+        if tok is None:
+            raise ValueError("Unexpected end of expression")
+
+        if tok == '(':
+            advance()
+            value = parse_expr()
+            if peek() != ')':
+                raise ValueError("Unbalanced parentheses")
+            advance()
+            return value
+
+        if tok in ('+', '-', '*', '/', ')'):
+            raise ValueError(f"Unexpected token: {tok!r}")
+
+        # It's a number token (already validated by tokenize).
+        advance()
+        if '.' in tok:
+            return float(tok)
+        return float(int(tok))
+
+    result = parse_expr()
+
+    if pos != length:
+        raise ValueError("Trailing tokens after expression")
+
+    return result
+```

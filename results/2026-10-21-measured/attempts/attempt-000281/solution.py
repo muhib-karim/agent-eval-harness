@@ -1,0 +1,79 @@
+import re
+
+
+_VERSION_RE = re.compile(
+    r"([0-9]|[1-9][0-9]*)\."
+    r"([0-9]|[1-9][0-9]*)\."
+    r"([0-9]|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+)
+
+
+def _decimal_to_int(digits: str) -> int:
+    # Convert in small chunks so valid, arbitrarily long identifiers work
+    # even when Python limits the length of strings passed to int().
+    value = 0
+    for start in range(0, len(digits), 9):
+        chunk = digits[start:start + 9]
+        value = value * (10 ** len(chunk)) + int(chunk)
+    return value
+
+
+def parse(text: str) -> tuple:
+    if not isinstance(text, str):
+        raise ValueError("version must be a string")
+
+    match = _VERSION_RE.fullmatch(text)
+    if match is None:
+        raise ValueError("invalid semantic version")
+
+    major, minor, patch, prerelease_text, build_text = match.groups()
+
+    prerelease = []
+    if prerelease_text is not None:
+        for identifier in prerelease_text.split("."):
+            if identifier.isascii() and identifier.isdigit():
+                if len(identifier) > 1 and identifier[0] == "0":
+                    raise ValueError("numeric prerelease identifier has a leading zero")
+                prerelease.append(_decimal_to_int(identifier))
+            else:
+                prerelease.append(identifier)
+
+    build = tuple(build_text.split(".")) if build_text is not None else ()
+
+    return (
+        _decimal_to_int(major),
+        _decimal_to_int(minor),
+        _decimal_to_int(patch),
+        tuple(prerelease),
+        build,
+    )
+
+
+def compare(a: str, b: str) -> int:
+    first = parse(a)
+    second = parse(b)
+
+    for left, right in zip(first[:3], second[:3]):
+        if left != right:
+            return -1 if left < right else 1
+
+    left_pre, right_pre = first[3], second[3]
+    if not left_pre or not right_pre:
+        if bool(left_pre) == bool(right_pre):
+            return 0
+        return -1 if left_pre else 1
+
+    for left, right in zip(left_pre, right_pre):
+        left_numeric = isinstance(left, int)
+        right_numeric = isinstance(right, int)
+
+        if left_numeric != right_numeric:
+            return -1 if left_numeric else 1
+        if left != right:
+            return -1 if left < right else 1
+
+    if len(left_pre) == len(right_pre):
+        return 0
+    return -1 if len(left_pre) < len(right_pre) else 1

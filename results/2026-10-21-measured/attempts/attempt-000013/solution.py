@@ -1,0 +1,19 @@
+"""URL slugs from arbitrary titles."""
+
+import re
+import unicodedata
+
+
+_NON_ALNUM_RUN = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(text, max_length=None):
+    if not isinstance(text, str):
+        raise TypeError("text must be str")
+    if max_length is not None and (type(max_length) is not int or max_length < 1):
+        raise ValueError("max_length must be an int >= 1")
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slug = _NON_ALNUM_RUN.sub("-", ascii_text.lower()).strip("-")
+    if max_length is not None:
+        slug = slug[:max_length].rstrip("-")
+    return slug

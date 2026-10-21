@@ -1,0 +1,54 @@
+import heapq
+
+
+def topo_sort(graph):
+    """
+    Topologically sort `graph`, where graph maps a node to an iterable of
+    nodes it depends on (dependencies must come before the node in the
+    result). Nodes that only appear as dependencies are included too.
+
+    Among all valid topological orders, the lexicographically smallest one
+    is returned (ties broken by always picking the smallest available node).
+
+    Raises ValueError if the graph contains a cycle (including self-loops).
+    Does not mutate the input. Avoids recursion so large graphs work fine.
+    """
+    # Collect all nodes (keys + anything mentioned as a dependency).
+    nodes = set(graph.keys())
+    deps = {}
+    for node, d in graph.items():
+        dep_set = set(d)
+        deps[node] = dep_set
+        nodes.update(dep_set)
+
+    for n in nodes:
+        if n not in deps:
+            deps[n] = set()
+
+    # Build reverse adjacency: for each dependency, list of nodes that
+    # depend on it (edges point from dependency -> dependent).
+    dependents = {n: [] for n in nodes}
+    indegree = {n: 0 for n in nodes}
+
+    for node in nodes:
+        for dep in deps[node]:
+            dependents[dep].append(node)
+            indegree[node] += 1
+
+    # Min-heap of nodes with no remaining unmet dependencies.
+    heap = [n for n in nodes if indegree[n] == 0]
+    heapq.heapify(heap)
+
+    result = []
+    while heap:
+        n = heapq.heappop(heap)
+        result.append(n)
+        for m in dependents[n]:
+            indegree[m] -= 1
+            if indegree[m] == 0:
+                heapq.heappush(heap, m)
+
+    if len(result) != len(nodes):
+        raise ValueError("Graph has a cycle; topological sort not possible")
+
+    return result

@@ -1,0 +1,121 @@
+FFFFFFFFFFFFFFFFF.                                                       [100%]
+=================================== FAILURES ===================================
+____________________________ test_insert_and_delete ____________________________
+_hidden_tvij6me7/test_000.py:8: in test_insert_and_delete
+    assert buf.text == "hello"
+E   AssertionError: assert 'helo' == 'hello'
+E     
+E     - hello
+E     ?    -
+E     + helo
+__________________________ test_undo_redo_round_trip ___________________________
+_hidden_tvij6me7/test_000.py:18: in test_undo_redo_round_trip
+    buf.delete(0, 2)
+    ^^^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'delete'
+_________________________ test_nothing_to_undo_or_redo _________________________
+_hidden_tvij6me7/test_000.py:30: in test_nothing_to_undo_or_redo
+    assert buf.undo() is False
+           ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+__________________________ test_new_edit_clears_redo ___________________________
+_hidden_tvij6me7/test_000.py:38: in test_new_edit_clears_redo
+    buf.undo()
+    ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+_________________ test_noop_edits_record_nothing_and_keep_redo _________________
+_hidden_tvij6me7/test_000.py:47: in test_noop_edits_record_nothing_and_keep_redo
+    buf.undo()
+    ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+________________________ test_group_undoes_as_one_step _________________________
+_hidden_tvij6me7/test_000.py:57: in test_group_undoes_as_one_step
+    with buf.group():
+         ^^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'group'
+___________________________ test_nested_groups_merge ___________________________
+_hidden_tvij6me7/test_000.py:70: in test_nested_groups_merge
+    with buf.group():
+         ^^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'group'
+_______________________ test_empty_group_records_nothing _______________________
+_hidden_tvij6me7/test_000.py:84: in test_empty_group_records_nothing
+    with buf.group():
+         ^^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'group'
+_________________________ test_failed_group_rolls_back _________________________
+_hidden_tvij6me7/test_000.py:92: in test_failed_group_rolls_back
+    with pytest.raises(RuntimeError), buf.group():
+                                      ^^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'group'
+________________ test_invalid_arguments_leave_state[<lambda>0] _________________
+_hidden_tvij6me7/test_000.py:118: in test_invalid_arguments_leave_state
+    assert buf.undo() is False
+           ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+________________ test_invalid_arguments_leave_state[<lambda>1] _________________
+_hidden_tvij6me7/test_000.py:118: in test_invalid_arguments_leave_state
+    assert buf.undo() is False
+           ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+________________ test_invalid_arguments_leave_state[<lambda>2] _________________
+_hidden_tvij6me7/test_000.py:118: in test_invalid_arguments_leave_state
+    assert buf.undo() is False
+           ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+________________ test_invalid_arguments_leave_state[<lambda>3] _________________
+_hidden_tvij6me7/test_000.py:118: in test_invalid_arguments_leave_state
+    assert buf.undo() is False
+           ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'undo'
+________________ test_invalid_arguments_leave_state[<lambda>4] _________________
+_hidden_tvij6me7/test_000.py:116: in test_invalid_arguments_leave_state
+    call(buf)  # type: ignore[operator]
+    ^^^^^^^^^
+_hidden_tvij6me7/test_000.py:107: in <lambda>
+    lambda b: b.delete(2, 1),
+              ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'delete'
+________________ test_invalid_arguments_leave_state[<lambda>5] _________________
+_hidden_tvij6me7/test_000.py:116: in test_invalid_arguments_leave_state
+    call(buf)  # type: ignore[operator]
+    ^^^^^^^^^
+_hidden_tvij6me7/test_000.py:108: in <lambda>
+    lambda b: b.delete(0, 9),
+              ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'delete'
+________________ test_invalid_arguments_leave_state[<lambda>6] _________________
+_hidden_tvij6me7/test_000.py:116: in test_invalid_arguments_leave_state
+    call(buf)  # type: ignore[operator]
+    ^^^^^^^^^
+_hidden_tvij6me7/test_000.py:109: in <lambda>
+    lambda b: b.delete(-1, 1),
+              ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'delete'
+________________ test_invalid_arguments_leave_state[<lambda>7] _________________
+_hidden_tvij6me7/test_000.py:116: in test_invalid_arguments_leave_state
+    call(buf)  # type: ignore[operator]
+    ^^^^^^^^^
+_hidden_tvij6me7/test_000.py:110: in <lambda>
+    lambda b: b.delete(0.0, 1),
+              ^^^^^^^^
+E   AttributeError: 'TextBuffer' object has no attribute 'delete'
+=========================== short test summary info ============================
+FAILED _hidden_tvij6me7/test_000.py::test_insert_and_delete - AssertionError:...
+FAILED _hidden_tvij6me7/test_000.py::test_undo_redo_round_trip - AttributeErr...
+FAILED _hidden_tvij6me7/test_000.py::test_nothing_to_undo_or_redo - Attribute...
+FAILED _hidden_tvij6me7/test_000.py::test_new_edit_clears_redo - AttributeErr...
+FAILED _hidden_tvij6me7/test_000.py::test_noop_edits_record_nothing_and_keep_redo
+FAILED _hidden_tvij6me7/test_000.py::test_group_undoes_as_one_step - Attribut...
+FAILED _hidden_tvij6me7/test_000.py::test_nested_groups_merge - AttributeErro...
+FAILED _hidden_tvij6me7/test_000.py::test_empty_group_records_nothing - Attri...
+FAILED _hidden_tvij6me7/test_000.py::test_failed_group_rolls_back - Attribute...
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>0]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>1]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>2]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>3]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>4]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>5]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>6]
+FAILED _hidden_tvij6me7/test_000.py::test_invalid_arguments_leave_state[<lambda>7]
+17 failed, 1 passed in 0.89s

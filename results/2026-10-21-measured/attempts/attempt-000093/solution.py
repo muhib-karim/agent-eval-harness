@@ -1,0 +1,48 @@
+import heapq
+
+
+def topo_sort(graph) -> list:
+    """
+    Topologically sort a dependency graph.
+
+    graph: mapping node -> iterable of nodes it depends on.
+    Returns a list containing every node exactly once, with dependencies
+    before dependents. Among all valid orders, returns the lexicographically
+    smallest one (ties broken by emitting the smallest ready node first).
+
+    Raises ValueError if the graph contains a cycle (including self-loops).
+    Does not mutate the input. Iterative, so long chains are fine.
+    """
+    # Build our own structures without touching the input.
+    deps = {}  # node -> set of dependencies
+    for node, dependencies in graph.items():
+        deps.setdefault(node, set())
+        for d in dependencies:
+            deps[node].add(d)
+            deps.setdefault(d, set())
+
+    # Reverse adjacency: dependency -> nodes that depend on it.
+    dependents = {node: [] for node in deps}
+    indegree = {}
+    for node, ds in deps.items():
+        indegree[node] = len(ds)
+        for d in ds:
+            dependents[d].append(node)
+
+    # Min-heap of ready nodes (indegree 0).
+    ready = [node for node, deg in indegree.items() if deg == 0]
+    heapq.heapify(ready)
+
+    result = []
+    while ready:
+        node = heapq.heappop(ready)
+        result.append(node)
+        for dep in dependents[node]:
+            indegree[dep] -= 1
+            if indegree[dep] == 0:
+                heapq.heappush(ready, dep)
+
+    if len(result) != len(deps):
+        raise ValueError("graph contains a cycle")
+
+    return result

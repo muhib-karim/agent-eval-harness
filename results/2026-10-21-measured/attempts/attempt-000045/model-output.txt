@@ -1,0 +1,51 @@
+The solution uses Kahn's algorithm, with a min-heap holding the nodes that are ready.
+
+1. **Build the graph.** Each node's dependencies are read exactly once and stored as a set, so duplicates count once. The input is never mutated. Nodes that appear only as dependencies are added with no dependencies of their own.
+2. **Seed the heap.** Every node with zero unmet dependencies goes into the heap.
+3. **Emit nodes.** Repeatedly pop the smallest ready node, output it, and decrement the counts of the nodes that depend on it. Any node that reaches zero is pushed onto the heap. Choosing the smallest ready node at every step gives the lexicographically smallest valid order.
+4. **Detect cycles.** If some nodes are never emitted, they are part of a cycle and a `ValueError` is raised. A self-dependency is caught the same way, because that node's count can never reach zero.
+
+The algorithm is iterative, so a 10,000-node chain causes no recursion-limit problems. It runs in O((V + E) log V).
+
+```python
+import heapq
+
+
+def topo_sort(graph) -> list:
+    # Snapshot dependencies (each iterable consumed exactly once), dedupe them.
+    deps = {}
+    for node, ds in graph.items():
+        deps[node] = set(ds)
+
+    # Include nodes that appear only as dependencies.
+    all_nodes = set(deps)
+    for ds in list(deps.values()):
+        all_nodes.update(ds)
+    for n in all_nodes:
+        if n not in deps:
+            deps[n] = set()
+
+    # Build reverse edges and in-degree counts (number of unmet dependencies).
+    dependents = {n: [] for n in all_nodes}
+    remaining = {}
+    for node, ds in deps.items():
+        remaining[node] = len(ds)
+        for d in ds:
+            dependents[d].append(node)
+
+    heap = [n for n, c in remaining.items() if c == 0]
+    heapq.heapify(heap)
+
+    result = []
+    while heap:
+        n = heapq.heappop(heap)
+        result.append(n)
+        for m in dependents[n]:
+            remaining[m] -= 1
+            if remaining[m] == 0:
+                heapq.heappush(heap, m)
+
+    if len(result) != len(all_nodes):
+        raise ValueError("graph contains a cycle")
+    return result
+```

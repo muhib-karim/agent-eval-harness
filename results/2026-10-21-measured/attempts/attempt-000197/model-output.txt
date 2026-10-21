@@ -1,0 +1,60 @@
+Looking at the bug in `find_last()`, I can see the issue:
+
+The `_right()` function returns the index of the first element **greater than** target (or len(items) if all elements are <= target). This means when we find the rightmost position, we need to check the element **before** that position, not at that position.
+
+For example:
+- `find_last([1, 2, 2, 3], 2)`: `_right()` returns 3 (first index > 2), but we should check index 2
+- `find_last([5], 5)`: `_right()` returns 1 (len(items)), but we should check index 0
+
+The fix is to decrement the index and check bounds accordingly:
+
+```python
+"""Binary-search helpers over an ascending list."""
+
+
+def _left(items, target):
+    lo, hi = 0, len(items)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _right(items, target):
+    lo, hi = 0, len(items)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if items[mid] <= target:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def find_first(items, target):
+    """Index of the first element equal to target, or -1."""
+    index = _left(items, target)
+    if index < len(items) and items[index] == target:
+        return index
+    return -1
+
+
+def find_last(items, target):
+    """Index of the last element equal to target, or -1."""
+    index = _right(items, target) - 1
+    if index >= 0 and items[index] == target:
+        return index
+    return -1
+
+
+def count_range(items, low, high):
+    """Number of elements x with low <= x <= high."""
+    if low > high:
+        return 0
+    return _right(items, high) - _left(items, low)
+```
+
+The key change: In `find_last()`, decrement the index returned by `_right()` and check `index >= 0` instead of `index < len(items)`.

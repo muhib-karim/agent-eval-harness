@@ -1,0 +1,85 @@
+The bug is in `merge()`: it added the two `M2` values but left out the term that accounts for the gap between the two shard means. The correct combination formula is Chan et al.'s parallel update:
+
+```
+M2 = M2_a + M2_b + delta² · n_a · n_b / n      where delta = mean_b − mean_a
+```
+
+Checking it against the reproduction: `M2_a = 2`, `M2_b = 2`, `delta = 9`, and the correction is `81 · 3·3/6 = 121.5`. That gives `M2 = 125.5`, so the variance is `125.5 / 5 = 25.1`. ✔
+
+The formula stays numerically stable for large offsets. It only works with `delta`, the difference between the means, and never subtracts large sums of squares. When one input is empty, the correction term is zero and the other input's mean and `M2` are kept.
+
+I made two other small changes:
+
+* **Huge integers in `push()`:** `math.isfinite(10**400)` raises `OverflowError` rather than returning False. `push()` now reports such values as a `ValueError`, as the contract requires.
+* **Wrong type in `merge()`:** passing something that isn't a `RunningStats` now raises a clear `TypeError`.
+
+The public API is unchanged.
+
+```python
+"""Streaming mean and sample variance (Welford), mergeable across shards."""
+
+import math
+
+
+class RunningStats:
+    def __init__(self):
+        self._n = 0
+        self._mean = 0.0
+        self._m2 = 0.0
+
+    def push(self, x):
+        if isinstance(x, bool) or not isinstance(x, (int, float)):
+            raise ValueError("x must be a finite number")
+        try:
+            xf = float(x)
+        except OverflowError:
+            raise ValueError("x must be a finite number") from None
+        if not math.isfinite(xf):
+            raise ValueError("x must be a finite number")
+        self._n += 1
+        delta = xf - self._mean
+        self._mean += delta / self._n
+        self._m2 += delta * (xf - self._mean)
+
+    @property
+    def count(self):
+        return self._n
+
+    @property
+    def mean(self):
+        if self._n < 1:
+            raise ValueError("mean needs at least one value")
+        return self._mean
+
+    @property
+    def variance(self):
+        if self._n < 2:
+            raise ValueError("variance needs at least two values")
+        return self._m2 / (self._n - 1)
+
+    @property
+    def stdev(self):
+        return math.sqrt(self.variance)
+
+    def merge(self, other):
+        if not isinstance(other, RunningStats):
+            raise TypeError("can only merge with another RunningStats")
+        result = RunningStats()
+        na, nb = self._n, other._n
+        n = na + nb
+        if n == 0:
+            return result
+        if nb == 0:
+            result._n, result._mean, result._m2 = na, self._mean, self._m2
+            return result
+        if na == 0:
+            result._n, result._mean, result._m2 = nb, other._mean, other._m2
+            return result
+        # Chan et al. parallel combination: stable because it only uses the
+        # difference of means, never raw sums of squares.
+        delta = other._mean - self._mean
+        result._n = n
+        result._mean = self._mean + delta * (nb / n)
+        result._m2 = self._m2 + other._m2 + delta * delta * (na * nb / n)
+        return result
+```

@@ -1,0 +1,82 @@
+from contextlib import contextmanager
+from typing import Iterator
+
+
+class TextBuffer:
+    def __init__(self, text: str = "") -> None:
+        self._text = text
+        self._undo: list[tuple[str, str]] = []
+        self._redo: list[tuple[str, str]] = []
+        self._group_depth = 0
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    def _validate_position(self, position: int) -> None:
+        if (
+            not isinstance(position, int)
+            or isinstance(position, bool)
+            or not 0 <= position <= len(self._text)
+        ):
+            raise ValueError("invalid position")
+
+    def _apply_edit(self, new_text: str) -> None:
+        if new_text == self._text:
+            return
+        old_text = self._text
+        self._text = new_text
+        if self._group_depth == 0:
+            self._undo.append((old_text, new_text))
+            self._redo.clear()
+
+    def insert(self, index: int, s: str) -> None:
+        self._validate_position(index)
+        if not isinstance(s, str):
+            raise ValueError("inserted text must be a string")
+        if s:
+            self._apply_edit(self._text[:index] + s + self._text[index:])
+
+    def delete(self, start: int, end: int) -> None:
+        self._validate_position(start)
+        self._validate_position(end)
+        if start > end:
+            raise ValueError("start must not exceed end")
+        if start != end:
+            self._apply_edit(self._text[:start] + self._text[end:])
+
+    def undo(self) -> bool:
+        if not self._undo:
+            return False
+        edit = self._undo.pop()
+        self._text = edit[0]
+        self._redo.append(edit)
+        return True
+
+    def redo(self) -> bool:
+        if not self._redo:
+            return False
+        edit = self._redo.pop()
+        self._text = edit[1]
+        self._undo.append(edit)
+        return True
+
+    @contextmanager
+    def group(self) -> Iterator[None]:
+        original_text = self._text
+        original_undo = self._undo.copy()
+        original_redo = self._redo.copy()
+        self._group_depth += 1
+        try:
+            yield
+        except BaseException:
+            self._text = original_text
+            self._undo = original_undo
+            self._redo = original_redo
+            raise
+        else:
+            if self._group_depth == 1 and self._text != original_text:
+                self._undo.append((original_text, self._text))
+                self._redo.clear()
+        finally:
+            self._group_depth -= 1

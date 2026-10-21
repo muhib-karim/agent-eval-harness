@@ -1,0 +1,106 @@
+_WS = " \t\n\r\f\v"
+_OPS = "+-*/()"
+
+
+def _is_digit(c):
+    return "0" <= c <= "9"
+
+
+def tokenize(text: str) -> list:
+    if not isinstance(text, str):
+        raise ValueError("input must be a string")
+    tokens = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in _WS:
+            i += 1
+        elif c in _OPS:
+            tokens.append(c)
+            i += 1
+        elif _is_digit(c):
+            start = i
+            while i < n and _is_digit(text[i]):
+                i += 1
+            if i < n and text[i] == ".":
+                i += 1
+                if i >= n or not _is_digit(text[i]):
+                    raise ValueError("malformed number at position %d" % start)
+                while i < n and _is_digit(text[i]):
+                    i += 1
+                if i < n and (text[i] == "." ):
+                    raise ValueError("malformed number at position %d" % start)
+            tokens.append(text[start:i])
+        elif c == ".":
+            raise ValueError("malformed number at position %d" % i)
+        else:
+            raise ValueError("invalid character %r at position %d" % (c, i))
+    return tokens
+
+
+class _Parser:
+    def __init__(self, tokens):
+        self.toks = tokens
+        self.pos = 0
+
+    def peek(self):
+        return self.toks[self.pos] if self.pos < len(self.toks) else None
+
+    def next(self):
+        t = self.peek()
+        if t is None:
+            raise ValueError("unexpected end of expression")
+        self.pos += 1
+        return t
+
+    def expr(self):
+        val = self.term()
+        while self.peek() in ("+", "-"):
+            op = self.next()
+            rhs = self.term()
+            val = val + rhs if op == "+" else val - rhs
+        return val
+
+    def term(self):
+        val = self.unary()
+        while self.peek() in ("*", "/"):
+            op = self.next()
+            rhs = self.unary()
+            if op == "*":
+                val = val * rhs
+            else:
+                if rhs == 0:
+                    raise ZeroDivisionError("division by zero")
+                val = val / rhs
+        return val
+
+    def unary(self):
+        sign = 1
+        while self.peek() in ("+", "-"):
+            if self.next() == "-":
+                sign = -sign
+        val = self.primary()
+        return -val if sign < 0 else val
+
+    def primary(self):
+        t = self.next()
+        if t == "(":
+            val = self.expr()
+            if self.peek() != ")":
+                raise ValueError("unbalanced parentheses")
+            self.next()
+            return val
+        if t in _OPS:
+            raise ValueError("unexpected token %r" % t)
+        return float(t)
+
+
+def evaluate(text: str) -> float:
+    tokens = tokenize(text)
+    if not tokens:
+        raise ValueError("empty expression")
+    p = _Parser(tokens)
+    val = p.expr()
+    if p.pos != len(tokens):
+        raise ValueError("unexpected token %r" % tokens[p.pos])
+    return float(val)

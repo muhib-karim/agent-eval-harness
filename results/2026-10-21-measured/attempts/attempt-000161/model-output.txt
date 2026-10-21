@@ -1,0 +1,52 @@
+```python
+def parse_ini(text: str) -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+    current_section = ""
+    section_order_started = False
+
+    lines = text.split("\n")
+    for idx, raw_line in enumerate(lines, start=1):
+        line = raw_line[:-1] if raw_line.endswith("\r") else raw_line
+        stripped = line.strip()
+
+        if stripped == "" or stripped.startswith(";") or stripped.startswith("#"):
+            continue
+
+        if stripped.startswith("["):
+            if not stripped.endswith("]"):
+                raise ValueError(f"Malformed section header on line {idx}")
+            name = stripped[1:-1].strip()
+            if name == "":
+                raise ValueError(f"Empty section name on line {idx}")
+            current_section = name
+            if current_section not in result:
+                result[current_section] = {}
+            continue
+
+        if "=" in stripped:
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key == "":
+                raise ValueError(f"Empty key on line {idx}")
+            key_lower = key.lower()
+
+            if current_section not in result:
+                result[current_section] = {}
+
+            if key_lower in result[current_section]:
+                raise ValueError(
+                    f"Duplicate key '{key_lower}' in section "
+                    f"'{current_section}' on line {idx}"
+                )
+
+            result[current_section][key_lower] = value
+            continue
+
+        raise ValueError(f"Invalid line on line {idx}")
+
+    if "" in result and len(result[""]) == 0:
+        del result[""]
+
+    return result
+```

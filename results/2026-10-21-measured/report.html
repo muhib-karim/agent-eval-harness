@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Coding task comparison</title>
+<style>
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --ink: #14212e; --muted: #4a5a6a; --line: #d9dfe5;
+  --head: #eef1f4; --accent: #0b6e69; --whisker: #4a5a6a; --track: #e3e8ec;
+  --heat-0-bg: #f1f4f6; --heat-0-fg: #14212e; --heat-1-bg: #cfe8e4; --heat-1-fg: #14212e;
+  --heat-2-bg: #92cdc5; --heat-2-fg: #14212e; --heat-3-bg: #3f9e94; --heat-3-fg: #0b151d;
+  --heat-4-bg: #0b5e59; --heat-4-fg: #ffffff;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f161d; --surface: #16202a; --ink: #e6edf3; --muted: #9fb0c0; --line: #2a3846;
+    --head: #1b2731; --accent: #4fc3b8; --whisker: #9fb0c0; --track: #24313d;
+    --heat-0-bg: #1b2731; --heat-0-fg: #e6edf3; --heat-1-bg: #1f4a47; --heat-1-fg: #e6edf3;
+    --heat-2-bg: #276d67; --heat-2-fg: #ffffff; --heat-3-bg: #3a978e; --heat-3-fg: #0b151d;
+    --heat-4-bg: #7fd6cc; --heat-4-fg: #0b151d;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.page { max-width: 1240px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -.01em; }
+h2 { font-size: 1.15rem; margin: 2.5rem 0 .5rem; }
+h3 { font-size: 1rem; margin: 1.5rem 0 .25rem; }
+p { margin: .5rem 0; max-width: 72ch; }
+.muted, caption, small, .note { color: var(--muted); }
+small { display: block; font-size: .8rem; font-weight: 400; line-height: 1.3; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.skip { position: absolute; left: -999px; top: .5rem; background: var(--surface); padding: .5rem .75rem; }
+.skip:focus { left: .5rem; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.facts { display: flex; flex-wrap: wrap; gap: .25rem 1.5rem; margin: .75rem 0; padding: 0; }
+.facts div { display: flex; gap: .4rem; align-items: baseline; }
+.facts dt { color: var(--muted); font-size: .85rem; }
+.facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.note { font-size: .9rem; border-left: 3px solid var(--line); padding-left: .75rem; }
+.scroll {
+  overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface);
+}
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+caption {
+  text-align: left; padding: .6rem .75rem; font-size: .85rem; caption-side: top;
+  position: sticky; left: 0; max-width: calc(100vw - 2rem - 2px);
+}
+th, td { padding: .45rem .6rem; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+thead th {
+  background: var(--head); font-size: .8rem; font-weight: 600; white-space: nowrap;
+  border-top: 1px solid var(--line);
+}
+tbody th { font-weight: 600; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.num { text-align: right; white-space: nowrap; }
+.unknown { color: var(--muted); font-style: italic; }
+th[data-sort] button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; text-align: inherit; min-height: 1.5rem;
+}
+th[data-sort]::after { content: ""; display: inline-block; width: 1em; text-align: center; }
+th[aria-sort="descending"]::after { content: "\2193"; content: "\2193" / ""; }
+th[aria-sort="ascending"]::after { content: "\2191"; content: "\2191" / ""; }
+.score { font-weight: 700; }
+.heat-0 { background: var(--heat-0-bg); color: var(--heat-0-fg); }
+.heat-1 { background: var(--heat-1-bg); color: var(--heat-1-fg); }
+.heat-2 { background: var(--heat-2-bg); color: var(--heat-2-fg); }
+.heat-3 { background: var(--heat-3-bg); color: var(--heat-3-fg); }
+.heat-4 { background: var(--heat-4-bg); color: var(--heat-4-fg); }
+.heat small { color: inherit; opacity: .85; }
+.legend { display: flex; flex-wrap: wrap; gap: .25rem .9rem; list-style: none; padding: 0; margin: .6rem 0 0; font-size: .8rem; }
+.legend li { display: flex; align-items: center; gap: .35rem; }
+.swatch { width: .9rem; height: .9rem; border: 1px solid var(--line); display: inline-block; }
+.chart { list-style: none; margin: 0; padding: .5rem .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.chart li {
+  display: grid; grid-template-columns: 12rem minmax(0, 1fr) 11.5rem;
+  grid-template-areas: "name bar value"; gap: .25rem .75rem; align-items: center; padding: .35rem 0; border-top: 1px solid var(--line);
+}
+.chart li:first-child { border-top: 0; }
+.chart .axis { color: var(--muted); font-size: .75rem; }
+.chart li > :nth-child(1) { grid-area: name; }
+.chart li > :nth-child(2) { grid-area: bar; }
+.chart li > :nth-child(3) { grid-area: value; }
+.chart .axis > :nth-child(2) { display: flex; justify-content: space-between; }
+.chart .name { font-weight: 600; overflow-wrap: anywhere; }
+.chart .value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart .value small { display: inline; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.track { stroke: var(--track); stroke-width: 2; }
+.grid { stroke: var(--line); stroke-width: 1; }
+.whisker { stroke: var(--whisker); stroke-width: 2; }
+.point { fill: var(--accent); }
+.tick { fill: var(--accent); opacity: .7; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  .page { padding: 1.25rem 1rem 2rem; }
+  h1 { font-size: 1.4rem; }
+  th, td { padding: .4rem .5rem; }
+  .chart li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name value" "bar bar"; }
+  .chart .axis { grid-template-areas: "bar bar"; }
+  .chart .axis > :nth-child(1), .chart .axis > :nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#leaderboard">Skip to leaderboard</a>
+<div class="page">
+<header>
+<h1>Coding task comparison</h1>
+<dl class="facts">
+<div><dt>Attempts</dt><dd>288</dd></div>
+<div><dt>Tasks</dt><dd>16</dd></div>
+<div><dt>Categories</dt><dd>4</dd></div>
+<div><dt>Models</dt><dd>6</dd></div>
+<div><dt>Intervals</dt><dd>95% bootstrap, 2000 resamples, seed 20261021</dd></div>
+</dl>
+<p class="note">Results describe this recorded run only. The bundled offline demo uses mock adapters, not live models; mock results are not a live-model benchmark. Hidden tests measure only their specified behaviour.</p>
+</header>
+<main>
+<section id="leaderboard" aria-labelledby="leaderboard-heading">
+<h2 id="leaderboard-heading">Leaderboard</h2>
+<p>Pass rates average each observed task equally. Pass@k is shown only when every observed task for that model has at least k attempts. Models with different task sets are not directly comparable. Usage columns sum only what the provider reported and say <span class="unknown">unknown</span> when nothing was reported.</p>
+<div class="scroll" role="region" aria-labelledby="leaderboard-caption" tabindex="0">
+<table id="leaderboard-table">
+<caption id="leaderboard-caption">Models ranked by pass@1; select a column heading to sort.</caption>
+<thead><tr>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Rank</th>
+<th scope="col" data-sort="text">Model</th>
+<th scope="col" class="num" data-sort="num" aria-sort="descending">Pass@1</th>
+<th scope="col" class="num" data-sort="num">95% CI</th>
+<th scope="col">Pass@k (k &gt; 1)</th>
+<th scope="col" class="num" data-sort="num">Passes</th>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Mean s</th>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Median s</th>
+<th scope="col" class="num" data-sort="num">Input tokens</th>
+<th scope="col" class="num" data-sort="num">Output tokens</th>
+<th scope="col" class="num" data-sort="num" data-first="ascending">Cost USD</th>
+</tr></thead>
+<tbody>
+<tr>
+<td class="num" data-value="1">1</td>
+<th scope="row" data-value="claude-sonnet-5-5">claude-sonnet-5-5</th>
+<td class="num score" data-value="1.0">100.0%</td>
+<td class="num" data-value="1.0">100.0–100.0%</td>
+<td class="nowrap">@3 100.0%</td>
+<td class="num" data-value="48">48/48</td>
+<td class="num" data-value="9.421603792531338">9.42</td>
+<td class="num" data-value="8.814427304081619">8.81</td>
+<td class="num" data-value="20727">20727</td>
+<td class="num" data-value="55573">55573</td>
+<td class="num" data-value=""><span class="unknown">unknown</span></td>
+</tr>
+<tr>
+<td class="num" data-value="2">2</td>
+<th scope="row" data-value="claude-opus-5-5">claude-opus-5-5</th>
+<td class="num score" data-value="1.0">100.0%</td>
+<td class="num" data-value="1.0">100.0–100.0%</td>
+<td class="nowrap">@3 100.0%</td>
+<td class="num" data-value="48">48/48</td>
+<td class="num" data-value="12.916990357266817">12.92</td>
+<td class="num" data-value="11.889838594710454">11.89</td>
+<td class="num" data-value="20727">20727</td>
+<td class="num" data-value="62037">62037</td>
+<td class="num" data-value=""><span class="unknown">unknown</span></td>
+</tr>
+<tr>
+<td class="num" data-value="3">3</td>
+<th scope="row" data-value="claude-fable-5-1">claude-fable-5-1</th>
+<td class="num score" data-value="1.0">100.0%</td>
+<td class="num" data-value="1.0">100.0–100.0%</td>
+<td class="nowrap">@3 100.0%</td>
+<td class="num" data-value="48">48/48</td>
+<td class="num" data-value="18.69482279687266">18.69</td>
+<td class="num" data-value="17.116213000612333">17.12</td>
+<td class="num" data-value="20727">20727</td>
+<td class="num" data-value="74638">74638</td>
+<td class="num" data-value=""><span class="unknown">unknown</span></td>
+</tr>
+<tr>
+<td class="num" data-value="4">4</td>
+<th scope="row" data-value="gpt-6-sol">gpt-6-sol</th>
+<td class="num score" data-value="0.9791666666666666">97.9%</td>
+<td class="num" data-value="0.9375">93.8–100.0%</td>
+<td class="nowrap">@3 100.0%</td>
+<td class="num" data-value="47">47/48</td>
+<td class="num" data-value="11.281269693155386">11.28</td>
+<td class="num" data-value="10.063946845941246">10.06</td>
+<td class="num" data-value="13755">13755</td>
+<td class="num" data-value="38837">38837</td>
+<td class="num" data-value=""><span class="unknown">unknown</span></td>
+</tr>
+<tr>
+<td class="num" data-value="5">5</td>
+<th scope="row" data-value="claude-sonnet-5">claude-sonnet-5</th>
+<td class="num score" data-value="0.7916666666666666">79.2%</td>
+<td class="num" data-value="0.6041666666666666">60.4–93.8%</td>
+<td class="nowrap">@3 87.5%</td>
+<td class="num" data-value="38">38/48</td>
+<td class="num" data-value="27.583255406440003">27.58</td>
+<td class="num" data-value="14.9070042995736">14.91</td>
+<td class="num" data-value="20631">20631</td>
+<td class="num" data-value="129892">129892</td>
+<td class="num" data-value=""><span class="unknown">unknown</span></td>
+</tr>
+<tr>
+<td class="num" data-value="6">6</td>
+<th scope="row" data-value="claude-haiku-4-5">claude-haiku-4-5</th>
+<td class="num score" data-value="0.6666666666666666">66.7%</td>
+<td class="num" data-value="0.4786458333333342">47.9–85.4%</td>
+<td class="nowrap">@3 81.2%</td>
+<td class="num" data-value="32">32/48</td>
+<td class="num" data-value="9.028000391903333">9.03</td>
+<td class="num" data-value="8.838403111556545">8.84</td>
+<td class="num" data-value="15678">15678</td>
+<td class="num" data-value="43707">43707</td>
+<td class="num" data-value=""><span class="unknown">unknown</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p id="sort-status" class="visually-hidden" aria-live="polite"></p>
+</section>
+
+<section aria-labelledby="ci-heading">
+<h2 id="ci-heading">Pass@1 with 95% bootstrap intervals</h2>
+<p>Task-level percentile bootstrap: tasks are resampled with replacement 2000 times (seed 20261021) and the interval is the central 95% of the resampled means. The dot is the observed pass@1; the whiskers span the interval.</p>
+<ul class="chart">
+<li class="axis" aria-hidden="true"><span>Model</span><span><span>0%</span><span>50%</span><span>100%</span></span><span>pass@1 (interval)</span></li>
+<li>
+<span class="name">claude-sonnet-5-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-sonnet-5-5: pass@1 100.0%, 95% interval 100.0% to 100.0%">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<line class="grid" x1="6" y1="3" x2="6" y2="17"/><line class="grid" x1="103" y1="3" x2="103" y2="17"/><line class="grid" x1="200" y1="3" x2="200" y2="17"/><line class="grid" x1="297" y1="3" x2="297" y2="17"/><line class="grid" x1="394" y1="3" x2="394" y2="17"/>
+<line class="whisker" x1="394.0" y1="10" x2="394.0" y2="10"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<circle class="point" cx="394.0" cy="10" r="5"/>
+</svg>
+<span class="value">100.0% <small>(100.0%–100.0%)</small></span>
+</li>
+<li>
+<span class="name">claude-opus-5-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-opus-5-5: pass@1 100.0%, 95% interval 100.0% to 100.0%">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<line class="grid" x1="6" y1="3" x2="6" y2="17"/><line class="grid" x1="103" y1="3" x2="103" y2="17"/><line class="grid" x1="200" y1="3" x2="200" y2="17"/><line class="grid" x1="297" y1="3" x2="297" y2="17"/><line class="grid" x1="394" y1="3" x2="394" y2="17"/>
+<line class="whisker" x1="394.0" y1="10" x2="394.0" y2="10"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<circle class="point" cx="394.0" cy="10" r="5"/>
+</svg>
+<span class="value">100.0% <small>(100.0%–100.0%)</small></span>
+</li>
+<li>
+<span class="name">claude-fable-5-1</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-fable-5-1: pass@1 100.0%, 95% interval 100.0% to 100.0%">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<line class="grid" x1="6" y1="3" x2="6" y2="17"/><line class="grid" x1="103" y1="3" x2="103" y2="17"/><line class="grid" x1="200" y1="3" x2="200" y2="17"/><line class="grid" x1="297" y1="3" x2="297" y2="17"/><line class="grid" x1="394" y1="3" x2="394" y2="17"/>
+<line class="whisker" x1="394.0" y1="10" x2="394.0" y2="10"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<circle class="point" cx="394.0" cy="10" r="5"/>
+</svg>
+<span class="value">100.0% <small>(100.0%–100.0%)</small></span>
+</li>
+<li>
+<span class="name">gpt-6-sol</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="gpt-6-sol: pass@1 97.9%, 95% interval 93.8% to 100.0%">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<line class="grid" x1="6" y1="3" x2="6" y2="17"/><line class="grid" x1="103" y1="3" x2="103" y2="17"/><line class="grid" x1="200" y1="3" x2="200" y2="17"/><line class="grid" x1="297" y1="3" x2="297" y2="17"/><line class="grid" x1="394" y1="3" x2="394" y2="17"/>
+<line class="whisker" x1="369.75" y1="10" x2="394.0" y2="10"/>
+<line class="whisker" x1="369.75" y1="4" x2="369.75" y2="16"/>
+<line class="whisker" x1="394.0" y1="4" x2="394.0" y2="16"/>
+<circle class="point" cx="385.91666666666663" cy="10" r="5"/>
+</svg>
+<span class="value">97.9% <small>(93.8%–100.0%)</small></span>
+</li>
+<li>
+<span class="name">claude-sonnet-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-sonnet-5: pass@1 79.2%, 95% interval 60.4% to 93.8%">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<line class="grid" x1="6" y1="3" x2="6" y2="17"/><line class="grid" x1="103" y1="3" x2="103" y2="17"/><line class="grid" x1="200" y1="3" x2="200" y2="17"/><line class="grid" x1="297" y1="3" x2="297" y2="17"/><line class="grid" x1="394" y1="3" x2="394" y2="17"/>
+<line class="whisker" x1="240.41666666666666" y1="10" x2="369.75" y2="10"/>
+<line class="whisker" x1="240.41666666666666" y1="4" x2="240.41666666666666" y2="16"/>
+<line class="whisker" x1="369.75" y1="4" x2="369.75" y2="16"/>
+<circle class="point" cx="313.16666666666663" cy="10" r="5"/>
+</svg>
+<span class="value">79.2% <small>(60.4%–93.8%)</small></span>
+</li>
+<li>
+<span class="name">claude-haiku-4-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-haiku-4-5: pass@1 66.7%, 95% interval 47.9% to 85.4%">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<line class="grid" x1="6" y1="3" x2="6" y2="17"/><line class="grid" x1="103" y1="3" x2="103" y2="17"/><line class="grid" x1="200" y1="3" x2="200" y2="17"/><line class="grid" x1="297" y1="3" x2="297" y2="17"/><line class="grid" x1="394" y1="3" x2="394" y2="17"/>
+<line class="whisker" x1="191.71458333333368" y1="10" x2="337.41666666666663" y2="10"/>
+<line class="whisker" x1="191.71458333333368" y1="4" x2="191.71458333333368" y2="16"/>
+<line class="whisker" x1="337.41666666666663" y1="4" x2="337.41666666666663" y2="16"/>
+<circle class="point" cx="264.66666666666663" cy="10" r="5"/>
+</svg>
+<span class="value">66.7% <small>(47.9%–85.4%)</small></span>
+</li>
+</ul>
+<h3 id="paired-heading">Paired comparisons</h3>
+<p>Overlapping intervals do not settle a ranking. For every pair whose intervals overlap, a paired bootstrap over the shared tasks (same seed) estimates the difference directly.</p>
+<div class="scroll" role="region" aria-labelledby="paired-caption" tabindex="0">
+<table>
+<caption id="paired-caption">Pass@1 difference (first minus second model) in percentage points.</caption>
+<thead><tr><th scope="col">Pair</th><th scope="col" class="num">Tasks</th><th scope="col" class="num">Difference</th><th scope="col" class="num">Paired 95% CI</th><th scope="col">Reading</th></tr></thead>
+<tbody><tr><th scope="row">claude-sonnet-5-5 − claude-opus-5-5</th><td class="num">16</td><td class="num">+0.0</td><td class="num">+0.0 to +0.0</td><td class="nowrap">no reliable difference</td></tr>
+<tr><th scope="row">claude-sonnet-5-5 − claude-fable-5-1</th><td class="num">16</td><td class="num">+0.0</td><td class="num">+0.0 to +0.0</td><td class="nowrap">no reliable difference</td></tr>
+<tr><th scope="row">claude-sonnet-5-5 − gpt-6-sol</th><td class="num">16</td><td class="num">+2.1</td><td class="num">+0.0 to +6.2</td><td class="nowrap">no reliable difference</td></tr>
+<tr><th scope="row">claude-opus-5-5 − claude-fable-5-1</th><td class="num">16</td><td class="num">+0.0</td><td class="num">+0.0 to +0.0</td><td class="nowrap">no reliable difference</td></tr>
+<tr><th scope="row">claude-opus-5-5 − gpt-6-sol</th><td class="num">16</td><td class="num">+2.1</td><td class="num">+0.0 to +6.2</td><td class="nowrap">no reliable difference</td></tr>
+<tr><th scope="row">claude-fable-5-1 − gpt-6-sol</th><td class="num">16</td><td class="num">+2.1</td><td class="num">+0.0 to +6.2</td><td class="nowrap">no reliable difference</td></tr>
+<tr><th scope="row">gpt-6-sol − claude-sonnet-5</th><td class="num">16</td><td class="num">+18.8</td><td class="num">+4.2 to +37.5</td><td class="nowrap"><strong>differs</strong> (interval excludes 0)</td></tr>
+<tr><th scope="row">claude-sonnet-5 − claude-haiku-4-5</th><td class="num">16</td><td class="num">+12.5</td><td class="num">+4.2 to +22.9</td><td class="nowrap"><strong>differs</strong> (interval excludes 0)</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="category-heading">
+<h2 id="category-heading">Pass@1 by category</h2>
+<div class="scroll" role="region" aria-labelledby="category-caption" tabindex="0">
+<table class="heatmap">
+<caption id="category-caption">Task-averaged pass@1 per category. Each cell shows the rate and passes/attempts; the colour band repeats the number.</caption>
+<thead><tr><th scope="col">Category</th><th scope="col" class="num">Tasks</th><th scope="col" class="num">claude-sonnet-5-5</th><th scope="col" class="num">claude-opus-5-5</th><th scope="col" class="num">claude-fable-5-1</th><th scope="col" class="num">gpt-6-sol</th><th scope="col" class="num">claude-sonnet-5</th><th scope="col" class="num">claude-haiku-4-5</th></tr></thead>
+<tbody><tr><th scope="row">algorithms</th><td class="num">4</td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-3">66.7%<small>8/12</small></td><td class="num heat heat-2">58.3%<small>7/12</small></td></tr>
+<tr><th scope="row">bug-fix</th><td class="num">4</td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">83.3%<small>10/12</small></td></tr>
+<tr><th scope="row">parsing</th><td class="num">4</td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">91.7%<small>11/12</small></td><td class="num heat heat-3">66.7%<small>8/12</small></td><td class="num heat heat-2">41.7%<small>5/12</small></td></tr>
+<tr><th scope="row">stateful</th><td class="num">4</td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">100.0%<small>12/12</small></td><td class="num heat heat-4">83.3%<small>10/12</small></td><td class="num heat heat-4">83.3%<small>10/12</small></td></tr>
+</tbody>
+</table>
+</div>
+<ul class="legend" aria-label="Colour bands"><li><span class="swatch heat-0" aria-hidden="true"></span>0–20%</li><li><span class="swatch heat-1" aria-hidden="true"></span>20–40%</li><li><span class="swatch heat-2" aria-hidden="true"></span>40–60%</li><li><span class="swatch heat-3" aria-hidden="true"></span>60–80%</li><li><span class="swatch heat-4" aria-hidden="true"></span>80–100%</li></ul>
+</section>
+
+<section aria-labelledby="task-heading">
+<h2 id="task-heading">Per-task pass matrix</h2>
+<div class="scroll" role="region" aria-labelledby="task-caption" tabindex="0">
+<table>
+<caption id="task-caption">Passes / attempts per task and model.</caption>
+<thead><tr><th scope="col">Task</th><th scope="col">Category</th><th scope="col" class="num">claude-sonnet-5-5</th><th scope="col" class="num">claude-opus-5-5</th><th scope="col" class="num">claude-fable-5-1</th><th scope="col" class="num">gpt-6-sol</th><th scope="col" class="num">claude-sonnet-5</th><th scope="col" class="num">claude-haiku-4-5</th></tr></thead>
+<tbody><tr><th scope="row">arithmetic</th><td>parsing</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-0">0/3</td><td class="num heat heat-0">0/3</td></tr>
+<tr><th scope="row">fix_binary_search</th><td>bug-fix</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">fix_memoize</th><td>bug-fix</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-3">2/3</td></tr>
+<tr><th scope="row">fix_running_stats</th><td>bug-fix</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">fix_slugify</th><td>bug-fix</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-3">2/3</td></tr>
+<tr><th scope="row">ini_parser</th><td>parsing</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">intervals</th><td>algorithms</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-3">2/3</td><td class="num heat heat-1">1/3</td></tr>
+<tr><th scope="row">json_path</th><td>parsing</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-3">2/3</td><td class="num heat heat-3">2/3</td><td class="num heat heat-0">0/3</td></tr>
+<tr><th scope="row">ledger</th><td>stateful</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">levenshtein</th><td>algorithms</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-0">0/3</td><td class="num heat heat-0">0/3</td></tr>
+<tr><th scope="row">lru_ttl</th><td>stateful</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">rate_limiter</th><td>stateful</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">roman</th><td>algorithms</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">semver</th><td>parsing</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-3">2/3</td></tr>
+<tr><th scope="row">topo_sort</th><td>algorithms</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td></tr>
+<tr><th scope="row">undo_buffer</th><td>stateful</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-4">3/3</td><td class="num heat heat-1">1/3</td><td class="num heat heat-1">1/3</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="timing-heading">
+<h2 id="timing-heading">Timing distribution</h2>
+<p>One mark per attempt (generation plus grading), on a shared scale from 0 to 96.98 seconds.</p>
+<ul class="chart">
+<li class="axis" aria-hidden="true"><span>Model</span><span><span>0 s</span><span>96.98 s</span></span><span>median (max)</span></li>
+<li>
+<span class="name">claude-sonnet-5-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-sonnet-5-5: 48 attempts, median 8.81 seconds, longest 18.83 seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<rect class="tick" x="22.199509026754072" y="3" width="2" height="14"/><rect class="tick" x="22.69270923056946" y="3" width="2" height="14"/><rect class="tick" x="22.752451048127703" y="3" width="2" height="14"/><rect class="tick" x="25.910039910432502" y="3" width="2" height="14"/><rect class="tick" x="26.800807737333955" y="3" width="2" height="14"/><rect class="tick" x="27.13205700221562" y="3" width="2" height="14"/><rect class="tick" x="28.07531265318568" y="3" width="2" height="14"/><rect class="tick" x="28.32686997751917" y="3" width="2" height="14"/><rect class="tick" x="29.221730357517558" y="3" width="2" height="14"/><rect class="tick" x="29.351677460026945" y="3" width="2" height="14"/><rect class="tick" x="30.09523309219157" y="3" width="2" height="14"/><rect class="tick" x="30.116206473157586" y="3" width="2" height="14"/><rect class="tick" x="30.364542362718296" y="3" width="2" height="14"/><rect class="tick" x="31.90848035154847" y="3" width="2" height="14"/><rect class="tick" x="33.1316139178412" y="3" width="2" height="14"/><rect class="tick" x="33.72210274066198" y="3" width="2" height="14"/><rect class="tick" x="35.06419777932051" y="3" width="2" height="14"/><rect class="tick" x="35.99938211444363" y="3" width="2" height="14"/><rect class="tick" x="36.58916341643446" y="3" width="2" height="14"/><rect class="tick" x="36.764202262963096" y="3" width="2" height="14"/><rect class="tick" x="37.99911733044028" y="3" width="2" height="14"/><rect class="tick" x="38.55868396695803" y="3" width="2" height="14"/><rect class="tick" x="39.84998507914324" y="3" width="2" height="14"/><rect class="tick" x="40.22061762333898" y="3" width="2" height="14"/><rect class="tick" x="40.31064946916357" y="3" width="2" height="14"/><rect class="tick" x="43.534110444908336" y="3" width="2" height="14"/><rect class="tick" x="43.6509679276672" y="3" width="2" height="14"/><rect class="tick" x="43.88986062504597" y="3" width="2" height="14"/><rect class="tick" x="44.55814449511551" y="3" width="2" height="14"/><rect class="tick" x="45.33839812431811" y="3" width="2" height="14"/><rect class="tick" x="46.48706271897552" y="3" width="2" height="14"/><rect class="tick" x="47.58597503916448" y="3" width="2" height="14"/><rect class="tick" x="47.944472468942834" y="3" width="2" height="14"/><rect class="tick" x="47.99846029410615" y="3" width="2" height="14"/><rect class="tick" x="48.42690840067544" y="3" width="2" height="14"/><rect class="tick" x="48.523796641683774" y="3" width="2" height="14"/><rect class="tick" x="51.096848603596406" y="3" width="2" height="14"/><rect class="tick" x="51.69798827517661" y="3" width="2" height="14"/><rect class="tick" x="55.60172164954954" y="3" width="2" height="14"/><rect class="tick" x="57.903619913375344" y="3" width="2" height="14"/><rect class="tick" x="59.26910860004145" y="3" width="2" height="14"/><rect class="tick" x="60.97192193180277" y="3" width="2" height="14"/><rect class="tick" x="61.07006773900439" y="3" width="2" height="14"/><rect class="tick" x="63.39930895109705" y="3" width="2" height="14"/><rect class="tick" x="65.29259709353414" y="3" width="2" height="14"/><rect class="tick" x="67.09926242612748" y="3" width="2" height="14"/><rect class="tick" x="74.50680269132812" y="3" width="2" height="14"/><rect class="tick" x="80.34974997129234" y="3" width="2" height="14"/>
+</svg>
+<span class="value">8.81 s <small>(18.83 s)</small></span>
+</li>
+<li>
+<span class="name">claude-opus-5-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-opus-5-5: 48 attempts, median 11.89 seconds, longest 23.40 seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<rect class="tick" x="30.058260831670427" y="3" width="2" height="14"/><rect class="tick" x="35.53821918904755" y="3" width="2" height="14"/><rect class="tick" x="37.96686373913689" y="3" width="2" height="14"/><rect class="tick" x="41.275995786042" y="3" width="2" height="14"/><rect class="tick" x="42.17114573459258" y="3" width="2" height="14"/><rect class="tick" x="42.9118242000894" y="3" width="2" height="14"/><rect class="tick" x="44.611201175902515" y="3" width="2" height="14"/><rect class="tick" x="45.09364362649531" y="3" width="2" height="14"/><rect class="tick" x="45.46436170581258" y="3" width="2" height="14"/><rect class="tick" x="45.79812667131525" y="3" width="2" height="14"/><rect class="tick" x="45.91291626878031" y="3" width="2" height="14"/><rect class="tick" x="46.322877988917746" y="3" width="2" height="14"/><rect class="tick" x="46.78781515737354" y="3" width="2" height="14"/><rect class="tick" x="46.886975045099014" y="3" width="2" height="14"/><rect class="tick" x="47.055964452714285" y="3" width="2" height="14"/><rect class="tick" x="47.15510595386325" y="3" width="2" height="14"/><rect class="tick" x="47.27526181779236" y="3" width="2" height="14"/><rect class="tick" x="48.59833773065523" y="3" width="2" height="14"/><rect class="tick" x="49.516983302009784" y="3" width="2" height="14"/><rect class="tick" x="49.9148154093572" y="3" width="2" height="14"/><rect class="tick" x="51.32893919360712" y="3" width="2" height="14"/><rect class="tick" x="51.9150326614367" y="3" width="2" height="14"/><rect class="tick" x="52.01389980781237" y="3" width="2" height="14"/><rect class="tick" x="52.53866911143267" y="3" width="2" height="14"/><rect class="tick" x="52.6014180070966" y="3" width="2" height="14"/><rect class="tick" x="53.85534576534712" y="3" width="2" height="14"/><rect class="tick" x="54.932648472012865" y="3" width="2" height="14"/><rect class="tick" x="55.0911881504676" y="3" width="2" height="14"/><rect class="tick" x="55.43685306516112" y="3" width="2" height="14"/><rect class="tick" x="56.63414226462708" y="3" width="2" height="14"/><rect class="tick" x="57.46851267467915" y="3" width="2" height="14"/><rect class="tick" x="58.387208856161486" y="3" width="2" height="14"/><rect class="tick" x="58.955265710966465" y="3" width="2" height="14"/><rect class="tick" x="60.833317619009705" y="3" width="2" height="14"/><rect class="tick" x="63.28850097991104" y="3" width="2" height="14"/><rect class="tick" x="64.17716823220148" y="3" width="2" height="14"/><rect class="tick" x="66.01294371476475" y="3" width="2" height="14"/><rect class="tick" x="66.28149344585752" y="3" width="2" height="14"/><rect class="tick" x="69.45666830567484" y="3" width="2" height="14"/><rect class="tick" x="69.54372281348098" y="3" width="2" height="14"/><rect class="tick" x="70.9709607652099" y="3" width="2" height="14"/><rect class="tick" x="71.37910260365263" y="3" width="2" height="14"/><rect class="tick" x="74.77025822102475" y="3" width="2" height="14"/><rect class="tick" x="75.03527439640543" y="3" width="2" height="14"/><rect class="tick" x="86.66178878926576" y="3" width="2" height="14"/><rect class="tick" x="92.2953593790888" y="3" width="2" height="14"/><rect class="tick" x="93.79672978655645" y="3" width="2" height="14"/><rect class="tick" x="98.640445222519" y="3" width="2" height="14"/>
+</svg>
+<span class="value">11.89 s <small>(23.40 s)</small></span>
+</li>
+<li>
+<span class="name">claude-fable-5-1</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-fable-5-1: 48 attempts, median 17.12 seconds, longest 53.26 seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<rect class="tick" x="22.594740181544648" y="3" width="2" height="14"/><rect class="tick" x="22.67387934361492" y="3" width="2" height="14"/><rect class="tick" x="23.17391907257147" y="3" width="2" height="14"/><rect class="tick" x="30.983451873356355" y="3" width="2" height="14"/><rect class="tick" x="34.107914781507006" y="3" width="2" height="14"/><rect class="tick" x="35.533198753798985" y="3" width="2" height="14"/><rect class="tick" x="37.1733823775391" y="3" width="2" height="14"/><rect class="tick" x="40.55294828310221" y="3" width="2" height="14"/><rect class="tick" x="42.57012359449702" y="3" width="2" height="14"/><rect class="tick" x="43.978979230537234" y="3" width="2" height="14"/><rect class="tick" x="45.87990208913807" y="3" width="2" height="14"/><rect class="tick" x="46.161550356604664" y="3" width="2" height="14"/><rect class="tick" x="46.77240965618236" y="3" width="2" height="14"/><rect class="tick" x="47.92630126446412" y="3" width="2" height="14"/><rect class="tick" x="48.47187199198901" y="3" width="2" height="14"/><rect class="tick" x="53.54437918965671" y="3" width="2" height="14"/><rect class="tick" x="57.407128162107675" y="3" width="2" height="14"/><rect class="tick" x="58.406372179368134" y="3" width="2" height="14"/><rect class="tick" x="60.55225448026062" y="3" width="2" height="14"/><rect class="tick" x="62.73718047796763" y="3" width="2" height="14"/><rect class="tick" x="69.9267210411423" y="3" width="2" height="14"/><rect class="tick" x="72.6083140187184" y="3" width="2" height="14"/><rect class="tick" x="72.85759178949203" y="3" width="2" height="14"/><rect class="tick" x="72.87176273519077" y="3" width="2" height="14"/><rect class="tick" x="74.0887168412115" y="3" width="2" height="14"/><rect class="tick" x="77.01031099813234" y="3" width="2" height="14"/><rect class="tick" x="78.6508729654141" y="3" width="2" height="14"/><rect class="tick" x="79.57879703597487" y="3" width="2" height="14"/><rect class="tick" x="81.3713085686455" y="3" width="2" height="14"/><rect class="tick" x="81.92905122845434" y="3" width="2" height="14"/><rect class="tick" x="82.81200504724849" y="3" width="2" height="14"/><rect class="tick" x="84.94488403295733" y="3" width="2" height="14"/><rect class="tick" x="89.77964471617102" y="3" width="2" height="14"/><rect class="tick" x="93.14092134931404" y="3" width="2" height="14"/><rect class="tick" x="94.03486175214044" y="3" width="2" height="14"/><rect class="tick" x="94.1797975996502" y="3" width="2" height="14"/><rect class="tick" x="96.1675305991586" y="3" width="2" height="14"/><rect class="tick" x="100.42952045327029" y="3" width="2" height="14"/><rect class="tick" x="104.63579188226677" y="3" width="2" height="14"/><rect class="tick" x="105.76657297793385" y="3" width="2" height="14"/><rect class="tick" x="110.0363342747345" y="3" width="2" height="14"/><rect class="tick" x="115.27599243102904" y="3" width="2" height="14"/><rect class="tick" x="122.37667594796365" y="3" width="2" height="14"/><rect class="tick" x="155.6013690995114" y="3" width="2" height="14"/><rect class="tick" x="156.4258580521193" y="3" width="2" height="14"/><rect class="tick" x="192.14507916108906" y="3" width="2" height="14"/><rect class="tick" x="192.26392313747405" y="3" width="2" height="14"/><rect class="tick" x="218.1006151828856" y="3" width="2" height="14"/>
+</svg>
+<span class="value">17.12 s <small>(53.26 s)</small></span>
+</li>
+<li>
+<span class="name">gpt-6-sol</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="gpt-6-sol: 48 attempts, median 10.06 seconds, longest 23.94 seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<rect class="tick" x="18.327376072151385" y="3" width="2" height="14"/><rect class="tick" x="20.055823296697298" y="3" width="2" height="14"/><rect class="tick" x="20.616115080491483" y="3" width="2" height="14"/><rect class="tick" x="26.250194692876324" y="3" width="2" height="14"/><rect class="tick" x="28.73970350987909" y="3" width="2" height="14"/><rect class="tick" x="30.245324098681525" y="3" width="2" height="14"/><rect class="tick" x="30.77634622443658" y="3" width="2" height="14"/><rect class="tick" x="31.18458118625965" y="3" width="2" height="14"/><rect class="tick" x="31.253607775959885" y="3" width="2" height="14"/><rect class="tick" x="31.77486400825442" y="3" width="2" height="14"/><rect class="tick" x="32.0953923564107" y="3" width="2" height="14"/><rect class="tick" x="32.91353718744294" y="3" width="2" height="14"/><rect class="tick" x="32.91915612261781" y="3" width="2" height="14"/><rect class="tick" x="33.444283417670945" y="3" width="2" height="14"/><rect class="tick" x="34.74998614707157" y="3" width="2" height="14"/><rect class="tick" x="36.428220529150195" y="3" width="2" height="14"/><rect class="tick" x="38.267603013126184" y="3" width="2" height="14"/><rect class="tick" x="38.47764929398167" y="3" width="2" height="14"/><rect class="tick" x="39.57718229573439" y="3" width="2" height="14"/><rect class="tick" x="41.07163632854273" y="3" width="2" height="14"/><rect class="tick" x="41.19787856662478" y="3" width="2" height="14"/><rect class="tick" x="41.446786420494284" y="3" width="2" height="14"/><rect class="tick" x="43.13160169719913" y="3" width="2" height="14"/><rect class="tick" x="44.468592626688284" y="3" width="2" height="14"/><rect class="tick" x="46.06107748212743" y="3" width="2" height="14"/><rect class="tick" x="48.07687562049689" y="3" width="2" height="14"/><rect class="tick" x="48.40101715543766" y="3" width="2" height="14"/><rect class="tick" x="51.013865661473645" y="3" width="2" height="14"/><rect class="tick" x="51.742129228811905" y="3" width="2" height="14"/><rect class="tick" x="51.828636331216096" y="3" width="2" height="14"/><rect class="tick" x="54.69931685795225" y="3" width="2" height="14"/><rect class="tick" x="55.80105679849064" y="3" width="2" height="14"/><rect class="tick" x="57.34420257347418" y="3" width="2" height="14"/><rect class="tick" x="61.68751682002257" y="3" width="2" height="14"/><rect class="tick" x="64.06510937576894" y="3" width="2" height="14"/><rect class="tick" x="64.1906350459833" y="3" width="2" height="14"/><rect class="tick" x="66.00141358187258" y="3" width="2" height="14"/><rect class="tick" x="66.09287186385518" y="3" width="2" height="14"/><rect class="tick" x="71.7999884467458" y="3" width="2" height="14"/><rect class="tick" x="73.19490262928458" y="3" width="2" height="14"/><rect class="tick" x="74.89082679457012" y="3" width="2" height="14"/><rect class="tick" x="76.74776105343993" y="3" width="2" height="14"/><rect class="tick" x="77.53757653894625" y="3" width="2" height="14"/><rect class="tick" x="79.5797446218891" y="3" width="2" height="14"/><rect class="tick" x="81.69657865820147" y="3" width="2" height="14"/><rect class="tick" x="84.65799470436544" y="3" width="2" height="14"/><rect class="tick" x="99.1836353345889" y="3" width="2" height="14"/><rect class="tick" x="100.78242512391999" y="3" width="2" height="14"/>
+</svg>
+<span class="value">10.06 s <small>(23.94 s)</small></span>
+</li>
+<li>
+<span class="name">claude-sonnet-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-sonnet-5: 48 attempts, median 14.91 seconds, longest 96.98 seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<rect class="tick" x="17.521984693366036" y="3" width="2" height="14"/><rect class="tick" x="19.863617114761205" y="3" width="2" height="14"/><rect class="tick" x="21.10825135378525" y="3" width="2" height="14"/><rect class="tick" x="22.913893745123346" y="3" width="2" height="14"/><rect class="tick" x="24.23088390423351" y="3" width="2" height="14"/><rect class="tick" x="24.341797511136253" y="3" width="2" height="14"/><rect class="tick" x="25.14760576721156" y="3" width="2" height="14"/><rect class="tick" x="26.057444740375736" y="3" width="2" height="14"/><rect class="tick" x="26.094961246542642" y="3" width="2" height="14"/><rect class="tick" x="26.731516858994063" y="3" width="2" height="14"/><rect class="tick" x="27.24907438428708" y="3" width="2" height="14"/><rect class="tick" x="28.0178577613307" y="3" width="2" height="14"/><rect class="tick" x="33.63459212316866" y="3" width="2" height="14"/><rect class="tick" x="36.22841859144028" y="3" width="2" height="14"/><rect class="tick" x="39.82025164118331" y="3" width="2" height="14"/><rect class="tick" x="46.924931061054764" y="3" width="2" height="14"/><rect class="tick" x="50.68977148375128" y="3" width="2" height="14"/><rect class="tick" x="53.24084149884283" y="3" width="2" height="14"/><rect class="tick" x="54.218139453753835" y="3" width="2" height="14"/><rect class="tick" x="57.959314478232635" y="3" width="2" height="14"/><rect class="tick" x="60.50669819060137" y="3" width="2" height="14"/><rect class="tick" x="61.34219234111182" y="3" width="2" height="14"/><rect class="tick" x="62.99225083636561" y="3" width="2" height="14"/><rect class="tick" x="63.03980289770865" y="3" width="2" height="14"/><rect class="tick" x="66.24303483304698" y="3" width="2" height="14"/><rect class="tick" x="67.92266051203752" y="3" width="2" height="14"/><rect class="tick" x="79.03727425421066" y="3" width="2" height="14"/><rect class="tick" x="80.0968426392666" y="3" width="2" height="14"/><rect class="tick" x="82.90421479414658" y="3" width="2" height="14"/><rect class="tick" x="83.7972640730699" y="3" width="2" height="14"/><rect class="tick" x="90.24348279436539" y="3" width="2" height="14"/><rect class="tick" x="92.34200462394244" y="3" width="2" height="14"/><rect class="tick" x="97.78284971584017" y="3" width="2" height="14"/><rect class="tick" x="114.69170736842125" y="3" width="2" height="14"/><rect class="tick" x="133.44914059575135" y="3" width="2" height="14"/><rect class="tick" x="139.12528808039278" y="3" width="2" height="14"/><rect class="tick" x="149.0991005121899" y="3" width="2" height="14"/><rect class="tick" x="160.01507225830395" y="3" width="2" height="14"/><rect class="tick" x="169.0328074974919" y="3" width="2" height="14"/><rect class="tick" x="219.2181389998289" y="3" width="2" height="14"/><rect class="tick" x="263.0822420754857" y="3" width="2" height="14"/><rect class="tick" x="333.0447131854762" y="3" width="2" height="14"/><rect class="tick" x="350.72525553452766" y="3" width="2" height="14"/><rect class="tick" x="355.44319320538864" y="3" width="2" height="14"/><rect class="tick" x="361.3877629856967" y="3" width="2" height="14"/><rect class="tick" x="369.7586862543893" y="3" width="2" height="14"/><rect class="tick" x="375.85650420212255" y="3" width="2" height="14"/><rect class="tick" x="393.0" y="3" width="2" height="14"/>
+</svg>
+<span class="value">14.91 s <small>(96.98 s)</small></span>
+</li>
+<li>
+<span class="name">claude-haiku-4-5</span>
+<svg viewBox="0 0 400 20" width="400" height="20" role="img" aria-label="claude-haiku-4-5: 48 attempts, median 8.84 seconds, longest 19.05 seconds">
+<line class="track" x1="6" y1="10" x2="394" y2="10"/>
+<rect class="tick" x="22.483178383078265" y="3" width="2" height="14"/><rect class="tick" x="22.95034675113637" y="3" width="2" height="14"/><rect class="tick" x="23.656500703344477" y="3" width="2" height="14"/><rect class="tick" x="24.22796776599741" y="3" width="2" height="14"/><rect class="tick" x="24.84996248977332" y="3" width="2" height="14"/><rect class="tick" x="24.982189535222897" y="3" width="2" height="14"/><rect class="tick" x="26.127274666413424" y="3" width="2" height="14"/><rect class="tick" x="26.304898145060122" y="3" width="2" height="14"/><rect class="tick" x="28.124153574604435" y="3" width="2" height="14"/><rect class="tick" x="28.69075627272532" y="3" width="2" height="14"/><rect class="tick" x="28.730644630495163" y="3" width="2" height="14"/><rect class="tick" x="28.828987510721124" y="3" width="2" height="14"/><rect class="tick" x="29.377305597807506" y="3" width="2" height="14"/><rect class="tick" x="29.774123745730208" y="3" width="2" height="14"/><rect class="tick" x="30.049216772958925" y="3" width="2" height="14"/><rect class="tick" x="30.170623736386908" y="3" width="2" height="14"/><rect class="tick" x="33.77682646484285" y="3" width="2" height="14"/><rect class="tick" x="34.436625888396776" y="3" width="2" height="14"/><rect class="tick" x="36.01360661577398" y="3" width="2" height="14"/><rect class="tick" x="36.33830258545636" y="3" width="2" height="14"/><rect class="tick" x="36.56436030664304" y="3" width="2" height="14"/><rect class="tick" x="36.94200127575369" y="3" width="2" height="14"/><rect class="tick" x="37.29429446092249" y="3" width="2" height="14"/><rect class="tick" x="40.35508468999791" y="3" width="2" height="14"/><rect class="tick" x="40.36803197167511" y="3" width="2" height="14"/><rect class="tick" x="40.57181737450802" y="3" width="2" height="14"/><rect class="tick" x="40.75276604381287" y="3" width="2" height="14"/><rect class="tick" x="41.614856793647846" y="3" width="2" height="14"/><rect class="tick" x="42.40355263184694" y="3" width="2" height="14"/><rect class="tick" x="42.42007689539005" y="3" width="2" height="14"/><rect class="tick" x="43.541394090921216" y="3" width="2" height="14"/><rect class="tick" x="44.56550429944988" y="3" width="2" height="14"/><rect class="tick" x="45.404347823186434" y="3" width="2" height="14"/><rect class="tick" x="46.11800045995586" y="3" width="2" height="14"/><rect class="tick" x="47.16039985147756" y="3" width="2" height="14"/><rect class="tick" x="48.20467653314151" y="3" width="2" height="14"/><rect class="tick" x="48.565617671030004" y="3" width="2" height="14"/><rect class="tick" x="49.01871193917117" y="3" width="2" height="14"/><rect class="tick" x="51.71445146003653" y="3" width="2" height="14"/><rect class="tick" x="52.54032045292494" y="3" width="2" height="14"/><rect class="tick" x="53.945046453446594" y="3" width="2" height="14"/><rect class="tick" x="57.377583193543515" y="3" width="2" height="14"/><rect class="tick" x="58.06710074439918" y="3" width="2" height="14"/><rect class="tick" x="61.33145744581882" y="3" width="2" height="14"/><rect class="tick" x="66.67454509547667" y="3" width="2" height="14"/><rect class="tick" x="73.09641388606859" y="3" width="2" height="14"/><rect class="tick" x="76.04934183783803" y="3" width="2" height="14"/><rect class="tick" x="81.21041185553413" y="3" width="2" height="14"/>
+</svg>
+<span class="value">8.84 s <small>(19.05 s)</small></span>
+</li>
+</ul>
+</section>
+</main>
+<footer><p>agent-eval-harness · results schema 1.0 · single self-contained file, no external assets.</p></footer>
+</div>
+<script>
+(function () {
+  "use strict";
+  var table = document.getElementById("leaderboard-table");
+  if (!table || !table.tHead || !table.tBodies.length) return;
+  var body = table.tBodies[0];
+  var headers = Array.prototype.slice.call(table.tHead.rows[0].cells);
+  var status = document.getElementById("sort-status");
+  function value(row, index) {
+    var cell = row.cells[index];
+    return cell ? cell.getAttribute("data-value") || "" : "";
+  }
+  function sortBy(th, index) {
+    var numeric = th.getAttribute("data-sort") === "num";
+    var current = th.getAttribute("aria-sort");
+    var first = th.getAttribute("data-first") || (numeric ? "descending" : "ascending");
+    var direction = current === "descending" ? "ascending" : current === "ascending" ? "descending" : first;
+    var rows = Array.prototype.slice.call(body.rows);
+    rows.sort(function (a, b) {
+      var x = value(a, index), y = value(b, index);
+      if (x === "" || y === "") return (x === "") - (y === "");
+      var order = numeric ? parseFloat(x) - parseFloat(y) : x.localeCompare(y);
+      return direction === "ascending" ? order : -order;
+    });
+    rows.forEach(function (row) { body.appendChild(row); });
+    headers.forEach(function (header) { header.removeAttribute("aria-sort"); });
+    th.setAttribute("aria-sort", direction);
+    if (status) status.textContent = "Sorted by " + th.textContent.trim() + ", " + direction + ".";
+  }
+  headers.forEach(function (th, index) {
+    if (!th.hasAttribute("data-sort")) return;
+    var button = document.createElement("button");
+    button.type = "button";
+    while (th.firstChild) button.appendChild(th.firstChild);
+    th.appendChild(button);
+    button.addEventListener("click", function () { sortBy(th, index); });
+  });
+})();
+</script>
+</body>
+</html>
