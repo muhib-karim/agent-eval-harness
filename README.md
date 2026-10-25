@@ -351,6 +351,16 @@ docs/                  reference.md, sample report, banner and screenshots
 .github/               CI, CodeQL, Pages and release workflows; Dependabot
 ```
 
+## Tech stack
+
+- **Language:** Python
+- **Frameworks and tools:** Pydantic, httpx, pytest, Ruff, mypy, Docker
+- **CI:** GitHub Actions
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow. Before opening a pull request, run `pytest`. Please keep each pull request focused and say how you tested it.
+
 ## Citation
 
 If you use this harness or its results, please cite it using [`CITATION.cff`](CITATION.cff)
