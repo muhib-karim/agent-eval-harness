@@ -10,6 +10,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from agent_eval.isolation import Sandbox
 from agent_eval.process import run_process
 from agent_eval.runners.base import Generation, RunnerError
 from agent_eval.runners.presets import BASE_ENV, PRESETS, PresetName, parse_usage
@@ -89,6 +90,8 @@ class CLIOptions(StrictModel):
 class CLIRunner:
     def __init__(self, options: dict[str, Any]) -> None:
         self.options = CLIOptions.model_validate(options)
+        # Set by the engine for docker isolation; the command then runs in the image.
+        self.sandbox: Sandbox | None = None
 
     async def generate(self, task: TaskSpec, workdir: Path) -> Generation:
         prompt_file = workdir / "_agent_prompt.txt"
@@ -109,11 +112,15 @@ class CLIRunner:
         args = [part.format(**values) for part in template] + literal
         with contextlib.ExitStack() as stack:
             home = None
-            if self.options.isolate_home:
+            # A container's HOME is already a private tmpfs.
+            if self.options.isolate_home and self.sandbox is None:
                 home = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="agent-home-")))
             env = self.options.environment(home)
             try:
-                result = await run_process(args, workdir, self.options.timeout(), env)
+                if self.sandbox is None:
+                    result = await run_process(args, workdir, self.options.timeout(), env)
+                else:
+                    result = await self.sandbox.run(args, workdir, self.options.timeout(), env)
             except OSError as exc:
                 raise RunnerError(f"cannot start agent command: {type(exc).__name__}") from exc
         if result.timed_out:

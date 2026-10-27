@@ -4,6 +4,27 @@ All notable changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Container-per-attempt isolation: `agent-eval run --isolation docker`, or a top-level
+  `isolation:` block in the run config (the flag overrides `isolation.mode`). The `cli` agent
+  command and the hidden-test grading each run in a fresh container with no network (`bridge` is
+  an explicit opt-in), memory (`2g`, no extra swap), CPU (`2`) and PIDs (`256`) limits, a
+  read-only root filesystem, the workdir mounted read-write at `/work`, a `/tmp` tmpfs, all
+  capabilities dropped, `no-new-privileges` and the host uid:gid. Environment variables are passed
+  by name only, and a timed-out attempt's container is killed. Grading uses the image's `python`,
+  which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
+- If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
+  one warning and records it on every attempt.
+
+### Changed
+
+- The results JSONL gains an optional `isolation` field (`requested`, `used`, `warning`). The
+  change is additive: older result files still load, resume and report, and `schema_version`
+  stays `"1.0"`.
+
 ## [1.3.0] - 2026-10-21
 
 ### Added

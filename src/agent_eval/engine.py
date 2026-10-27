@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import shutil
+import sys
 import tempfile
 import time
 from datetime import UTC, datetime
@@ -18,11 +19,12 @@ import yaml
 
 from agent_eval import __version__
 from agent_eval.grader import Grade, grade
+from agent_eval.isolation import IsolationMode, select_isolation
 from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
 from agent_eval.runners import create_runner
 from agent_eval.runners.base import Generation, Runner, RunnerError
-from agent_eval.runners.local import CLIOptions, MockOptions
+from agent_eval.runners.local import CLIOptions, CLIRunner, MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
 
@@ -68,9 +70,16 @@ def recover_attempts(path: Path) -> list[Attempt]:
     return attempts
 
 
-async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> list[Attempt]:
+async def run_config(
+    config_path: Path,
+    out: Path,
+    *,
+    resume: bool = False,
+    isolation: IsolationMode | None = None,
+) -> list[Attempt]:
     """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
-    interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept."""
+    interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept.
+    ``isolation`` overrides the config's ``isolation.mode``."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
@@ -82,6 +91,15 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
             for repeat in range(1, config.repeats + 1):
                 runner = create_runner(model.runner, options, task_path=task_path)
                 jobs.append((model.name, model.runner, task_path, task, repeat, runner))
+    isolation_options = config.isolation
+    if isolation is not None:
+        isolation_options = isolation_options.model_copy(update={"mode": isolation})
+    sandbox, isolation_record = await select_isolation(isolation_options)
+    if isolation_record.warning:
+        print(f"agent-eval: warning: {isolation_record.warning}", file=sys.stderr)
+    for job in jobs:
+        if isinstance(job[5], CLIRunner):
+            job[5].sandbox = sandbox
     secrets = [
         os.environ[value]
         for model in config.models
@@ -103,6 +121,9 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
     out = out.resolve()
     resolved = config.model_dump(mode="json")
     resolved["tasks"] = [str(path) for path, _ in tasks]
+    # Keeps configs without an isolation block, and runs recorded before it existed, resumable.
+    if "isolation" not in config.model_fields_set:
+        del resolved["isolation"]
     config_text = redact(yaml.safe_dump(resolved, sort_keys=False))
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
@@ -176,7 +197,7 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
                             )
                         generated = await runner.generate(task, workdir)
                         generation_end = time.perf_counter()
-                        graded = await grade(task, task_path, workdir)
+                        graded = await grade(task, task_path, workdir, sandbox)
                         grading_time = time.perf_counter() - generation_end
                     except RunnerError as exc:
                         generation_end = time.perf_counter()
@@ -214,6 +235,7 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
                     error=redact(error) if error else None,
                     artifacts=str(artifact_dir.relative_to(out)),
                     category=task.category,
+                    isolation=isolation_record,
                 )
                 stream.write(attempt.model_dump_json() + "\n")
                 stream.flush()
