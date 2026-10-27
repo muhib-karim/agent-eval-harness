@@ -141,16 +141,32 @@ grading is containerised. Every container gets:
 
 Fixed hardening: read-only root filesystem, the attempt workdir bind-mounted read-write at
 `/work`, a 256 MB `/tmp` tmpfs (also `HOME` and `TMPDIR`), `--cap-drop ALL`,
-`no-new-privileges`, your own uid:gid on POSIX, `--rm`, a unique container name and the label
-`agent-eval.attempt=<name>`. Host paths in the command (`{workdir}`, `{prompt_file}`, the test
-paths) are rewritten to `/work`, with `/` separators even on a Windows host. Environment
-variables are passed as `--env NAME`, so values never appear in a process list.
-After a timeout, cancellation or non-zero exit of the docker client, the harness removes the
-container with `docker rm --force`, retrying briefly until `docker container inspect` no longer
-finds it (this also catches a container the daemon started after the client was killed). If it
-cannot, the attempt keeps its outcome, its output ends with
-`[agent-eval: container <name> could not be removed]` and a warning goes to stderr; leftovers
-can be found with `docker ps -a --filter label=agent-eval.attempt`.
+`no-new-privileges`, your own uid:gid on POSIX, a unique container name and two labels:
+`agent-eval.attempt=<name>` and `agent-eval.run=<run id>` (a fresh id per run). Host paths in
+the command (`{workdir}`, `{prompt_file}`, the test paths) are rewritten to `/work`, with `/`
+separators even on a Windows host. Environment variables are passed as `--env NAME`, so values
+never appear in a process list.
+
+**Container lifecycle.** Each command runs in two steps under the attempt's timeout: `docker
+create` (all the settings above; a pull of a missing image counts against the timeout) must
+finish before `docker start --attach` runs the command. Once `start` has run, the container is
+known to exist, so whatever happens next (clean exit, failure, timeout, cancellation) it is
+removed with `docker rm --force` before the attempt's workdir is released; this cleanup is not
+cancellable. A failed removal is retried a few times within a short budget; if it still fails,
+the attempt keeps its outcome, its output ends with
+`[agent-eval: container <name> could not be removed]` and a warning goes to stderr.
+
+A `create` interrupted mid-flight (timeout or Ctrl-C) may still produce a container once the
+daemon finishes it. At the end of every run with docker isolation, also after an error or
+Ctrl-C, the harness sweeps: it lists `docker ps -aq --filter label=agent-eval.run=<run id>` and
+force-removes what it finds, with a warning on stderr giving the count found and any that could
+not be removed. Residual risk: if the daemon is extremely slow and completes a `create` after
+the sweep, that container is left over; it stays findable by its labels:
+
+```sh
+docker ps -a --filter label=agent-eval.run          # all runs; or label=agent-eval.run=<run id>
+docker rm --force $(docker ps -aq --filter label=agent-eval.run)
+```
 
 ```yaml
 isolation:
@@ -231,7 +247,7 @@ flowchart LR
 | `engine.py` | Builds jobs, runs them under a semaphore in an `asyncio.TaskGroup`, places starters, writes artifacts and hashes, redacts keys, resumes |
 | `runners/` | `Runner` protocol and registry; HTTP adapters on raw `httpx`; CLI runner and agent presets; offline mock |
 | `grader.py` | Copies tests in after generation, runs pytest in an isolated interpreter, maps JUnit XML to an outcome |
-| `isolation.py` | `isolation:` options, the per-attempt `docker run` argv, the docker probe and local fallback |
+| `isolation.py` | `isolation:` options, the per-attempt `docker create`/`start` lifecycle, the end-of-run sweep, the docker probe and local fallback |
 | `process.py` | Subprocess runner with timeout, output cap and process-group kill |
 | `results.py` | JSONL schema, loading, pass@k, per-model and per-category summaries, paired comparisons |
 | `stats.py` | Seeded task-level percentile bootstrap and paired bootstrap of differences |

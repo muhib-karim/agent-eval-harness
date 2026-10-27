@@ -28,7 +28,7 @@ concurrency: 2
 | `tasks` | Nonempty list of task YAML globs, resolved relative to the config file. `**` is supported. Every glob must match; duplicate matches are merged; task ids must be unique. |
 | `repeats` | Attempts per model × task. Default 1. |
 | `concurrency` | Maximum simultaneous attempts (generation plus grading). Default 1. |
-| `isolation` | Optional. `mode` (`local` or `docker`, default `local`; `run --isolation` overrides it), `image` (`python:3.12-slim`), `network` (`none` or `bridge`, default `none`), `memory` (`2g`), `cpus` (2), `pids_limit` (256), `docker` (client binary, `docker`). See [Isolation](../README.md#isolation). |
+| `isolation` | Optional. `mode` (`local` or `docker`, default `local`; `run --isolation` overrides it), `image` (`python:3.12-slim`), `network` (`none` or `bridge`, default `none`), `memory` (`2g`, must be > 0), `cpus` (2), `pids_limit` (256), `docker` (client binary, `docker`). See [Isolation](../README.md#isolation). |
 
 Unknown fields in the config and in built-in runner options are rejected.
 

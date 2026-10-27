@@ -1,4 +1,4 @@
-"""Container-per-attempt isolation: ``docker run`` argv, availability probe and fallback."""
+"""Container-per-attempt isolation: ``docker create`` argv, availability probe and fallback."""
 
 from __future__ import annotations
 
@@ -8,11 +8,12 @@ import os
 import re
 import sys
 import uuid
+from collections.abc import Coroutine
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePath
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agent_eval.process import ProcessResult, run_process
 
@@ -21,11 +22,13 @@ IsolationMode = Literal["local", "docker"]
 CONTAINER_WORKDIR = "/work"
 TMPFS = "/tmp:rw,nosuid,nodev,size=256m"
 PROBE_TIMEOUT_S = 10.0
-# Removing a container after a non-clean end: a few rounds of ``rm --force`` + ``inspect``.
+# Removing a container: ``rm --force``, retried a few times within a time budget.
 CLEANUP_ROUNDS = 5
 CLEANUP_DELAY_S = 0.5
 CLEANUP_BUDGET_S = 20.0
 LABEL = "agent-eval.attempt"
+# Every container of one run, so the end-of-run sweep finds those an attempt could not remove.
+RUN_LABEL = "agent-eval.run"
 # The docker client needs these to find its binary and daemon; they are not sent to containers.
 CLIENT_ENV = (
     "PATH",
@@ -48,6 +51,8 @@ HOST_ONLY_ENV = {
 }
 CONTAINER_ENV = {"HOME": "/tmp", "TMPDIR": "/tmp"}
 
+T = TypeVar("T")
+
 
 class _StrictModel(BaseModel):
     # specs.StrictModel, repeated because specs imports this module for the run config.
@@ -63,6 +68,14 @@ class IsolationOptions(_StrictModel):
     cpus: Annotated[float, Field(gt=0, allow_inf_nan=False)] = 2.0
     pids_limit: int = Field(default=256, ge=1, strict=True)
     docker: str = Field(default="docker", min_length=1)
+
+    @field_validator("memory")
+    @classmethod
+    def _memory_positive(cls, value: str) -> str:
+        # docker reads 0 as "no limit".
+        if float(value.rstrip("bkmgBKMG")) == 0:
+            raise ValueError("memory must be greater than zero")
+        return value
 
 
 class IsolationRecord(_StrictModel):
@@ -92,7 +105,15 @@ def container_path(value: str, workdir: PurePath) -> str:
         # The container is Linux: the remainder of a Windows host path needs forward slashes.
         return CONTAINER_WORKDIR + (rest.replace("\\", "/") if "\\" in match["root"] else rest)
 
-    # Only whole path components: /tmp/w must not match inside /tmp/w2.
+    # A whole argument, or an --option=value, that is a path under the workdir: everything
+    # after the root is the path, spaces and punctuation in folder names included.
+    whole = re.fullmatch(
+        f"(?P<option>-[^=\\s]*=)?(?P<root>{pattern})(?P<rest>[/\\\\].*|)", value, re.S
+    )
+    if whole:
+        return (whole["option"] or "") + rewrite(whole)
+    # Embedded in a longer string, the path ends at whitespace, a quote or punctuation. Only
+    # whole path components: /tmp/w must not match inside /tmp/w2.
     return re.sub(
         f"(?P<root>{pattern})(?P<rest>[/\\\\][^\\s\"'=:;,)]*|)(?=[\\s\"'=:;,)]|$)",
         rewrite,
@@ -106,22 +127,24 @@ def docker_command(
     workdir: Path,
     *,
     name: str,
+    run_id: str,
     env_names: list[str],
     user: str | None = None,
 ) -> list[str]:
-    """``docker run`` argv for one attempt. Environment values are never in the argv: each
+    """``docker create`` argv for one attempt. Environment values are never in the argv: each
     ``--env NAME`` makes the docker client copy the value from its own environment."""
     source = str(workdir.resolve())
     if "," in source or '"' in source:
         raise ValueError(f"workdir path cannot be bind-mounted: {source}")
     argv = [
         options.docker,
-        "run",
-        "--rm",
+        "create",
         "--name",
         name,
         "--label",
         f"{LABEL}={name}",
+        "--label",
+        f"{RUN_LABEL}={run_id}",
         "--network",
         options.network,
         "--memory",
@@ -165,63 +188,114 @@ def client_environment() -> dict[str, str]:
     return env
 
 
+async def uncancellable(coro: Coroutine[Any, Any, T]) -> T:
+    """Run ``coro`` to completion even if the caller is cancelled meanwhile, any number of
+    times; the cancellation is re-raised once it has finished."""
+    task = asyncio.ensure_future(coro)
+    cancelled: asyncio.CancelledError | None = None
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError as exc:
+            cancelled = exc
+    if cancelled is not None:
+        raise cancelled
+    return task.result()
+
+
 @dataclass(frozen=True)
 class Sandbox:
-    """Runs each command in a fresh container with the workdir mounted at /work."""
+    """Runs each command in a fresh container with the workdir mounted at /work. Every
+    container is labelled with ``run_id``, so ``sweep`` can find what attempts left behind."""
 
     options: IsolationOptions
+    run_id: str
 
     async def run(
         self, command: list[str], workdir: Path, timeout_s: float, env: dict[str, str]
     ) -> ProcessResult:
-        """Like ``run_process``. After any end other than a clean exit the container is
-        removed as well; if that fails the output says so, the outcome is kept."""
+        """Like ``run_process``. ``docker create`` must finish before ``docker start --attach``
+        runs the command, so once it has started the container is known to exist and is
+        always removed before this returns or raises. If removal fails the output says so,
+        the outcome is kept. A ``create`` interrupted in flight is left to ``sweep``."""
         inner = {k: v for k, v in env.items() if k not in HOST_ONLY_ENV} | CONTAINER_ENV
         client = client_environment()
         env_names = [name for name in inner if name not in client]
         name = f"agent-eval-{uuid.uuid4().hex}"
         argv = docker_command(
-            self.options, command, workdir, name=name, env_names=env_names, user=host_user()
+            self.options,
+            command,
+            workdir,
+            name=name,
+            run_id=self.run_id,
+            env_names=env_names,
+            user=host_user(),
         )
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_s
+        # Creating may pull the image, which counts against the timeout.
+        created = await run_process(argv, workdir, timeout_s, inner | client)
+        if created.timed_out or created.returncode != 0:
+            return created
+        start = [self.options.docker, "start", "--attach", name]
         try:
-            result = await run_process(argv, workdir, timeout_s, inner | client)
-        except (asyncio.CancelledError, OSError):
-            # The client may die before the daemon has created or started the container.
-            await self.remove(name, workdir, settle=True)
+            result = await run_process(start, workdir, max(deadline - loop.time(), 0), client)
+        except BaseException:
+            await uncancellable(self.remove(name, workdir))
             raise
-        # A client that exited on its own saw the container end, so there is no startup race.
-        unclean = result.timed_out or result.returncode != 0
-        if unclean and not await self.remove(name, workdir, settle=result.timed_out):
+        if not await uncancellable(self.remove(name, workdir)):
             note = f"\n[agent-eval: container {name} could not be removed]\n"
             result = replace(result, output=result.output + note)
         return result
 
-    async def remove(self, name: str, cwd: Path, *, settle: bool) -> bool:
-        """``docker rm --force`` (which also kills) until ``inspect`` finds no container.
+    async def remove(self, name: str, cwd: Path) -> bool:
+        """``docker rm --force`` (which also kills) a container known to have been created.
 
-        With ``settle``, the container must be absent in two rounds a delay apart, so one
-        the daemon creates after the first check is still removed. False, after logging to
-        stderr, if it may still exist when the rounds or the time budget run out."""
+        Done once docker removes it or no longer knows it; other failures are retried within
+        the rounds and time budget. False, after logging to stderr, if it may still exist."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + CLEANUP_BUDGET_S
-        needed = 2 if settle else 1
-        absent = 0
         for round_ in range(CLEANUP_ROUNDS):
             remaining = deadline - loop.time()
             if remaining <= 0:
                 break
             if round_:
                 await asyncio.sleep(min(CLEANUP_DELAY_S, remaining))
-            if await self._docker(["rm", "--force", name], cwd, deadline) is None:
-                absent = 0
-                continue
-            inspected = await self._docker(["container", "inspect", name], cwd, deadline)
-            gone = inspected is not None and "no such" in inspected.output.lower()
-            absent = absent + 1 if gone else 0
-            if absent >= needed:
+            result = await self._docker(["rm", "--force", name], cwd, deadline)
+            if result is not None and (
+                result.returncode == 0 or "no such container" in result.output.lower()
+            ):
                 return True
         print(f"agent-eval: warning: container {name} could not be removed", file=sys.stderr)
         return False
+
+    async def sweep(self) -> int:
+        """Remove every container of this run that still exists, such as one whose ``create``
+        was interrupted while the daemon carried on. Not cancellable. Warns on stderr if it
+        found any or could not list or remove them; returns how many it could not remove."""
+        return await uncancellable(self._sweep())
+
+    async def _sweep(self) -> int:
+        label = f"{RUN_LABEL}={self.run_id}"
+        hint = f"find them with: docker ps -a --filter label={label}"
+        cwd = Path.cwd()
+        deadline = asyncio.get_running_loop().time() + CLEANUP_BUDGET_S
+        listed = await self._docker(["ps", "-aq", "--filter", f"label={label}"], cwd, deadline)
+        if listed is None or listed.returncode != 0:
+            print(
+                f"agent-eval: warning: could not list the containers left by this run; {hint}",
+                file=sys.stderr,
+            )
+            return 0
+        found = listed.output.split()
+        if not found:
+            return 0
+        removed = await asyncio.gather(*(self.remove(name, cwd) for name in found))
+        failed = removed.count(False)
+        message = f"agent-eval: warning: {len(found)} container(s) of this run were left over"
+        message += f"; {failed} could not be removed, {hint}" if failed else " and were removed"
+        print(message, file=sys.stderr)
+        return failed
 
     async def _docker(self, args: list[str], cwd: Path, deadline: float) -> ProcessResult | None:
         """One docker client call within the cleanup budget; None if it could not run."""
@@ -251,12 +325,15 @@ async def probe_docker(options: IsolationOptions) -> str | None:
     return None
 
 
-async def select_isolation(options: IsolationOptions) -> tuple[Sandbox | None, IsolationRecord]:
-    """The sandbox to use, or None for the local runner, plus the record for each attempt."""
+async def select_isolation(
+    options: IsolationOptions, run_id: str
+) -> tuple[Sandbox | None, IsolationRecord]:
+    """The sandbox to use, or None for the local runner, plus the record for each attempt.
+    ``run_id`` labels the run's containers; it must be unique per run."""
     if options.mode == "local":
         return None, IsolationRecord(requested="local", used="local")
     reason = await probe_docker(options)
     if reason is None:
-        return Sandbox(options), IsolationRecord(requested="docker", used="docker")
+        return Sandbox(options, run_id), IsolationRecord(requested="docker", used="docker")
     warning = f"docker isolation unavailable ({reason}); attempts ran with the local runner"
     return None, IsolationRecord(requested="docker", used="local", warning=warning)
