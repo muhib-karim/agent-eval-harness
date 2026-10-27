@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 import time
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -108,7 +109,8 @@ async def run_config(
     isolation_options = config.isolation
     if isolation is not None:
         isolation_options = isolation_options.model_copy(update={"mode": isolation})
-    sandbox, isolation_record = await select_isolation(isolation_options)
+    # Labels this run's containers, so the sweep at the end finds any that were left over.
+    sandbox, isolation_record = await select_isolation(isolation_options, uuid.uuid4().hex)
     if isolation_record.warning:
         print(f"agent-eval: warning: {isolation_record.warning}", file=sys.stderr)
     for job in jobs:
@@ -283,10 +285,15 @@ async def run_config(
                 attempts.append(attempt)
 
         # Structured concurrency ensures cleanup completes before the result stream closes.
-        async with asyncio.TaskGroup() as group:
-            for index, job in enumerate(jobs, 1):
-                if (redact(job[0]), job[3].id, job[4]) not in recorded:
-                    group.create_task(execute(index, job))
+        try:
+            async with asyncio.TaskGroup() as group:
+                for index, job in enumerate(jobs, 1):
+                    if (redact(job[0]), job[3].id, job[4]) not in recorded:
+                        group.create_task(execute(index, job))
+        finally:
+            # Also after an error or Ctrl-C: a container whose create was interrupted.
+            if sandbox is not None:
+                await sandbox.sweep()
     attempts.sort(key=lambda row: row.attempt_id)
     summary = summarize(attempts)
     (out / "summary.json").write_text(render_report(summary, "json"), encoding="utf-8")

@@ -14,10 +14,15 @@ All notable changes are recorded here. The format follows
   an explicit opt-in), memory (`2g`, no extra swap), CPU (`2`) and PIDs (`256`) limits, a
   read-only root filesystem, the workdir mounted read-write at `/work`, a `/tmp` tmpfs, all
   capabilities dropped, `no-new-privileges` and the host uid:gid. Environment variables are passed
-  by name only. Containers carry an `agent-eval.attempt=<name>` label, and after a timeout,
-  cancellation or failed client exit the container is removed with `docker rm --force`, retried
-  until `docker container inspect` no longer finds it; a container that cannot be removed is
-  noted in the attempt's output and on stderr. Grading uses the image's `python`,
+  by name only. Each command runs as `docker create` followed, once that has finished, by
+  `docker start --attach`; the container is then always removed with `docker rm --force`, in a
+  cleanup that cancellation cannot interrupt and that is retried briefly on failure. Containers
+  carry `agent-eval.attempt=<name>` and per-run `agent-eval.run=<run id>` labels; at the end of
+  every run with docker isolation (also after an error or Ctrl-C) the harness removes any container still
+  labelled with the run's id, such as one whose interrupted `create` the daemon completed, and
+  warns with the count. A container that cannot be removed is
+  noted in the attempt's output and on stderr; one the daemon creates after the sweep can be found
+  with `docker ps -a --filter label=agent-eval.run`. Grading uses the image's `python`,
   which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
 - If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
   one warning and records it on every attempt.
@@ -29,6 +34,7 @@ All notable changes are recorded here. The format follows
   runners. Configure with a top-level `retry:` block, a per-model `retry` runner option, or
   `agent-eval run --max-retries N`. `timeout_s` bounds the whole generation, including every
   retry and backoff wait.
+- Isolation `memory` must be greater than zero; `0` (docker's "no limit") is rejected.
 
 ### Changed
 
