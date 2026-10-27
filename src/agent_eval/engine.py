@@ -22,8 +22,10 @@ from agent_eval.grader import Grade, grade
 from agent_eval.isolation import IsolationMode, select_isolation
 from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
+from agent_eval.retry import resolve_policy
 from agent_eval.runners import create_runner
 from agent_eval.runners.base import Generation, Runner, RunnerError
+from agent_eval.runners.http import HTTPRunner
 from agent_eval.runners.local import CLIOptions, CLIRunner, MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
@@ -76,20 +78,28 @@ async def run_config(
     *,
     resume: bool = False,
     isolation: IsolationMode | None = None,
+    max_retries: int | None = None,
 ) -> list[Attempt]:
     """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
     interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept.
-    ``isolation`` overrides the config's ``isolation.mode``."""
+    ``isolation`` overrides the config's ``isolation.mode`` and ``max_retries`` every HTTP
+    model's ``retry.max_retries``."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
     # Validate every runner before creating a run directory or starting any generation.
     jobs: list[tuple[str, str, Path, TaskSpec, int, Runner]] = []
+    retry = resolve_policy(config.retry, max_retries=max_retries)
     for model in config.models:
         options = _resolve_options(model.runner, model.options, config_path.parent)
         for task_path, task in tasks:
             for repeat in range(1, config.repeats + 1):
                 runner = create_runner(model.runner, options, task_path=task_path)
+                # CLI agents may already have changed the workdir, so only HTTP calls are retried.
+                if isinstance(runner, HTTPRunner):
+                    runner.retry_policy = resolve_policy(
+                        retry, runner.options.retry, max_retries=max_retries
+                    )
                 jobs.append((model.name, model.runner, task_path, task, repeat, runner))
     isolation_options = config.isolation
     if isolation is not None:
@@ -124,6 +134,8 @@ async def run_config(
     # Keeps configs without an isolation block, and runs recorded before it existed, resumable.
     if "isolation" not in config.model_fields_set:
         del resolved["isolation"]
+    if "retry" not in config.model_fields_set:
+        del resolved["retry"]
     config_text = redact(yaml.safe_dump(resolved, sort_keys=False))
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
@@ -236,6 +248,8 @@ async def run_config(
                     artifacts=str(artifact_dir.relative_to(out)),
                     category=task.category,
                     isolation=isolation_record,
+                    retries=len(generated.retry_reasons),
+                    retry_reasons=list(generated.retry_reasons),
                 )
                 stream.write(attempt.model_dump_json() + "\n")
                 stream.flush()

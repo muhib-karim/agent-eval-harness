@@ -15,6 +15,10 @@ from agent_eval.specs import load_task
 BASE = str(httpx.URL(scheme="https", host="endpoint.invalid", path="/v1"))
 
 
+async def no_sleep(delay: float) -> None:
+    return None
+
+
 @pytest.mark.parametrize(
     "reply,expected",
     [
@@ -136,6 +140,7 @@ def test_http_error_and_unknown_usage(
     runner = HTTPRunner(
         {"model": "test", "base_url_env": "TEST_BASE", "api_key_env": "TEST_KEY"},
         transport=httpx.MockTransport(handler),
+        sleep=no_sleep,
     )
     if mode == "missing_usage":
         result = asyncio.run(runner.generate(load_task(task_path), workdir))
@@ -147,6 +152,9 @@ def test_http_error_and_unknown_usage(
         assert caught.value.timed_out == (mode == "timeout")
         if mode == "status":
             assert str(caught.value) == "API request failed with HTTP 429"
+            assert caught.value.retry_reasons == ("http_429",) * 3
+        if mode == "timeout":
+            assert caught.value.retry_reasons == ("ReadTimeout",) * 3
 
 
 def test_http_transport_error_names_the_failure(
@@ -161,10 +169,12 @@ def test_http_transport_error_names_the_failure(
     runner = HTTPRunner(
         {"model": "test", "base_url_env": "TEST_BASE", "api_key_env": "TEST_KEY"},
         transport=httpx.MockTransport(handler),
+        sleep=no_sleep,
     )
     with pytest.raises(RunnerError) as caught:
         asyncio.run(runner.generate(load_task(task_path), workdir))
     assert str(caught.value) == "API request failed: ConnectError"
+    assert caught.value.retry_reasons == ("ConnectError",) * 3
 
 
 def test_cli_writes_files_without_hidden_tests(task_path: Path, workdir: Path) -> None:

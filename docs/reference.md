@@ -29,6 +29,7 @@ concurrency: 2
 | `repeats` | Attempts per model × task. Default 1. |
 | `concurrency` | Maximum simultaneous attempts (generation plus grading). Default 1. |
 | `isolation` | Optional. `mode` (`local` or `docker`, default `local`; `run --isolation` overrides it), `image` (`python:3.12-slim`), `network` (`none` or `bridge`, default `none`), `memory` (`2g`), `cpus` (2), `pids_limit` (256), `docker` (client binary, `docker`). See [Isolation](../README.md#isolation). |
+| `retry` | Optional; HTTP runners only. `max_retries` (3, 0 to 10; `run --max-retries` overrides it), `base_delay_s` (1.0), `multiplier` (2.0), `max_delay_s` (30.0, the cap on every wait), `jitter` (`full` or `none`, default `full`). See [Retries](../README.md#retries). |
 
 Unknown fields in the config and in built-in runner options are rejected.
 
@@ -36,7 +37,7 @@ Unknown fields in the config and in built-in runner options are rejected.
 
 | Runner | Options |
 | --- | --- |
-| `openai` | Chat Completions-compatible endpoint. Required `model`, `base_url_env`, `api_key_env`; optional `max_tokens` (4096), `token_param` (`max_tokens` or `max_completion_tokens`; default `max_tokens`), `timeout_s` (120), `temperature` (omitted unless set). |
+| `openai` | Chat Completions-compatible endpoint. Required `model`, `base_url_env`, `api_key_env`; optional `max_tokens` (4096), `token_param` (`max_tokens` or `max_completion_tokens`; default `max_tokens`), `timeout_s` (120), `temperature` (omitted unless set), `retry` (fields override the run config's `retry` for this model). |
 | `anthropic` | Messages API endpoint, version header `2023-06-01`. Same options. |
 | `cli` | Either `preset` (`claude-code`, `codex`, `opencode`) or `command` (argv list or shell-like string). Optional `timeout_s` (120, or 600 for presets), `env_passthrough`, `isolate_home`; presets also take `executable`, `model`, `extra_args`. |
 | `mock` | `variant`: `reference` (default) or `wrong`; optional `fixtures`: task id → task-relative Python file; optional `reference_dir`: directory of `<task_id>.py` solutions, relative to the config. |
@@ -54,6 +55,11 @@ fences first, then unlabelled fences, and tolerates a missing closing fence.
 Token counts come from the response's `usage` object. Cost is recorded only if the response
 includes `usage.cost_usd`; there is no pricing table. On HTTP errors the recorded error is the
 status code only. Response bodies, headers and URLs are not saved.
+
+Transient failures (HTTP 408, 409, 425, 429, 500, 502, 503, 504, 529 and connection errors) are
+retried with backoff; each retry's reason, such as `http_429` or `ConnectError`, is recorded on
+the attempt. `timeout_s` applies to each request and is not retried. See
+[Retries](../README.md#retries).
 
 See [`examples/real-models.yaml`](../examples/real-models.yaml) for a two-endpoint config.
 
@@ -200,7 +206,9 @@ Each JSONL line has: `attempt_id`, `model`, `runner`, `task_id`, `repeat`, `outc
 (path relative to the run directory), plus the optional `category` (added in 1.3.0; older files
 without it load as `uncategorized`, and `schema_version` stays `"1.0"`) and the optional
 `isolation` object `{requested, used, warning}` (added after 1.3.0; `warning` is set when docker
-was requested but unavailable; older files without it still load and resume). Lines are appended and flushed as attempts complete, so
+was requested but unavailable; older files without it still load and resume), and `retries`
+plus `retry_reasons` (added after 1.3.0; the transient provider errors retried for the attempt,
+whether it then succeeded or not; older files load with `0` and `[]`). Lines are appended and flushed as attempts complete, so
 the file is in completion order. Attempt ids follow scheduling order and are deterministic for a
 given config.
 

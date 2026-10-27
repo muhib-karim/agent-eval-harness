@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 import textwrap
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -17,6 +18,8 @@ class Generation:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    # One short reason per transient provider error that was retried, e.g. "http_429".
+    retry_reasons: tuple[str, ...] = ()
 
 
 class RunnerError(Exception):
@@ -29,11 +32,20 @@ class RunnerError(Exception):
         raw_output: str = "",
         timed_out: bool = False,
         generation: Generation | None = None,
+        retry_reasons: Sequence[str] = (),
     ) -> None:
         super().__init__(message)
-        self.generation = generation or Generation(raw_output)
+        generation = generation or Generation(raw_output)
+        if retry_reasons:
+            generation = replace(generation, retry_reasons=tuple(retry_reasons))
+        self.generation = generation
         self.raw_output = self.generation.raw_output
         self.timed_out = timed_out
+
+    @property
+    def retry_reasons(self) -> tuple[str, ...]:
+        """Retries made before the failure; recorded even though the attempt failed."""
+        return self.generation.retry_reasons
 
 
 class Runner(Protocol):
