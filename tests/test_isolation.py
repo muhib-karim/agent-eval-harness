@@ -758,7 +758,8 @@ def test_a_create_completing_after_the_sweep_leaves_a_container_never_started(
     (state_dir(log) / "_hold_create").unlink()
     wait_for_pending_creates(log)
     (name,) = containers(log)
-    assert docker_ps(docker) == [name]
+    listed = docker_ps(docker)
+    assert listed == [name]
     assert commands(log) == ["create", "ps", "ps"]
     assert all(call[0] != "start" for call in calls(log))
 
