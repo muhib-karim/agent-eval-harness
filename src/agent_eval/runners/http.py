@@ -7,6 +7,7 @@ import math
 import os
 import random
 import re
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Literal
@@ -59,6 +60,7 @@ class HTTPRunner:
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[object]] = asyncio.sleep,
         rng: random.Random | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.options = HTTPOptions.model_validate(options)
         self.anthropic = anthropic
@@ -67,6 +69,7 @@ class HTTPRunner:
         self.retry_policy = self.options.retry or RetryPolicy()
         self.sleep = sleep
         self.rng = rng or random.Random()
+        self.clock = clock
 
     async def generate(self, task: TaskSpec, workdir: Path) -> Generation:
         opts = self.options
@@ -89,14 +92,19 @@ class HTTPRunner:
         if opts.temperature is not None:
             payload["temperature"] = opts.temperature
         url = base_url.rstrip("/") + "/" + ("messages" if self.anthropic else "chat/completions")
+        # One budget for the whole generation: every request and every wait between them.
+        deadline = self.clock() + opts.timeout_s
         try:
             async with httpx.AsyncClient(
                 timeout=opts.timeout_s, transport=self.transport, follow_redirects=False
             ) as client:
 
                 async def post() -> httpx.Response:
-                    # The deadline covers one request; the backoff waits between them do not count.
-                    async with asyncio.timeout(opts.timeout_s):
+                    # Never more than timeout_s, since the deadline is timeout_s from the start.
+                    remaining = deadline - self.clock()
+                    if remaining <= 0:
+                        raise TimeoutError("deadline reached")
+                    async with asyncio.timeout(remaining):
                         response = await client.post(url, headers=headers, json=payload)
                     response.raise_for_status()
                     return response
@@ -107,9 +115,17 @@ class HTTPRunner:
                     classify=classify_http_error,
                     sleep=self.sleep,
                     rng=self.rng,
+                    deadline=deadline,
+                    clock=self.clock,
                 )
         except RetryError as failure:
             error = _request_error(failure.error, failure.reasons)
+            if error is None and failure.reasons:
+                # Unexpected, but after retries that the attempt's row must still show.
+                error = RunnerError(
+                    f"attempt failed: {type(failure.error).__name__}",
+                    retry_reasons=failure.reasons,
+                )
             if error is None:
                 raise failure.error from None
             raise error from failure.error
@@ -158,7 +174,7 @@ def classify_http_error(exc: Exception) -> Transient | None:
         )
     if isinstance(exc, TRANSIENT_TRANSPORT):
         return Transient(type(exc).__name__)
-    # Includes the per-request deadline (TimeoutError): a slow model will not get faster.
+    # Includes the generation deadline (TimeoutError): a slow model will not get faster.
     return None
 
 

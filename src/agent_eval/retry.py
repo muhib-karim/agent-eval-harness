@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal, TypeVar
@@ -77,9 +78,13 @@ async def with_retries(
     classify: Callable[[Exception], Transient | None],
     sleep: Callable[[float], Awaitable[object]] = asyncio.sleep,
     rng: random.Random | None = None,
+    deadline: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> tuple[_T, list[str]]:
     """Return ``call()``'s result and the reasons of the retries it took. Any failure that is
-    not transient, or that remains after ``max_retries``, is raised as a RetryError."""
+    not transient, or that remains after ``max_retries``, is raised as a RetryError. A wait
+    that would reach ``deadline`` (on ``clock``) is not taken: the call fails with a
+    TimeoutError instead, keeping the reasons of the retries already made."""
     rng = rng or random.Random()
     reasons: list[str] = []
     while True:
@@ -92,5 +97,7 @@ async def with_retries(
             delay = delay_for(len(reasons), policy, rng)
             if transient.retry_after_s is not None:
                 delay = min(policy.max_delay_s, transient.retry_after_s)
+            if deadline is not None and clock() + delay >= deadline:
+                raise RetryError(TimeoutError("deadline reached"), reasons) from exc
             reasons.append(transient.reason)
             await sleep(delay)

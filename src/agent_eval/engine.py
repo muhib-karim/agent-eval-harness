@@ -48,6 +48,10 @@ def _resolve_options(runner: str, options: dict[str, Any], base: Path) -> dict[s
     return options
 
 
+def _override_text(max_retries: int | None) -> str:
+    return "not set" if max_retries is None else str(max_retries)
+
+
 def recover_attempts(path: Path) -> list[Attempt]:
     """Recorded attempts of an interrupted run; drops only a half-written final line."""
     data = path.read_bytes()
@@ -138,6 +142,10 @@ async def run_config(
         del resolved["isolation"]
     if "retry" not in config.model_fields_set:
         del resolved["retry"]
+    # --max-retries, which a resume must repeat. Absent, as in runs from before it was
+    # recorded, means the run had no override.
+    if max_retries is not None:
+        resolved["max_retries_override"] = max_retries
     config_text = redact(yaml.safe_dump(resolved, sort_keys=False))
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
@@ -171,13 +179,21 @@ async def run_config(
         if not (out / "results.jsonl").is_file():
             raise ValueError(f"cannot resume: no results.jsonl in {out}")
         previous_text = (out / "config.resolved.yaml").read_text(encoding="utf-8")
+        previous_config = yaml.safe_load(previous_text)
         # Runs recorded without an isolation entry ran locally.
-        recorded_isolation = yaml.safe_load(previous_text).get("isolation") or {}
+        recorded_isolation = previous_config.get("isolation") or {}
         previous_mode = recorded_isolation.get("mode", "local")
         if previous_mode != isolation_options.mode:
             raise ValueError(
                 "cannot resume: the config differs from the interrupted run "
                 f"(isolation {previous_mode}, now {isolation_options.mode})"
+            )
+        previous_override = previous_config.get("max_retries_override")
+        if previous_override != max_retries:
+            raise ValueError(
+                "cannot resume: the config differs from the interrupted run "
+                f"(--max-retries {_override_text(previous_override)}, "
+                f"now {_override_text(max_retries)})"
             )
         if previous_text != config_text:
             raise ValueError("cannot resume: the config differs from the interrupted run")

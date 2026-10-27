@@ -27,7 +27,8 @@ All notable changes are recorded here. The format follows
   seconds is honoured up to the cap. Other 4xx, invalid responses and the `timeout_s` deadline
   are not retried, and neither are the `cli` (an agent may have changed the workdir) and `mock`
   runners. Configure with a top-level `retry:` block, a per-model `retry` runner option, or
-  `agent-eval run --max-retries N`.
+  `agent-eval run --max-retries N`. `timeout_s` bounds the whole generation, including every
+  retry and backoff wait.
 
 ### Changed
 
@@ -40,6 +41,8 @@ All notable changes are recorded here. The format follows
 - `config.resolved.yaml` records the effective isolation mode, including an `--isolation`
   override, and `--resume` refuses a run whose mode differs (a run without the entry counts as
   `local`).
+- `config.resolved.yaml` records a `--max-retries` override as `max_retries_override`, and
+  `--resume` refuses a run whose override differs (a run without the entry had none).
 
 ## [1.3.0] - 2026-10-21
 

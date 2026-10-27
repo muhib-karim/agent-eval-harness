@@ -190,8 +190,11 @@ retries is visible as such rather than hidden.
   connections (`ConnectError`, `ReadError`, `RemoteProtocolError`, `ConnectTimeout`,
   `ReadTimeout`, `PoolTimeout`).
 - **Not retried:** other 4xx responses (400, 401, 403, 404, 422, ...), invalid responses, missing
-  environment variables, replies without usable code, and the `timeout_s` deadline. `timeout_s`
-  applies to each request; the waits between retries do not count against it.
+  environment variables, replies without usable code, and the `timeout_s` deadline.
+- **`timeout_s` is the whole attempt's budget, retries included.** Every request and every wait
+  between them must fit in it: a request gets only the time that is left, and a wait that would
+  reach the deadline is not taken. The attempt then ends as `timeout`, and the retries made so
+  far are still recorded.
 - **Not retried at all:** the `cli` and `mock` runners. An agent CLI may already have edited the
   workdir or run commands when it fails, so running it again would not be a clean repeat.
 
@@ -220,7 +223,8 @@ models:
 ```
 
 `agent-eval run --max-retries N` overrides `max_retries` for every HTTP model. The precedence is
-flag, then the model's `retry`, then the top-level `retry`, then the defaults.
+flag, then the model's `retry`, then the top-level `retry`, then the defaults. The flag is
+recorded in `config.resolved.yaml` (`max_retries_override`), so `--resume` must repeat it.
 
 **Schema change.** `results.jsonl` lines gain `retries` (count) and `retry_reasons` (one short
 reason per retry, e.g. `["http_429", "http_503"]`; never a response body, URL, header or key).
