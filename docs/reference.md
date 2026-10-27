@@ -58,7 +58,9 @@ status code only. Response bodies, headers and URLs are not saved.
 
 Transient failures (HTTP 408, 409, 425, 429, 500, 502, 503, 504, 529 and connection errors) are
 retried with backoff; each retry's reason, such as `http_429` or `ConnectError`, is recorded on
-the attempt. `timeout_s` applies to each request and is not retried. See
+the attempt. `timeout_s` is one deadline for the whole generation: it covers every request and
+every backoff wait between them. Each request gets only the time left, a wait that would reach
+the deadline is not taken, and a timed-out generation is not retried. See
 [Retries](../README.md#retries).
 
 See [`examples/real-models.yaml`](../examples/real-models.yaml) for a two-endpoint config.

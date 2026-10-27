@@ -1,8 +1,8 @@
 import asyncio
+import contextlib
 import json
 import random
-import time
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
 from pathlib import Path
 from typing import Any
 
@@ -461,6 +461,95 @@ def test_http_runner_keeps_reasons_when_an_unexpected_error_follows_retries(
     assert "secret" not in (out / "results.jsonl").read_text()
 
 
+def reply_after_503(monkeypatch: pytest.MonkeyPatch, sleeps: Sleeps, reply: dict[str, Any]) -> None:
+    """Register an openai runner that gets one 503, then a 200 with ``reply``."""
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503) if calls == 1 else httpx.Response(200, json=reply)
+
+    def factory(options: dict[str, Any], *, task_path: Path) -> Runner:
+        return HTTPRunner(options, transport=httpx.MockTransport(handler), sleep=sleeps)
+
+    monkeypatch.setitem(runners._REGISTRY, "openai", factory)
+
+
+def test_an_unrepresentable_cost_after_a_retry_is_an_invalid_response(
+    http_config: tuple[Path, list[int], Sleeps, list[int]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path, statuses, sleeps, requests = http_config
+    reply_after_503(monkeypatch, sleeps, {**REPLY, "usage": {"cost_usd": 10**400}})
+    out = tmp_path / "run"
+    [attempt] = asyncio.run(run_config(path, out))
+    assert attempt.outcome == "error" and attempt.error == "API returned an invalid response"
+    assert attempt.retries == 1 and attempt.retry_reasons == ["http_503"]
+    row = json.loads((out / "results.jsonl").read_text())
+    assert row["retries"] == 1 and row["retry_reasons"] == ["http_503"]
+
+
+def test_an_extraction_failure_after_a_retry_keeps_the_reasons(
+    http_config: tuple[Path, list[int], Sleeps, list[int]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path, statuses, sleeps, requests = http_config
+    reply_after_503(monkeypatch, sleeps, {"choices": [{"message": {"content": "```\n```"}}]})
+    [attempt] = asyncio.run(run_config(path, tmp_path / "run"))
+    assert attempt.outcome == "error" and attempt.error == "model returned empty code"
+    assert attempt.retries == 1 and attempt.retry_reasons == ["http_503"]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RunnerError("cannot write generated source"),
+        RuntimeError("secret bug"),
+    ],
+)
+def test_any_failure_after_the_request_keeps_the_reasons(
+    failure: Exception, task_path: Path, workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEST_KEY", "fixture-key")
+    monkeypatch.setenv("TEST_BASE", BASE)
+    runner = HTTPRunner(
+        {"model": "m", "base_url_env": "TEST_BASE", "api_key_env": "TEST_KEY"},
+        transport=sequenced([503], []),
+        sleep=Sleeps(),
+    )
+
+    def broken(*args: Any) -> Any:
+        raise failure
+
+    monkeypatch.setattr(runner, "_complete", broken)
+    with pytest.raises(RunnerError) as caught:
+        asyncio.run(runner.generate(load_task(task_path), workdir))
+    expected = str(failure) if isinstance(failure, RunnerError) else "attempt failed: RuntimeError"
+    assert str(caught.value) == expected and caught.value.retry_reasons == ("http_503",)
+    assert caught.value.__cause__ is failure
+
+
+def test_a_failure_after_the_request_without_retries_is_unchanged(
+    task_path: Path, workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEST_KEY", "fixture-key")
+    monkeypatch.setenv("TEST_BASE", BASE)
+    runner = HTTPRunner(
+        {"model": "m", "base_url_env": "TEST_BASE", "api_key_env": "TEST_KEY"},
+        transport=sequenced([], []),
+    )
+
+    def broken(*args: Any) -> Any:
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(runner, "_complete", broken)
+    with pytest.raises(RuntimeError):
+        asyncio.run(runner.generate(load_task(task_path), workdir))
+
+
 def interrupt(out: Path) -> None:
     """Drop the last recorded attempt, as if the run had died before writing it."""
     lines = (out / "results.jsonl").read_text().splitlines(keepends=True)
@@ -502,21 +591,42 @@ def test_resume_of_a_run_without_the_max_retries_flag(
 
 
 class Clock:
-    """Monotonic time in which backoff waits pass instantly; tests may advance ``offset``.
+    """Fake monotonic time: backoff waits pass instantly and tests advance ``offset``.
 
-    The real clock still runs underneath, so the runner's request deadline, which asyncio
-    enforces in real time, stays consistent with it."""
+    Request timeouts also run on this clock: each request's budget is recorded and, once a
+    request hangs, it expires at once, advancing the clock by the whole budget."""
 
     def __init__(self) -> None:
         self.offset = 0.0
         self.delays: list[float] = []
+        self.budgets: list[float] = []
 
     def __call__(self) -> float:
-        return time.monotonic() + self.offset
+        return self.offset
 
     async def sleep(self, delay: float) -> None:
         self.delays.append(delay)
         self.offset += delay
+
+    @contextlib.asynccontextmanager
+    async def request_timeout(self, remaining: float) -> AsyncIterator[None]:
+        self.budgets.append(remaining)
+        try:
+            yield
+        except asyncio.CancelledError:
+            # Only hang() cancels a request: its budget has run out.
+            task = asyncio.current_task()
+            assert task is not None
+            task.uncancel()
+            self.offset += remaining
+            raise TimeoutError from None
+
+    async def hang(self) -> None:
+        """A request that never answers; the fake timeout ends it without real waiting."""
+        task = asyncio.current_task()
+        assert task is not None
+        asyncio.get_running_loop().call_soon(task.cancel)
+        await asyncio.Event().wait()
 
 
 def deadline_runner(
@@ -529,6 +639,7 @@ def deadline_runner(
         transport=httpx.MockTransport(handler),
         sleep=clock.sleep,
         clock=clock,
+        request_timeout=clock.request_timeout,
     )
     runner.retry_policy = RetryPolicy(jitter="none", multiplier=1, **retry)
     return runner
@@ -591,17 +702,16 @@ def test_a_request_gets_only_the_remaining_budget(
         calls += 1
         if calls == 1:
             return httpx.Response(503)
-        await asyncio.sleep(30)  # hangs; only the deadline ends it
+        await clock.hang()  # only the deadline ends it
         return httpx.Response(200, json=REPLY)  # pragma: no cover
 
     runner = deadline_runner(clock, handler, base_delay_s=0.9)
-    start = clock()
     with pytest.raises(RunnerError) as caught:
         asyncio.run(runner.generate(load_task(task_path), workdir))
-    elapsed = clock() - start
-    # After a 0.9 s wait the second request has about 0.1 s left, not a fresh second.
+    # After a 0.9 s wait the second request has 0.1 s left, not a fresh second.
     assert caught.value.timed_out and caught.value.retry_reasons == ("http_503",)
-    assert 0.95 <= elapsed < 1.5 and calls == 2
+    assert clock.budgets == [1, pytest.approx(0.1)] and calls == 2
+    assert clock() == pytest.approx(1)
 
 
 def test_no_request_starts_after_the_deadline(

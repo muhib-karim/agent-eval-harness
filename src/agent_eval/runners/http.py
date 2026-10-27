@@ -9,6 +9,7 @@ import random
 import re
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 from typing import Any, Literal
 
@@ -61,6 +62,7 @@ class HTTPRunner:
         sleep: Callable[[float], Awaitable[object]] = asyncio.sleep,
         rng: random.Random | None = None,
         clock: Callable[[], float] = time.monotonic,
+        request_timeout: Callable[[float], AbstractAsyncContextManager[object]] = asyncio.timeout,
     ) -> None:
         self.options = HTTPOptions.model_validate(options)
         self.anthropic = anthropic
@@ -70,6 +72,8 @@ class HTTPRunner:
         self.sleep = sleep
         self.rng = rng or random.Random()
         self.clock = clock
+        # Bounds one request by the seconds left; tests replace it to avoid real waiting.
+        self.request_timeout = request_timeout
 
     async def generate(self, task: TaskSpec, workdir: Path) -> Generation:
         opts = self.options
@@ -104,7 +108,7 @@ class HTTPRunner:
                     remaining = deadline - self.clock()
                     if remaining <= 0:
                         raise TimeoutError("deadline reached")
-                    async with asyncio.timeout(remaining):
+                    async with self.request_timeout(remaining):
                         response = await client.post(url, headers=headers, json=payload)
                     response.raise_for_status()
                     return response
@@ -133,6 +137,25 @@ class HTTPRunner:
             # Raised outside a request, e.g. while building the client.
             raise RunnerError(f"API request failed: {type(exc).__name__}") from exc
         try:
+            return self._complete(task, workdir, response, reasons)
+        except RunnerError as exc:
+            if exc.retry_reasons or not reasons:
+                raise
+            raise RunnerError(
+                str(exc), timed_out=exc.timed_out, generation=exc.generation, retry_reasons=reasons
+            ) from exc
+        except Exception as exc:
+            if not reasons:
+                raise
+            # As for the request phase: the retries already made must still reach the row.
+            raise RunnerError(
+                f"attempt failed: {type(exc).__name__}", retry_reasons=reasons
+            ) from exc
+
+    def _complete(
+        self, task: TaskSpec, workdir: Path, response: httpx.Response, reasons: list[str]
+    ) -> Generation:
+        try:
             data = response.json()
             if self.anthropic:
                 raw = "\n".join(p["text"] for p in data["content"] if p.get("type") == "text")
@@ -151,7 +174,7 @@ class HTTPRunner:
                 _cost(usage.get("cost_usd")),
                 tuple(reasons),
             )
-        except (KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
+        except (KeyError, IndexError, TypeError, ValueError, AttributeError, OverflowError) as exc:
             raise RunnerError("API returned an invalid response", retry_reasons=reasons) from exc
         try:
             code = extract_code(raw)
@@ -209,11 +232,13 @@ def _tokens(value: Any) -> int | None:
 def _cost(value: Any) -> float | None:
     if value is None:
         return None
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or value < 0
-        or not math.isfinite(value)
-    ):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("invalid cost")
-    return float(value)
+    try:
+        cost = float(value)
+    except OverflowError:
+        # An integer too large for a float, e.g. 10**400.
+        raise ValueError("invalid cost") from None
+    if cost < 0 or not math.isfinite(cost):
+        raise ValueError("invalid cost")
+    return cost
