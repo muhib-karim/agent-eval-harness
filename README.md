@@ -29,7 +29,8 @@ solve every attempt ([results](#measured-results), [methodology](results/2026-10
 ## Contents
 
 [Showcase](#showcase) · [Why it exists](#why-it-exists) · [Quickstart](#quickstart) ·
-[Usage](#usage) · [Isolation](#isolation) · [Task catalogue](#task-catalogue) ·
+[Usage](#usage) · [Isolation](#isolation) · [Retries](#retries) ·
+[Task catalogue](#task-catalogue) ·
 [Architecture](#architecture) · [Measured results](#measured-results) ·
 [Design decisions](#design-decisions) · [Limitations](#limitations) · [Roadmap](#roadmap) ·
 [Development](#development) · [Citation](#citation)
@@ -94,7 +95,7 @@ pip install "agent-eval-harness[grade] @ https://github.com/muhib-karim/agent-ev
 ## Usage
 
 ```sh
-agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker]  # writes results.jsonl + report.html
+agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--max-retries N]  # writes results.jsonl + report.html
 agent-eval report RESULTS.jsonl --format html|md|json [--k N ...] [--seed S] [--resamples R]
 agent-eval list-tasks                              # id, title and path of each bundled task
 agent-eval validate-task tasks/semver/task.yaml --reference tests/fixtures/reference/semver.py
@@ -195,6 +196,58 @@ isolation:
 `{"requested": "local", "used": "local", "warning": null}` for a normal run. It is additive:
 older files without it still load, resume and report, and `schema_version` stays `"1.0"`.
 
+## Retries
+
+The `openai` and `anthropic` runners retry a request that failed for a transient reason, with
+jittered exponential backoff. Every retry is recorded on the attempt, so a run that needed
+retries is visible as such rather than hidden.
+
+- **Retried:** HTTP 408, 409, 425, 429, 500, 502, 503, 504 and 529, and dropped or refused
+  connections (`ConnectError`, `ReadError`, `RemoteProtocolError`, `ConnectTimeout`,
+  `ReadTimeout`, `PoolTimeout`).
+- **Not retried:** other 4xx responses (400, 401, 403, 404, 422, ...), invalid responses, missing
+  environment variables, replies without usable code, and the `timeout_s` deadline.
+- **`timeout_s` is the whole attempt's budget, retries included.** Every request and every wait
+  between them must fit in it: a request gets only the time that is left, and a wait that would
+  reach the deadline is not taken. The attempt then ends as `timeout`, and the retries made so
+  far are still recorded.
+- **Not retried at all:** the `cli` and `mock` runners. An agent CLI may already have edited the
+  workdir or run commands when it fails, so running it again would not be a clean repeat.
+
+The wait before retry *n* (from 0) is uniform between 0 and
+`min(max_delay_s, base_delay_s × multiplier^n)` ("full jitter"). A `Retry-After` header in
+seconds replaces that wait, but is still capped at `max_delay_s`; the HTTP-date form is ignored.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `max_retries` | `3` | Retries per request after the first try (0 to 10; 0 turns retries off) |
+| `base_delay_s` | `1.0` | Ceiling of the first wait |
+| `multiplier` | `2.0` | Growth of the ceiling per retry |
+| `max_delay_s` | `30.0` | Cap on any single wait, including `Retry-After` |
+| `jitter` | `full` | `full`, or `none` for exact, deterministic waits |
+
+```yaml
+retry:              # top level: every HTTP model
+  max_retries: 5
+  max_delay_s: 60
+models:
+  - name: compatible-model
+    runner: openai
+    options:
+      # ...
+      retry: {max_retries: 1}   # per model: overrides only the fields it sets
+```
+
+`agent-eval run --max-retries N` overrides `max_retries` for every HTTP model. The precedence is
+flag, then the model's `retry`, then the top-level `retry`, then the defaults. The flag is
+recorded in `config.resolved.yaml` (`max_retries_override`), so `--resume` must repeat it.
+
+**Schema change.** `results.jsonl` lines gain `retries` (count) and `retry_reasons` (one short
+reason per retry, e.g. `["http_429", "http_503"]`; never a response body, URL, header or key).
+They are filled for attempts that succeeded after retrying and for attempts that still failed
+once retries ran out. Reports show the total retries per model. Older files without these fields
+load with `0` and `[]`, still resume and report, and `schema_version` stays `"1.0"`.
+
 ## Task catalogue
 
 16 tasks, four per category, 279 hidden tests in total. Reference solutions are kept out
@@ -248,6 +301,7 @@ flowchart LR
 | `runners/` | `Runner` protocol and registry; HTTP adapters on raw `httpx`; CLI runner and agent presets; offline mock |
 | `grader.py` | Copies tests in after generation, runs pytest in an isolated interpreter, maps JUnit XML to an outcome |
 | `isolation.py` | `isolation:` options, the per-attempt `docker create`/`start` lifecycle, the end-of-run sweep, the docker probe and local fallback |
+| `retry.py` | `retry:` options, jittered exponential backoff and the retry loop that records each reason |
 | `process.py` | Subprocess runner with timeout, output cap and process-group kill |
 | `results.py` | JSONL schema, loading, pass@k, per-model and per-category summaries, paired comparisons |
 | `stats.py` | Seeded task-level percentile bootstrap and paired bootstrap of differences |
@@ -374,7 +428,8 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 - Python only; each task is a single standalone module and no dependencies are installed.
 - The tasks are small and public. Models may have memorized similar problems, and the tests
   check only the stated contract, not code quality.
-- No retries or rate-limit backoff: a provider error is recorded as an `error` attempt.
+- Only HTTP runners retry transient provider errors ([Retries](#retries)); a failure that
+  persists after the retries is recorded as an `error` attempt.
 - The agent-CLI presets follow each tool's documented headless mode and are tested with a fake CLI
   in CI, not against the real tools; flags can change between CLI releases.
 - Only the entrypoint is archived from a CLI agent's workdir, and captured output is capped at
@@ -385,7 +440,6 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 - Measured runs of the agent-CLI presets against the real tools.
 - Tasks in languages other than Python, and repository-level tasks graded from a patch.
 - Optional cost estimates from a versioned pricing file, labelled separately from reported cost.
-- Retry with backoff for transient provider errors, recorded as such rather than hidden.
 
 ## Development
 

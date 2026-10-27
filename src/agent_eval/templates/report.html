@@ -168,6 +168,7 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line);
 </table>
 </div>
 <p id="sort-status" class="visually-hidden" aria-live="polite"></p>
+<p class="note">Retries after transient provider errors (HTTP runners, recorded per attempt): {% for model in summary.models %}{% if not loop.first %} · {% endif %}{{ model.model }} {{ model.retries }}{% endfor %}.</p>
 </section>
 
 <section aria-labelledby="ci-heading">

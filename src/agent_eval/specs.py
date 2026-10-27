@@ -11,6 +11,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from agent_eval.isolation import IsolationOptions
+from agent_eval.retry import RetryPolicy
 
 PositiveSeconds = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 
@@ -56,6 +57,8 @@ class RunConfig(StrictModel):
     repeats: int = Field(default=1, ge=1, strict=True)
     concurrency: int = Field(default=1, ge=1, strict=True)
     isolation: IsolationOptions = Field(default_factory=IsolationOptions)
+    # Backoff for transient provider errors; applies to the HTTP runners only.
+    retry: RetryPolicy = Field(default_factory=RetryPolicy)
 
     @field_validator("models")
     @classmethod

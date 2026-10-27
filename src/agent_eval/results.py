@@ -47,11 +47,16 @@ class Attempt(StrictModel):
     category: str | None = None
     # Added after 1.3.0; absent in older result files, which predate isolation.
     isolation: IsolationRecord | None = None
+    # Added after 1.3.0; older result files load as never retried.
+    retries: int = Field(default=0, ge=0)
+    retry_reasons: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def consistent_test_counts(self) -> Attempt:
         if self.tests_passed > self.tests_total:
             raise ValueError("passed test count exceeds total test count")
+        if self.retries != len(self.retry_reasons):
+            raise ValueError("retry count does not match the recorded retry reasons")
         return self
 
 
@@ -107,6 +112,8 @@ class ModelSummary(StrictModel):
     input_tokens_reported: int
     output_tokens_reported: int
     cost_reported: int
+    # Transient provider errors retried with backoff, summed over attempts.
+    retries: int = 0
     tasks: list[TaskScore]
     categories: list[CategoryScore]
 
@@ -237,6 +244,7 @@ def summarize(
                 input_tokens_reported=len(ins),
                 output_tokens_reported=len(outs),
                 cost_reported=len(costs),
+                retries=sum(row.retries for row in items),
                 tasks=scores,
                 categories=category_scores,
             )

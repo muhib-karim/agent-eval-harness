@@ -37,6 +37,13 @@ def parser() -> argparse.ArgumentParser:
         choices=["local", "docker"],
         help="run each attempt locally or in its own container; overrides isolation.mode",
     )
+    run.add_argument(
+        "--max-retries",
+        type=int,
+        metavar="N",
+        help="retries per HTTP request after transient provider errors; overrides "
+        "retry.max_retries (0 to 10)",
+    )
     report = sub.add_parser("report", help="render saved attempts")
     report.add_argument("results", type=Path)
     report.add_argument("--format", choices=["md", "html", "json"], default="md")
@@ -98,7 +105,13 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("--resume needs --out")
             out = args.out or Path("runs") / datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
             attempts = asyncio.run(
-                run_config(args.config, out, resume=args.resume, isolation=args.isolation)
+                run_config(
+                    args.config,
+                    out,
+                    resume=args.resume,
+                    isolation=args.isolation,
+                    max_retries=args.max_retries,
+                )
             )
             passed = sum(row.outcome == "pass" for row in attempts)
             print(

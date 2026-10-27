@@ -96,6 +96,14 @@ def render_report(summary: Summary, fmt: ReportFormat) -> str:
                 f"- {_md(model.model)}: {model.input_tokens_reported}/"
                 f"{model.output_tokens_reported}/{model.cost_reported} of {model.attempts}."
             )
+        lines.extend(
+            [
+                "",
+                "Retries after transient provider errors: "
+                + ", ".join(f"{_md(m.model)} {m.retries}" for m in summary.models)
+                + ".",
+            ]
+        )
         return "\n".join(lines) + "\n"
     if fmt != "html":
         raise ValueError(f"unsupported report format: {fmt}")

@@ -23,8 +23,10 @@ from agent_eval.grader import Grade, grade
 from agent_eval.isolation import IsolationMode, select_isolation
 from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
+from agent_eval.retry import resolve_policy
 from agent_eval.runners import create_runner
 from agent_eval.runners.base import Generation, Runner, RunnerError
+from agent_eval.runners.http import HTTPRunner
 from agent_eval.runners.local import CLIOptions, CLIRunner, MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
@@ -45,6 +47,10 @@ def _resolve_options(runner: str, options: dict[str, Any], base: Path) -> dict[s
     if runner == "mock" and isinstance(reference_dir, str):
         return {**options, "reference_dir": str((base / reference_dir).resolve())}
     return options
+
+
+def _override_text(max_retries: int | None) -> str:
+    return "not set" if max_retries is None else str(max_retries)
 
 
 def recover_attempts(path: Path) -> list[Attempt]:
@@ -77,20 +83,28 @@ async def run_config(
     *,
     resume: bool = False,
     isolation: IsolationMode | None = None,
+    max_retries: int | None = None,
 ) -> list[Attempt]:
     """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
     interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept.
-    ``isolation`` overrides the config's ``isolation.mode``."""
+    ``isolation`` overrides the config's ``isolation.mode`` and ``max_retries`` every HTTP
+    model's ``retry.max_retries``."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
     # Validate every runner before creating a run directory or starting any generation.
     jobs: list[tuple[str, str, Path, TaskSpec, int, Runner]] = []
+    retry = resolve_policy(config.retry, max_retries=max_retries)
     for model in config.models:
         options = _resolve_options(model.runner, model.options, config_path.parent)
         for task_path, task in tasks:
             for repeat in range(1, config.repeats + 1):
                 runner = create_runner(model.runner, options, task_path=task_path)
+                # CLI agents may already have changed the workdir, so only HTTP calls are retried.
+                if isinstance(runner, HTTPRunner):
+                    runner.retry_policy = resolve_policy(
+                        retry, runner.options.retry, max_retries=max_retries
+                    )
                 jobs.append((model.name, model.runner, task_path, task, repeat, runner))
     isolation_options = config.isolation
     if isolation is not None:
@@ -128,6 +142,12 @@ async def run_config(
     resolved["isolation"] = isolation_options.model_dump(mode="json")
     if "isolation" not in config.model_fields_set and isolation_options.mode == "local":
         del resolved["isolation"]
+    if "retry" not in config.model_fields_set:
+        del resolved["retry"]
+    # --max-retries, which a resume must repeat. Absent, as in runs from before it was
+    # recorded, means the run had no override.
+    if max_retries is not None:
+        resolved["max_retries_override"] = max_retries
     config_text = redact(yaml.safe_dump(resolved, sort_keys=False))
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
@@ -161,13 +181,21 @@ async def run_config(
         if not (out / "results.jsonl").is_file():
             raise ValueError(f"cannot resume: no results.jsonl in {out}")
         previous_text = (out / "config.resolved.yaml").read_text(encoding="utf-8")
+        previous_config = yaml.safe_load(previous_text)
         # Runs recorded without an isolation entry ran locally.
-        recorded_isolation = yaml.safe_load(previous_text).get("isolation") or {}
+        recorded_isolation = previous_config.get("isolation") or {}
         previous_mode = recorded_isolation.get("mode", "local")
         if previous_mode != isolation_options.mode:
             raise ValueError(
                 "cannot resume: the config differs from the interrupted run "
                 f"(isolation {previous_mode}, now {isolation_options.mode})"
+            )
+        previous_override = previous_config.get("max_retries_override")
+        if previous_override != max_retries:
+            raise ValueError(
+                "cannot resume: the config differs from the interrupted run "
+                f"(--max-retries {_override_text(previous_override)}, "
+                f"now {_override_text(max_retries)})"
             )
         if previous_text != config_text:
             raise ValueError("cannot resume: the config differs from the interrupted run")
@@ -249,6 +277,8 @@ async def run_config(
                     artifacts=str(artifact_dir.relative_to(out)),
                     category=task.category,
                     isolation=isolation_record,
+                    retries=len(generated.retry_reasons),
+                    retry_reasons=list(generated.retry_reasons),
                 )
                 stream.write(attempt.model_dump_json() + "\n")
                 stream.flush()

@@ -26,6 +26,14 @@ All notable changes are recorded here. The format follows
   which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
 - If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
   one warning and records it on every attempt.
+- Retry with backoff for transient provider errors in the `openai` and `anthropic` runners: HTTP
+  408, 409, 425, 429, 500, 502, 503, 504, 529 and connection errors are retried with full-jitter
+  exponential backoff (3 retries, 1 s base, ×2, 30 s cap by default). A `Retry-After` header in
+  seconds is honoured up to the cap. Other 4xx, invalid responses and the `timeout_s` deadline
+  are not retried, and neither are the `cli` (an agent may have changed the workdir) and `mock`
+  runners. Configure with a top-level `retry:` block, a per-model `retry` runner option, or
+  `agent-eval run --max-retries N`. `timeout_s` bounds the whole generation, including every
+  retry and backoff wait.
 - Isolation `memory` must be at least `6m` (docker's minimum), counted in whole bytes the way docker
   does: `0` (docker's "no limit") and values such as `0.5b`, which docker truncates to 0, are rejected.
 
@@ -34,9 +42,14 @@ All notable changes are recorded here. The format follows
 - The results JSONL gains an optional `isolation` field (`requested`, `used`, `warning`). The
   change is additive: older result files still load, resume and report, and `schema_version`
   stays `"1.0"`.
+- The results JSONL gains `retries` and `retry_reasons` (e.g. `["http_429", "http_503"]`) on every
+  attempt, including attempts that failed after exhausting their retries. Reports show a retries
+  total per model. Older files without these fields load with `0` and `[]`, resume and report.
 - `config.resolved.yaml` records the effective isolation mode, including an `--isolation`
   override, and `--resume` refuses a run whose mode differs (a run without the entry counts as
   `local`).
+- `config.resolved.yaml` records a `--max-retries` override as `max_retries_override`, and
+  `--resume` refuses a run whose override differs (a run without the entry had none).
 
 ## [1.3.0] - 2026-10-21
 
