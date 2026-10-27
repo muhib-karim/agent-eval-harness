@@ -26,7 +26,8 @@ All notable changes are recorded here. The format follows
   which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
 - If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
   one warning and records it on every attempt.
-- Isolation `memory` must be greater than zero; `0` (docker's "no limit") is rejected.
+- Isolation `memory` must be at least `6m` (docker's minimum), counted in whole bytes the way docker
+  does: `0` (docker's "no limit") and values such as `0.5b`, which docker truncates to 0, are rejected.
 
 ### Changed
 

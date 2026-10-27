@@ -51,6 +51,10 @@ HOST_ONLY_ENV = {
 }
 CONTAINER_ENV = {"HOME": "/tmp", "TMPDIR": "/tmp"}
 
+# docker refuses a smaller memory limit, and truncates fractional bytes ("0.5b" is 0, no limit).
+MIN_MEMORY_BYTES = 6 * 1024 * 1024
+MEMORY_UNITS = {"": 1, "b": 1, "k": 1024, "m": 1024**2, "g": 1024**3}
+
 T = TypeVar("T")
 
 
@@ -71,11 +75,23 @@ class IsolationOptions(_StrictModel):
 
     @field_validator("memory")
     @classmethod
-    def _memory_positive(cls, value: str) -> str:
-        # docker reads 0 as "no limit".
-        if float(value.rstrip("bkmgBKMG")) == 0:
-            raise ValueError("memory must be greater than zero")
+    def _memory_at_least_minimum(cls, value: str) -> str:
+        if memory_bytes(value) < MIN_MEMORY_BYTES:
+            raise ValueError("memory must be at least 6m")
         return value
+
+
+def memory_bytes(value: str) -> int:
+    """The byte count docker uses for a memory limit such as ``0.5g``: fractions truncated."""
+    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)([bkmg]?)", value.lower())
+    if match is None:
+        raise ValueError(f"invalid memory limit: {value}")
+    number: str = match[1]
+    unit: str = match[2]
+    # Exact decimal arithmetic, so "0.01g" is not off by a float rounding step.
+    whole, _, fraction = number.partition(".")
+    scale: int = 10 ** len(fraction)
+    return int(whole + fraction) * MEMORY_UNITS[unit] // scale
 
 
 class IsolationRecord(_StrictModel):
