@@ -75,7 +75,8 @@ async def grade(
             "--noconftest",
             "--import-mode=importlib",
             "-c",
-            os.devnull,
+            # The container is Linux whatever the host is; os.devnull is "nul" on Windows.
+            os.devnull if sandbox is None else "/dev/null",
             "--rootdir",
             str(workdir),
             "--tb=short",

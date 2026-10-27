@@ -6,9 +6,10 @@ import asyncio
 import contextlib
 import os
 import re
+import sys
 import uuid
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePath
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,7 +21,11 @@ IsolationMode = Literal["local", "docker"]
 CONTAINER_WORKDIR = "/work"
 TMPFS = "/tmp:rw,nosuid,nodev,size=256m"
 PROBE_TIMEOUT_S = 10.0
-KILL_TIMEOUT_S = 10.0
+# Removing a container after a non-clean end: a few rounds of ``rm --force`` + ``inspect``.
+CLEANUP_ROUNDS = 5
+CLEANUP_DELAY_S = 0.5
+CLEANUP_BUDGET_S = 20.0
+LABEL = "agent-eval.attempt"
 # The docker client needs these to find its binary and daemon; they are not sent to containers.
 CLIENT_ENV = (
     "PATH",
@@ -75,12 +80,24 @@ def host_user() -> str | None:
     return f"{os.getuid()}:{os.getgid()}"
 
 
-def container_path(value: str, workdir: Path) -> str:
+def container_path(value: str, workdir: PurePath) -> str:
     """Rewrite every occurrence of the host workdir in ``value`` to the container mount."""
-    roots = sorted({str(workdir), str(workdir.resolve())}, key=len, reverse=True)
-    pattern = "|".join(re.escape(root) for root in roots)
+    roots = {str(workdir)}
+    if isinstance(workdir, Path):
+        roots.add(str(workdir.resolve()))
+    pattern = "|".join(re.escape(root) for root in sorted(roots, key=len, reverse=True))
+
+    def rewrite(match: re.Match[str]) -> str:
+        rest = match["rest"]
+        # The container is Linux: the remainder of a Windows host path needs forward slashes.
+        return CONTAINER_WORKDIR + (rest.replace("\\", "/") if "\\" in match["root"] else rest)
+
     # Only whole path components: /tmp/w must not match inside /tmp/w2.
-    return re.sub(f"(?:{pattern})(?=[/\\\\\\s\"'=:;,)]|$)", CONTAINER_WORKDIR, value)
+    return re.sub(
+        f"(?P<root>{pattern})(?P<rest>[/\\\\][^\\s\"'=:;,)]*|)(?=[\\s\"'=:;,)]|$)",
+        rewrite,
+        value,
+    )
 
 
 def docker_command(
@@ -103,6 +120,8 @@ def docker_command(
         "--rm",
         "--name",
         name,
+        "--label",
+        f"{LABEL}={name}",
         "--network",
         options.network,
         "--memory",
@@ -155,7 +174,8 @@ class Sandbox:
     async def run(
         self, command: list[str], workdir: Path, timeout_s: float, env: dict[str, str]
     ) -> ProcessResult:
-        """Like ``run_process``; on timeout or cancellation the container is killed too."""
+        """Like ``run_process``. After any end other than a clean exit the container is
+        removed as well; if that fails the output says so, the outcome is kept."""
         inner = {k: v for k, v in env.items() if k not in HOST_ONLY_ENV} | CONTAINER_ENV
         client = client_environment()
         env_names = [name for name in inner if name not in client]
@@ -165,19 +185,56 @@ class Sandbox:
         )
         try:
             result = await run_process(argv, workdir, timeout_s, inner | client)
-        except asyncio.CancelledError:
-            await self.kill(name, workdir)
+        except (asyncio.CancelledError, OSError):
+            # The client may die before the daemon has created or started the container.
+            await self.remove(name, workdir, settle=True)
             raise
-        if result.timed_out:
-            await self.kill(name, workdir)
+        # A client that exited on its own saw the container end, so there is no startup race.
+        unclean = result.timed_out or result.returncode != 0
+        if unclean and not await self.remove(name, workdir, settle=result.timed_out):
+            note = f"\n[agent-eval: container {name} could not be removed]\n"
+            result = replace(result, output=result.output + note)
         return result
 
-    async def kill(self, name: str, cwd: Path) -> None:
-        # Killing the client's process group does not stop a container the daemon runs.
-        with contextlib.suppress(OSError):
-            await run_process(
-                [self.options.docker, "kill", name], cwd, KILL_TIMEOUT_S, client_environment()
+    async def remove(self, name: str, cwd: Path, *, settle: bool) -> bool:
+        """``docker rm --force`` (which also kills) until ``inspect`` finds no container.
+
+        With ``settle``, the container must be absent in two rounds a delay apart, so one
+        the daemon creates after the first check is still removed. False, after logging to
+        stderr, if it may still exist when the rounds or the time budget run out."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + CLEANUP_BUDGET_S
+        needed = 2 if settle else 1
+        absent = 0
+        for round_ in range(CLEANUP_ROUNDS):
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            if round_:
+                await asyncio.sleep(min(CLEANUP_DELAY_S, remaining))
+            if await self._docker(["rm", "--force", name], cwd, deadline) is None:
+                absent = 0
+                continue
+            inspected = await self._docker(["container", "inspect", name], cwd, deadline)
+            gone = inspected is not None and "no such" in inspected.output.lower()
+            absent = absent + 1 if gone else 0
+            if absent >= needed:
+                return True
+        print(f"agent-eval: warning: container {name} could not be removed", file=sys.stderr)
+        return False
+
+    async def _docker(self, args: list[str], cwd: Path, deadline: float) -> ProcessResult | None:
+        """One docker client call within the cleanup budget; None if it could not run."""
+        remaining = deadline - asyncio.get_running_loop().time()
+        if remaining <= 0:
+            return None
+        try:
+            result = await run_process(
+                [self.options.docker, *args], cwd, remaining, client_environment()
             )
+        except OSError:
+            return None
+        return None if result.timed_out else result
 
 
 async def probe_docker(options: IsolationOptions) -> str | None:

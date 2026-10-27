@@ -14,7 +14,10 @@ All notable changes are recorded here. The format follows
   an explicit opt-in), memory (`2g`, no extra swap), CPU (`2`) and PIDs (`256`) limits, a
   read-only root filesystem, the workdir mounted read-write at `/work`, a `/tmp` tmpfs, all
   capabilities dropped, `no-new-privileges` and the host uid:gid. Environment variables are passed
-  by name only, and a timed-out attempt's container is killed. Grading uses the image's `python`,
+  by name only. Containers carry an `agent-eval.attempt=<name>` label, and after a timeout,
+  cancellation or failed client exit the container is removed with `docker rm --force`, retried
+  until `docker container inspect` no longer finds it; a container that cannot be removed is
+  noted in the attempt's output and on stderr. Grading uses the image's `python`,
   which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
 - If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
   one warning and records it on every attempt.
@@ -24,6 +27,9 @@ All notable changes are recorded here. The format follows
 - The results JSONL gains an optional `isolation` field (`requested`, `used`, `warning`). The
   change is additive: older result files still load, resume and report, and `schema_version`
   stays `"1.0"`.
+- `config.resolved.yaml` records the effective isolation mode, including an `--isolation`
+  override, and `--resume` refuses a run whose mode differs (a run without the entry counts as
+  `local`).
 
 ## [1.3.0] - 2026-10-21
 
