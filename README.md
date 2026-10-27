@@ -134,7 +134,7 @@ grading is containerised. Every container gets:
 | Setting | Default | Config key |
 | --- | --- | --- |
 | Network | `--network none` | `network` (`none`, or `bridge` to opt in) |
-| Memory | `2g`, swap disabled (`--memory-swap` equals `--memory`) | `memory` |
+| Memory | `2g` (at least `6m`), swap disabled (`--memory-swap` equals `--memory`) | `memory` |
 | CPUs | `2` | `cpus` |
 | Processes | `--pids-limit 256` | `pids_limit` |
 | Image | `python:3.12-slim` | `image` |

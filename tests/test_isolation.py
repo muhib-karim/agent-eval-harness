@@ -1,10 +1,15 @@
 """Docker isolation, exercised with a fake docker client instead of a real daemon."""
 
 import asyncio
+import contextlib
 import json
 import os
+import signal
+import subprocess
 import sys
 import tempfile
+import time
+from collections.abc import Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -35,20 +40,25 @@ RUN_ID = "run-under-test"
 # Records each invocation and keeps the daemon's containers as JSON files in a state
 # directory. `create` registers --name with its labels, --env values, mount and command;
 # `start --attach` runs the command on the host with /work mapped back to the bind-mounted
-# workdir; `rm --force` unregisters; `ps -aq --filter label=K=V` lists matching names,
-# after waiting for in-flight creates like the daemon does. Marker files change the daemon:
-# `_slow_create` makes `create` hang while a detached process registers the container once
-# the client has been killed, `_create_fails` fails it, `_stuck` makes `rm` fail, `_slow_rm`
+# workdir; `rm --force` unregisters; `ps -aq --filter label=K=V` lists the matching names
+# registered at that moment, without waiting for creates in flight (docker does not promise
+# to). Marker files change the daemon: `_slow_create` makes `create` hang while a detached
+# process registers the container once the client has been killed (and `_hold_create` is
+# gone), `_create_fails` fails it, `_stuck` makes `rm` fail, `_slow_rm`
 # makes `rm` take 0.5 s (writing `_rm_started` first and `_rm_saw_workdir` with whether the
 # mount still existed), `_ps_fails` fails `ps`.
-# The daemon side of a slow create: announce it, wait until the client is gone, register.
+# The daemon side of a slow create: announce it, wait until the client is gone and the test
+# releases the hold, register. Its pid file exists while it runs, for the leak check.
 REGISTER = (
     "import os, sys, time\n"
-    "client, pending, final, spec = sys.argv[1:]\n"
+    "client, pending, final, spec, hold, pids = sys.argv[1:]\n"
+    "pid_file = os.path.join(pids, str(os.getpid()))\n"
+    "open(pid_file, 'w').close()\n"
     "open(pending, 'w').write(spec)\n"
-    "while os.getppid() == int(client):\n"
+    "while os.getppid() == int(client) or os.path.exists(hold):\n"
     "    time.sleep(0.01)\n"
     "os.replace(pending, final)\n"
+    "os.remove(pid_file)\n"
 )
 FAKE_DOCKER = """#!{python}
 import json, os, re, subprocess, sys, time
@@ -71,9 +81,6 @@ if command == "version":
     print("27.0.0")
     raise SystemExit(0)
 if command == "ps":
-    deadline = time.time() + 10
-    while time.time() < deadline and any(n.startswith("_pending-") for n in os.listdir(state)):
-        time.sleep(0.01)
     if marker("_ps_fails"):
         print("Cannot connect to the Docker daemon")
         raise SystemExit(1)
@@ -130,7 +137,7 @@ spec = json.dumps({{"mount": mount, "labels": labels, "env": env, "command": arg
 if marker("_slow_create"):
     subprocess.Popen(
         [sys.executable, "-c", {register!r}, str(os.getpid()), path(name, pending=True),
-         path(name), spec],
+         path(name), spec, path("_hold_create"), {pids!r}],
         start_new_session=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -170,6 +177,20 @@ def daemon_marker(log: Path, name: str) -> None:
     (state_dir(log) / name).touch()
 
 
+def wait_for_pending_creates(log: Path) -> None:
+    """Until the daemon has registered every container whose create was in flight."""
+    deadline = time.monotonic() + 10
+    while any(p.name.startswith("_pending-") for p in state_dir(log).iterdir()):
+        assert time.monotonic() < deadline, "a slow create was never registered"
+        time.sleep(0.01)
+
+
+def docker_ps(docker: Path, run_id: str = RUN_ID) -> list[str]:
+    """What ``docker ps -aq --filter label=agent-eval.run=<run_id>`` lists."""
+    command = [str(docker), "ps", "-aq", "--filter", f"label=agent-eval.run={run_id}"]
+    return subprocess.run(command, capture_output=True, text=True, check=True).stdout.split()
+
+
 def register(log: Path, name: str, run_id: str = RUN_ID) -> None:
     """A container the daemon has, as if created by an earlier attempt."""
     spec = {"mount": {"source": str(log.parent)}, "labels": [f"agent-eval.run={run_id}"]}
@@ -188,21 +209,51 @@ def no_real_docker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(isolation, "run_process", guarded)
 
 
+def leftover_registrars(pids: Path) -> list[int]:
+    """Detached daemon-side processes of slow creates that are still running."""
+    alive = []
+    for pid_file in pids.iterdir():
+        try:
+            cmdline = Path(f"/proc/{pid_file.name}/cmdline").read_bytes()
+        except FileNotFoundError:
+            continue
+        if b"os.getppid" in cmdline:
+            alive.append(int(pid_file.name))
+    return alive
+
+
 @pytest.fixture
-def fake_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+def fake_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[Path, Path]]:
     log = tmp_path / "docker-calls.jsonl"
     state = tmp_path / "containers"
     state.mkdir()
+    pids = tmp_path / "registrars"
+    pids.mkdir()
     path = tmp_path / "bin" / "docker"
     path.parent.mkdir()
     path.write_text(
         FAKE_DOCKER.format(
-            python=sys.executable, log=str(log), state=str(state), image=IMAGE, register=REGISTER
+            python=sys.executable,
+            log=str(log),
+            state=str(state),
+            image=IMAGE,
+            register=REGISTER,
+            pids=str(pids),
         )
     )
     path.chmod(0o755)
     monkeypatch.setattr(isolation, "CLEANUP_DELAY_S", 0.05)
-    return path, log
+    yield path, log
+    # Release any hold so registrars can finish, then make sure none outlives the test.
+    (state / "_hold_create").unlink(missing_ok=True)
+    deadline = time.monotonic() + 5
+    while leftover_registrars(pids) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    leaked = leftover_registrars(pids)
+    for pid in leaked:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, signal.SIGKILL)
+    assert not leaked, f"slow-create registrars still running: {leaked}"
 
 
 def options(docker: Path, **extra: Any) -> IsolationOptions:
@@ -353,6 +404,12 @@ def test_host_user(monkeypatch: pytest.MonkeyPatch) -> None:
         {"memory": "0g"},
         {"memory": "0.0m"},
         {"memory": "000B"},
+        # docker truncates fractional bytes: 0.5b would be 0, which docker reads as no limit.
+        {"memory": "0.5b"},
+        # Below docker's 6 MiB minimum.
+        {"memory": "1b"},
+        {"memory": "1023k"},
+        {"memory": "6291455"},
         {"cpus": 0},
         {"cpus": float("inf")},
         {"pids_limit": 0},
@@ -368,9 +425,22 @@ def test_invalid_options(fields: dict[str, Any]) -> None:
         IsolationOptions.model_validate(fields)
 
 
-@pytest.mark.parametrize("memory", ["0.5g", "6m", "1", "10.0G"])
-def test_memory_limits_above_zero_are_valid(memory: str) -> None:
+@pytest.mark.parametrize("memory", ["0.5g", "6m", "0.01g", "2g", "6291456", "6144K", "10.0G"])
+def test_memory_limits_of_at_least_6m_are_valid(memory: str) -> None:
     assert IsolationOptions(memory=memory).memory == memory
+
+
+@pytest.mark.parametrize(
+    ("memory", "expected"),
+    [("0.5b", 0), ("1023k", 1047552), ("6M", 6291456), ("0.01g", 10737418), ("6291456", 6291456)],
+)
+def test_memory_bytes_truncates_like_docker(memory: str, expected: int) -> None:
+    assert isolation.memory_bytes(memory) == expected
+
+
+def test_memory_bytes_rejects_malformed_values() -> None:
+    with pytest.raises(ValueError, match="invalid memory limit"):
+        isolation.memory_bytes("1.5x")
 
 
 def test_client_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -410,7 +480,8 @@ def test_config_block_and_cli_flag_precedence(
 
     monkeypatch.setattr(isolation, "probe_docker", no_probe)
     out = tmp_path / "local"
-    assert main(["run", str(config_path), "--out", str(out), "--isolation", "local"]) == 0
+    code = main(["run", str(config_path), "--out", str(out), "--isolation", "local"])
+    assert code == 0
     rows = load_attempts(out / "results.jsonl")
     assert {(r.isolation.requested, r.isolation.used) for r in rows if r.isolation} == {
         ("local", "local")
@@ -427,7 +498,8 @@ def test_fallback_records_the_warning(
     data["isolation"] = {"docker": str(tmp_path / "missing" / "docker")}
     config_path.write_text(yaml.safe_dump(data))
     out = tmp_path / "run"
-    assert main(["run", str(config_path), "--out", str(out), "--isolation", "docker"]) == 0
+    code = main(["run", str(config_path), "--out", str(out), "--isolation", "docker"])
+    assert code == 0
     err = capsys.readouterr().err
     assert err.count("warning: docker isolation unavailable") == 1
     assert "docker executable not found" in err
@@ -451,10 +523,13 @@ def test_probe_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     slow = tmp_path / "slow-docker"
     slow.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
     slow.chmod(0o755)
-    assert asyncio.run(probe_docker(options(failing))) == "docker daemon is unreachable"
-    assert asyncio.run(probe_docker(options(silent))) == "docker daemon is unreachable"
+    reason = asyncio.run(probe_docker(options(failing)))
+    assert reason == "docker daemon is unreachable"
+    reason = asyncio.run(probe_docker(options(silent)))
+    assert reason == "docker daemon is unreachable"
     monkeypatch.setattr(isolation, "PROBE_TIMEOUT_S", 0.3)
-    assert asyncio.run(probe_docker(options(slow))) == "docker daemon did not answer within 0.3 s"
+    reason = asyncio.run(probe_docker(options(slow)))
+    assert reason == "docker daemon did not answer within 0.3 s"
     sandbox, record = asyncio.run(select_isolation(options(failing), RUN_ID))
     assert sandbox is None and record.used == "local"
 
@@ -579,7 +654,8 @@ def test_cancellation_while_running_removes_the_container(
         await asyncio.wait([task])
         return task.cancelled()
 
-    assert asyncio.run(cancel_while_running())
+    cancelled = asyncio.run(cancel_while_running())
+    assert cancelled
     create, _, rm = calls(log)
     assert rm == ["rm", "--force", *value_of(create, "--name")]
     assert containers(log) == []
@@ -619,7 +695,8 @@ def test_uncancellable_returns_the_result() -> None:
         await asyncio.sleep(0)
         return 7
 
-    assert asyncio.run(isolation.uncancellable(value())) == 7
+    returned = asyncio.run(isolation.uncancellable(value()))
+    assert returned == 7
 
 
 def test_create_failure_is_returned_without_start(
@@ -650,8 +727,11 @@ def test_sweep_removes_a_container_created_after_the_client_was_killed(
     assert result.timed_out
     assert commands(log) == ["create"]
     (name,) = containers(log)
+    # docker ps does not wait for creates in flight: the container is visible once registered.
+    wait_for_pending_creates(log)
     register(log, "agent-eval-other-run", run_id="other")
-    assert asyncio.run(sandbox.sweep()) == 0
+    failed = asyncio.run(sandbox.sweep())
+    assert failed == 0
     assert containers(log) == ["agent-eval-other-run"]
     assert calls(log)[1:] == [
         ["ps", "-aq", "--filter", f"label=agent-eval.run={RUN_ID}"],
@@ -660,11 +740,35 @@ def test_sweep_removes_a_container_created_after_the_client_was_killed(
     assert "1 container(s) of this run were left over and were removed" in capsys.readouterr().err
 
 
+def test_a_create_completing_after_the_sweep_leaves_a_container_never_started(
+    fake_docker: tuple[Path, Path], workdir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The documented residual: the sweep cannot remove what the daemon has not registered
+    yet. The container stays, findable by its run label, and was never started."""
+    docker, log = fake_docker
+    daemon_marker(log, "_slow_create")
+    daemon_marker(log, "_hold_create")
+    sandbox = sandbox_for(docker)
+    result = asyncio.run(sandbox.run(SLEEP, workdir, 0.5, {}))
+    assert result.timed_out
+    failed = asyncio.run(sandbox.sweep())
+    assert failed == 0
+    assert capsys.readouterr().err == ""
+    # The daemon finishes the create only now.
+    (state_dir(log) / "_hold_create").unlink()
+    wait_for_pending_creates(log)
+    (name,) = containers(log)
+    assert docker_ps(docker) == [name]
+    assert commands(log) == ["create", "ps", "ps"]
+    assert all(call[0] != "start" for call in calls(log))
+
+
 def test_sweep_with_nothing_left_is_silent(
     fake_docker: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
 ) -> None:
     docker, log = fake_docker
-    assert asyncio.run(sandbox_for(docker).sweep()) == 0
+    failed = asyncio.run(sandbox_for(docker).sweep())
+    assert failed == 0
     assert commands(log) == ["ps"]
     assert capsys.readouterr().err == ""
 
@@ -676,7 +780,8 @@ def test_sweep_reports_containers_it_cannot_remove(
     register(log, "agent-eval-a")
     register(log, "agent-eval-b")
     daemon_marker(log, "_stuck")
-    assert asyncio.run(sandbox_for(docker).sweep()) == 2
+    failed = asyncio.run(sandbox_for(docker).sweep())
+    assert failed == 2
     err = capsys.readouterr().err
     assert "2 container(s) of this run were left over; 2 could not be removed" in err
     assert f"docker ps -a --filter label=agent-eval.run={RUN_ID}" in err
@@ -688,8 +793,10 @@ def test_sweep_reports_when_it_cannot_list(
 ) -> None:
     docker, log = fake_docker
     daemon_marker(log, "_ps_fails")
-    assert asyncio.run(sandbox_for(docker).sweep()) == 0
-    assert asyncio.run(Sandbox(options(tmp_path / "missing"), RUN_ID).sweep()) == 0
+    failed = asyncio.run(sandbox_for(docker).sweep())
+    assert failed == 0
+    failed = asyncio.run(Sandbox(options(tmp_path / "missing"), RUN_ID).sweep())
+    assert failed == 0
     err = capsys.readouterr().err
     assert err.count("could not list the containers left by this run") == 2
     assert f"docker ps -a --filter label=agent-eval.run={RUN_ID}" in err
@@ -739,7 +846,8 @@ def test_removal_of_an_unknown_container_succeeds(
     fake_docker: tuple[Path, Path], workdir: Path
 ) -> None:
     docker, log = fake_docker
-    assert asyncio.run(sandbox_for(docker).remove("agent-eval-gone", workdir))
+    removed = asyncio.run(sandbox_for(docker).remove("agent-eval-gone", workdir))
+    assert removed
     assert commands(log) == ["rm"]
 
 
@@ -793,6 +901,7 @@ def test_engine_sweeps_after_cancellation(
     config_path: Path,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     docker, log = fake_docker
     agent_config(config_path, docker)
@@ -802,6 +911,15 @@ def test_engine_sweeps_after_cancellation(
     config_path.write_text(yaml.safe_dump(data))
     # Every create hangs and the daemon creates the container after the client is killed.
     daemon_marker(log, "_slow_create")
+    sweep = Sandbox.sweep
+
+    async def sweep_once_registered(self: Sandbox) -> int:
+        # docker ps does not wait for creates in flight: hold the sweep until the daemon has
+        # registered the killed create's container, so the sweep is sure to see it.
+        await asyncio.to_thread(wait_for_pending_creates, log)
+        return await sweep(self)
+
+    monkeypatch.setattr(Sandbox, "sweep", sweep_once_registered)
 
     async def interrupted() -> bool:
         task = asyncio.create_task(run_config(config_path, tmp_path / "run"))
@@ -811,7 +929,8 @@ def test_engine_sweeps_after_cancellation(
         await asyncio.wait([task])
         return task.cancelled()
 
-    assert asyncio.run(interrupted())
+    cancelled = asyncio.run(interrupted())
+    assert cancelled
     assert containers(log) == []
     names = commands(log)
     assert names[-1] == "rm" and "ps" in names and "start" not in names
@@ -835,7 +954,8 @@ def test_old_results_without_isolation_still_load_and_resume(
     assert len(resumed) == 4
     rows = load_attempts(out / "results.jsonl")
     assert sum(row.isolation is None for row in rows) == 2
-    assert main(["report", str(out / "results.jsonl")]) == 0
+    code = main(["report", str(out / "results.jsonl")])
+    assert code == 0
 
 
 def docker_config(config_path: Path, docker: Path) -> None:
@@ -884,12 +1004,14 @@ def test_cli_isolation_flag_is_recorded_without_a_config_block(
     monkeypatch.setattr(isolation, "probe_docker", unavailable)
     out = tmp_path / "run"
     # Docker is unavailable, so attempts fall back, but docker was what the run asked for.
-    assert main(["run", str(config_path), "--out", str(out), "--isolation", "docker"]) == 0
+    code = main(["run", str(config_path), "--out", str(out), "--isolation", "docker"])
+    assert code == 0
     assert "isolation unavailable (docker daemon is unreachable)" in capsys.readouterr().err
     resolved = yaml.safe_load((out / "config.resolved.yaml").read_text())
     assert resolved["isolation"]["mode"] == "docker"
     interrupt(out)
-    assert main(["run", str(config_path), "--out", str(out), "--resume"]) == 2
+    code = main(["run", str(config_path), "--out", str(out), "--resume"])
+    assert code == 2
     assert "isolation docker, now local" in capsys.readouterr().err
 
 
@@ -902,9 +1024,11 @@ def test_legacy_run_without_isolation_entry_resumes_as_local(
     resolved = (out / "config.resolved.yaml").read_text()
     assert "isolation" not in resolved
     interrupt(out)
-    assert len(asyncio.run(run_config(config_path, out, resume=True))) == 4
+    attempts = asyncio.run(run_config(config_path, out, resume=True))
+    assert len(attempts) == 4
     interrupt(out)
-    assert len(asyncio.run(run_config(config_path, out, resume=True, isolation="local"))) == 4
+    attempts = asyncio.run(run_config(config_path, out, resume=True, isolation="local"))
+    assert len(attempts) == 4
     interrupt(out)
     # Absent means local, so resuming it in docker is a different config.
     docker_config(config_path, docker)
