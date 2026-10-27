@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from agent_eval.isolation import Sandbox
 from agent_eval.process import run_process
 from agent_eval.specs import TaskSpec, task_file
 
@@ -50,7 +51,10 @@ def parse_junit(path: Path, returncode: int, log: str) -> Grade:
     return Grade(outcome, passed, len(cases), log)
 
 
-async def grade(task: TaskSpec, task_path: Path, workdir: Path) -> Grade:
+async def grade(
+    task: TaskSpec, task_path: Path, workdir: Path, sandbox: Sandbox | None = None
+) -> Grade:
+    """With a ``sandbox``, pytest runs in a container on the image's ``python``."""
     entrypoint = workdir / task.entrypoint
     if entrypoint.is_symlink() or not entrypoint.is_file():
         return Grade("error", log="Entrypoint is missing or is a symlink.")
@@ -71,7 +75,8 @@ async def grade(task: TaskSpec, task_path: Path, workdir: Path) -> Grade:
             "--noconftest",
             "--import-mode=importlib",
             "-c",
-            os.devnull,
+            # The container is Linux whatever the host is; os.devnull is "nul" on Windows.
+            os.devnull if sandbox is None else "/dev/null",
             "--rootdir",
             str(workdir),
             "--tb=short",
@@ -81,7 +86,11 @@ async def grade(task: TaskSpec, task_path: Path, workdir: Path) -> Grade:
         env = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "LANG") if key in os.environ}
         env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
         env["PYTHONDONTWRITEBYTECODE"] = "1"
-        result = await run_process(command, workdir, task.timeout_s, env)
+        if sandbox is None:
+            result = await run_process(command, workdir, task.timeout_s, env)
+        else:
+            command[0] = "python"
+            result = await sandbox.run(command, workdir, task.timeout_s, env)
         if result.timed_out:
             return Grade("timeout", log=result.output)
         return parse_junit(junit_path, result.returncode, result.output)

@@ -8,8 +8,10 @@ import json
 import os
 import platform
 import shutil
+import sys
 import tempfile
 import time
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -18,11 +20,12 @@ import yaml
 
 from agent_eval import __version__
 from agent_eval.grader import Grade, grade
+from agent_eval.isolation import IsolationMode, select_isolation
 from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
 from agent_eval.runners import create_runner
 from agent_eval.runners.base import Generation, Runner, RunnerError
-from agent_eval.runners.local import CLIOptions, MockOptions
+from agent_eval.runners.local import CLIOptions, CLIRunner, MockOptions
 from agent_eval.specs import TaskSpec, discover_tasks, load_config, load_task, task_file
 
 
@@ -68,9 +71,16 @@ def recover_attempts(path: Path) -> list[Attempt]:
     return attempts
 
 
-async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> list[Attempt]:
+async def run_config(
+    config_path: Path,
+    out: Path,
+    *,
+    resume: bool = False,
+    isolation: IsolationMode | None = None,
+) -> list[Attempt]:
     """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
-    interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept."""
+    interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept.
+    ``isolation`` overrides the config's ``isolation.mode``."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
@@ -82,6 +92,16 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
             for repeat in range(1, config.repeats + 1):
                 runner = create_runner(model.runner, options, task_path=task_path)
                 jobs.append((model.name, model.runner, task_path, task, repeat, runner))
+    isolation_options = config.isolation
+    if isolation is not None:
+        isolation_options = isolation_options.model_copy(update={"mode": isolation})
+    # Labels this run's containers, so the sweep at the end finds any that were left over.
+    sandbox, isolation_record = await select_isolation(isolation_options, uuid.uuid4().hex)
+    if isolation_record.warning:
+        print(f"agent-eval: warning: {isolation_record.warning}", file=sys.stderr)
+    for job in jobs:
+        if isinstance(job[5], CLIRunner):
+            job[5].sandbox = sandbox
     secrets = [
         os.environ[value]
         for model in config.models
@@ -103,6 +123,11 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
     out = out.resolve()
     resolved = config.model_dump(mode="json")
     resolved["tasks"] = [str(path) for path, _ in tasks]
+    # The effective mode, after --isolation. A local run of a config without an isolation
+    # block records none, like runs from before isolation existed, which stay resumable.
+    resolved["isolation"] = isolation_options.model_dump(mode="json")
+    if "isolation" not in config.model_fields_set and isolation_options.mode == "local":
+        del resolved["isolation"]
     config_text = redact(yaml.safe_dump(resolved, sort_keys=False))
     hashes: dict[str, dict[str, str]] = {}
     for path, task in tasks:
@@ -135,7 +160,16 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
     if resume and out.exists():
         if not (out / "results.jsonl").is_file():
             raise ValueError(f"cannot resume: no results.jsonl in {out}")
-        if (out / "config.resolved.yaml").read_text(encoding="utf-8") != config_text:
+        previous_text = (out / "config.resolved.yaml").read_text(encoding="utf-8")
+        # Runs recorded without an isolation entry ran locally.
+        recorded_isolation = yaml.safe_load(previous_text).get("isolation") or {}
+        previous_mode = recorded_isolation.get("mode", "local")
+        if previous_mode != isolation_options.mode:
+            raise ValueError(
+                "cannot resume: the config differs from the interrupted run "
+                f"(isolation {previous_mode}, now {isolation_options.mode})"
+            )
+        if previous_text != config_text:
             raise ValueError("cannot resume: the config differs from the interrupted run")
         previous = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
         if previous.get("task_hashes") != json.loads(redact(json.dumps(hashes))):
@@ -176,7 +210,7 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
                             )
                         generated = await runner.generate(task, workdir)
                         generation_end = time.perf_counter()
-                        graded = await grade(task, task_path, workdir)
+                        graded = await grade(task, task_path, workdir, sandbox)
                         grading_time = time.perf_counter() - generation_end
                     except RunnerError as exc:
                         generation_end = time.perf_counter()
@@ -214,16 +248,22 @@ async def run_config(config_path: Path, out: Path, *, resume: bool = False) -> l
                     error=redact(error) if error else None,
                     artifacts=str(artifact_dir.relative_to(out)),
                     category=task.category,
+                    isolation=isolation_record,
                 )
                 stream.write(attempt.model_dump_json() + "\n")
                 stream.flush()
                 attempts.append(attempt)
 
         # Structured concurrency ensures cleanup completes before the result stream closes.
-        async with asyncio.TaskGroup() as group:
-            for index, job in enumerate(jobs, 1):
-                if (redact(job[0]), job[3].id, job[4]) not in recorded:
-                    group.create_task(execute(index, job))
+        try:
+            async with asyncio.TaskGroup() as group:
+                for index, job in enumerate(jobs, 1):
+                    if (redact(job[0]), job[3].id, job[4]) not in recorded:
+                        group.create_task(execute(index, job))
+        finally:
+            # Also after an error or Ctrl-C: a container whose create was interrupted.
+            if sandbox is not None:
+                await sandbox.sweep()
     attempts.sort(key=lambda row: row.attempt_id)
     summary = summarize(attempts)
     (out / "summary.json").write_text(render_report(summary, "json"), encoding="utf-8")

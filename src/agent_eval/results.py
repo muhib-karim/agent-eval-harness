@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from agent_eval.grader import Outcome
+from agent_eval.isolation import IsolationRecord
 from agent_eval.specs import StrictModel
 from agent_eval.stats import (
     DEFAULT_CONFIDENCE,
@@ -44,6 +45,8 @@ class Attempt(StrictModel):
     artifacts: str
     # Added in 1.3.0; absent in older result files, which load as uncategorized.
     category: str | None = None
+    # Added after 1.3.0; absent in older result files, which predate isolation.
+    isolation: IsolationRecord | None = None
 
     @model_validator(mode="after")
     def consistent_test_counts(self) -> Attempt:

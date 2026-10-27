@@ -10,6 +10,8 @@ from typing import Annotated, Any, Literal, TypeVar
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from agent_eval.isolation import IsolationOptions
+
 PositiveSeconds = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 
 
@@ -53,6 +55,7 @@ class RunConfig(StrictModel):
     tasks: list[str] = Field(min_length=1)
     repeats: int = Field(default=1, ge=1, strict=True)
     concurrency: int = Field(default=1, ge=1, strict=True)
+    isolation: IsolationOptions = Field(default_factory=IsolationOptions)
 
     @field_validator("models")
     @classmethod

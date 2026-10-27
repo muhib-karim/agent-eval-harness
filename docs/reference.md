@@ -28,6 +28,7 @@ concurrency: 2
 | `tasks` | Nonempty list of task YAML globs, resolved relative to the config file. `**` is supported. Every glob must match; duplicate matches are merged; task ids must be unique. |
 | `repeats` | Attempts per model × task. Default 1. |
 | `concurrency` | Maximum simultaneous attempts (generation plus grading). Default 1. |
+| `isolation` | Optional. `mode` (`local` or `docker`, default `local`; `run --isolation` overrides it), `image` (`python:3.12-slim`), `network` (`none` or `bridge`, default `none`), `memory` (`2g`, at least `6m`), `cpus` (2), `pids_limit` (256), `docker` (client binary, `docker`). See [Isolation](../README.md#isolation). |
 
 Unknown fields in the config and in built-in runner options are rejected.
 
@@ -197,7 +198,9 @@ Each JSONL line has: `attempt_id`, `model`, `runner`, `task_id`, `repeat`, `outc
 `tests_passed`, `tests_total`, `wall_time_s`, `generation_time_s`, `grading_time_s`,
 `input_tokens`, `output_tokens`, `cost_usd` (the last three nullable), `error`, and `artifacts`
 (path relative to the run directory), plus the optional `category` (added in 1.3.0; older files
-without it load as `uncategorized`, and `schema_version` stays `"1.0"`). Lines are appended and flushed as attempts complete, so
+without it load as `uncategorized`, and `schema_version` stays `"1.0"`) and the optional
+`isolation` object `{requested, used, warning}` (added after 1.3.0; `warning` is set when docker
+was requested but unavailable; older files without it still load and resume). Lines are appended and flushed as attempts complete, so
 the file is in completion order. Attempt ids follow scheduling order and are deterministic for a
 given config.
 

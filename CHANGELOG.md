@@ -4,6 +4,40 @@ All notable changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Container-per-attempt isolation: `agent-eval run --isolation docker`, or a top-level
+  `isolation:` block in the run config (the flag overrides `isolation.mode`). The `cli` agent
+  command and the hidden-test grading each run in a fresh container with no network (`bridge` is
+  an explicit opt-in), memory (`2g`, no extra swap), CPU (`2`) and PIDs (`256`) limits, a
+  read-only root filesystem, the workdir mounted read-write at `/work`, a `/tmp` tmpfs, all
+  capabilities dropped, `no-new-privileges` and the host uid:gid. Environment variables are passed
+  by name only. Each command runs as `docker create` followed, once that has finished, by
+  `docker start --attach`; the container is then always removed with `docker rm --force`, in a
+  cleanup that cancellation cannot interrupt and that is retried briefly on failure. Containers
+  carry `agent-eval.attempt=<name>` and per-run `agent-eval.run=<run id>` labels; at the end of
+  every run with docker isolation (also after an error or Ctrl-C) the harness removes any container still
+  labelled with the run's id, such as one whose interrupted `create` the daemon completed, and
+  warns with the count. A container that cannot be removed is
+  noted in the attempt's output and on stderr; one the daemon creates after the sweep can be found
+  with `docker ps -a --filter label=agent-eval.run`. Grading uses the image's `python`,
+  which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
+- If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
+  one warning and records it on every attempt.
+- Isolation `memory` must be at least `6m` (docker's minimum), counted in whole bytes the way docker
+  does: `0` (docker's "no limit") and values such as `0.5b`, which docker truncates to 0, are rejected.
+
+### Changed
+
+- The results JSONL gains an optional `isolation` field (`requested`, `used`, `warning`). The
+  change is additive: older result files still load, resume and report, and `schema_version`
+  stays `"1.0"`.
+- `config.resolved.yaml` records the effective isolation mode, including an `--isolation`
+  override, and `--resume` refuses a run whose mode differs (a run without the entry counts as
+  `local`).
+
 ## [1.3.0] - 2026-10-21
 
 ### Added

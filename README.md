@@ -29,10 +29,10 @@ solve every attempt ([results](#measured-results), [methodology](results/2026-10
 ## Contents
 
 [Showcase](#showcase) · [Why it exists](#why-it-exists) · [Quickstart](#quickstart) ·
-[Usage](#usage) · [Task catalogue](#task-catalogue) · [Architecture](#architecture) ·
-[Measured results](#measured-results) · [Design decisions](#design-decisions) ·
-[Limitations](#limitations) · [Roadmap](#roadmap) · [Development](#development) ·
-[Citation](#citation)
+[Usage](#usage) · [Isolation](#isolation) · [Task catalogue](#task-catalogue) ·
+[Architecture](#architecture) · [Measured results](#measured-results) ·
+[Design decisions](#design-decisions) · [Limitations](#limitations) · [Roadmap](#roadmap) ·
+[Development](#development) · [Citation](#citation)
 
 ## Showcase
 
@@ -94,7 +94,7 @@ pip install "agent-eval-harness[grade] @ https://github.com/muhib-karim/agent-ev
 ## Usage
 
 ```sh
-agent-eval run CONFIG [--out DIR] [--resume]       # execute; writes results.jsonl + report.html
+agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker]  # writes results.jsonl + report.html
 agent-eval report RESULTS.jsonl --format html|md|json [--k N ...] [--seed S] [--resamples R]
 agent-eval list-tasks                              # id, title and path of each bundled task
 agent-eval validate-task tasks/semver/task.yaml --reference tests/fixtures/reference/semver.py
@@ -122,6 +122,78 @@ included), and runs only the missing ones.
 
 Config fields, runner options, the task format, the JSONL schema and exit codes are documented
 in [docs/reference.md](docs/reference.md).
+
+## Isolation
+
+`--isolation docker` (or `isolation: {mode: docker}` in the run config; the flag wins) runs each
+attempt's untrusted code in its own throwaway container: the `cli` runner's agent command and the
+hidden-test grading. HTTP and mock runners start no process during generation, so only their
+grading is containerised. Every container gets:
+
+| Setting | Default | Config key |
+| --- | --- | --- |
+| Network | `--network none` | `network` (`none`, or `bridge` to opt in) |
+| Memory | `2g` (at least `6m`), swap disabled (`--memory-swap` equals `--memory`) | `memory` |
+| CPUs | `2` | `cpus` |
+| Processes | `--pids-limit 256` | `pids_limit` |
+| Image | `python:3.12-slim` | `image` |
+| Docker client | `docker` on `PATH` | `docker` |
+
+Fixed hardening: read-only root filesystem, the attempt workdir bind-mounted read-write at
+`/work`, a 256 MB `/tmp` tmpfs (also `HOME` and `TMPDIR`), `--cap-drop ALL`,
+`no-new-privileges`, your own uid:gid on POSIX, a unique container name and two labels:
+`agent-eval.attempt=<name>` and `agent-eval.run=<run id>` (a fresh id per run). Host paths in
+the command (`{workdir}`, `{prompt_file}`, the test paths) are rewritten to `/work`, with `/`
+separators even on a Windows host. Environment variables are passed as `--env NAME`, so values
+never appear in a process list.
+
+**Container lifecycle.** Each command runs in two steps under the attempt's timeout: `docker
+create` (all the settings above; a pull of a missing image counts against the timeout) must
+finish before `docker start --attach` runs the command. Once `start` has run, the container is
+known to exist, so whatever happens next (clean exit, failure, timeout, cancellation) it is
+removed with `docker rm --force` before the attempt's workdir is released; this cleanup is not
+cancellable. A failed removal is retried a few times within a short budget; if it still fails,
+the attempt keeps its outcome, its output ends with
+`[agent-eval: container <name> could not be removed]` and a warning goes to stderr.
+
+A `create` interrupted mid-flight (timeout or Ctrl-C) may still produce a container once the
+daemon finishes it. At the end of every run with docker isolation, also after an error or
+Ctrl-C, the harness sweeps: it lists `docker ps -aq --filter label=agent-eval.run=<run id>` and
+force-removes what it finds, with a warning on stderr giving the count found and any that could
+not be removed. Residual risk: if the daemon is extremely slow and completes a `create` after
+the sweep, that container is left over; it stays findable by its labels:
+
+```sh
+docker ps -a --filter label=agent-eval.run          # all runs; or label=agent-eval.run=<run id>
+docker rm --force $(docker ps -aq --filter label=agent-eval.run)
+```
+
+```yaml
+isolation:
+  mode: docker
+  image: agent-eval-harness   # docker build -t agent-eval-harness .
+  network: none               # use bridge for agents that call an API
+  memory: 1g
+  cpus: 1.5
+```
+
+- **The image must have pytest** for grading, which runs the image's `python`. `python:3.12-slim`
+  alone does not; the harness's own `Dockerfile` image does (its entrypoint is bypassed). For
+  `cli` runs the agent CLI must also be installed in the image; host paths to it do not exist
+  there.
+- Pull or build the image before the run; a pull during an attempt counts against its timeout.
+- **Fallback.** Before the run the harness asks the daemon for its version (10 s timeout). If
+  `docker` is missing or the daemon is unreachable, the run uses the local runner, prints one
+  warning to stderr and records it on every attempt.
+- Custom runners that start their own processes are not containerised.
+- **Resume** requires the same isolation mode as the interrupted run, after `--isolation`: a run
+  started with `--isolation docker` must be resumed with it. Runs recorded before isolation
+  existed count as `local`.
+
+**Schema change.** `results.jsonl` lines gain an optional `isolation` object, e.g.
+`{"requested": "docker", "used": "local", "warning": "docker isolation unavailable (...)"}`, or
+`{"requested": "local", "used": "local", "warning": null}` for a normal run. It is additive:
+older files without it still load, resume and report, and `schema_version` stays `"1.0"`.
 
 ## Task catalogue
 
@@ -175,6 +247,7 @@ flowchart LR
 | `engine.py` | Builds jobs, runs them under a semaphore in an `asyncio.TaskGroup`, places starters, writes artifacts and hashes, redacts keys, resumes |
 | `runners/` | `Runner` protocol and registry; HTTP adapters on raw `httpx`; CLI runner and agent presets; offline mock |
 | `grader.py` | Copies tests in after generation, runs pytest in an isolated interpreter, maps JUnit XML to an outcome |
+| `isolation.py` | `isolation:` options, the per-attempt `docker create`/`start` lifecycle, the end-of-run sweep, the docker probe and local fallback |
 | `process.py` | Subprocess runner with timeout, output cap and process-group kill |
 | `results.py` | JSONL schema, loading, pass@k, per-model and per-category summaries, paired comparisons |
 | `stats.py` | Seeded task-level percentile bootstrap and paired bootstrap of differences |
@@ -294,9 +367,10 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 
 ## Limitations
 
-- **No sandbox.** Generated code runs as your user with full filesystem and network access. Run
-  untrusted generations only in a disposable container or VM (see [SECURITY.md](SECURITY.md)
-  for a `docker run` with the network, memory and PIDs restricted).
+- **No sandbox by default.** Without `--isolation docker` (or when it falls back), generated code
+  runs as your user with full filesystem and network access. Run untrusted generations only in
+  a container: per attempt with [`--isolation docker`](#isolation), or the whole harness as in
+  [SECURITY.md](SECURITY.md). A container shares the host kernel; it is not a VM.
 - Python only; each task is a single standalone module and no dependencies are installed.
 - The tasks are small and public. Models may have memorized similar problems, and the tests
   check only the stated contract, not code quality.
@@ -308,7 +382,6 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 
 ## Roadmap
 
-- One container per attempt, with network, memory and filesystem limits.
 - Measured runs of the agent-CLI presets against the real tools.
 - Tasks in languages other than Python, and repository-level tasks graded from a patch.
 - Optional cost estimates from a versioned pricing file, labelled separately from reported cost.
