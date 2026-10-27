@@ -142,10 +142,16 @@ grading is containerised. Every container gets:
 
 Fixed hardening: read-only root filesystem, the attempt workdir bind-mounted read-write at
 `/work`, a 256 MB `/tmp` tmpfs (also `HOME` and `TMPDIR`), `--cap-drop ALL`,
-`no-new-privileges`, your own uid:gid on POSIX, `--rm`, and a unique container name. Host paths
-in the command (`{workdir}`, `{prompt_file}`, the test paths) are rewritten to `/work`.
-Environment variables are passed as `--env NAME`, so values never appear in a process list.
-On timeout the harness kills the container as well as the local process group.
+`no-new-privileges`, your own uid:gid on POSIX, `--rm`, a unique container name and the label
+`agent-eval.attempt=<name>`. Host paths in the command (`{workdir}`, `{prompt_file}`, the test
+paths) are rewritten to `/work`, with `/` separators even on a Windows host. Environment
+variables are passed as `--env NAME`, so values never appear in a process list.
+After a timeout, cancellation or non-zero exit of the docker client, the harness removes the
+container with `docker rm --force`, retrying briefly until `docker container inspect` no longer
+finds it (this also catches a container the daemon started after the client was killed). If it
+cannot, the attempt keeps its outcome, its output ends with
+`[agent-eval: container <name> could not be removed]` and a warning goes to stderr; leftovers
+can be found with `docker ps -a --filter label=agent-eval.attempt`.
 
 ```yaml
 isolation:
@@ -165,6 +171,9 @@ isolation:
   `docker` is missing or the daemon is unreachable, the run uses the local runner, prints one
   warning to stderr and records it on every attempt.
 - Custom runners that start their own processes are not containerised.
+- **Resume** requires the same isolation mode as the interrupted run, after `--isolation`: a run
+  started with `--isolation docker` must be resumed with it. Runs recorded before isolation
+  existed count as `local`.
 
 **Schema change.** `results.jsonl` lines gain an optional `isolation` object, e.g.
 `{"requested": "docker", "used": "local", "warning": "docker isolation unavailable (...)"}`, or

@@ -131,8 +131,10 @@ async def run_config(
     out = out.resolve()
     resolved = config.model_dump(mode="json")
     resolved["tasks"] = [str(path) for path, _ in tasks]
-    # Keeps configs without an isolation block, and runs recorded before it existed, resumable.
-    if "isolation" not in config.model_fields_set:
+    # The effective mode, after --isolation. A local run of a config without an isolation
+    # block records none, like runs from before isolation existed, which stay resumable.
+    resolved["isolation"] = isolation_options.model_dump(mode="json")
+    if "isolation" not in config.model_fields_set and isolation_options.mode == "local":
         del resolved["isolation"]
     if "retry" not in config.model_fields_set:
         del resolved["retry"]
@@ -168,7 +170,16 @@ async def run_config(
     if resume and out.exists():
         if not (out / "results.jsonl").is_file():
             raise ValueError(f"cannot resume: no results.jsonl in {out}")
-        if (out / "config.resolved.yaml").read_text(encoding="utf-8") != config_text:
+        previous_text = (out / "config.resolved.yaml").read_text(encoding="utf-8")
+        # Runs recorded without an isolation entry ran locally.
+        recorded_isolation = yaml.safe_load(previous_text).get("isolation") or {}
+        previous_mode = recorded_isolation.get("mode", "local")
+        if previous_mode != isolation_options.mode:
+            raise ValueError(
+                "cannot resume: the config differs from the interrupted run "
+                f"(isolation {previous_mode}, now {isolation_options.mode})"
+            )
+        if previous_text != config_text:
             raise ValueError("cannot resume: the config differs from the interrupted run")
         previous = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
         if previous.get("task_hashes") != json.loads(redact(json.dumps(hashes))):
