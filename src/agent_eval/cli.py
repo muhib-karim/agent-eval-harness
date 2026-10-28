@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ import yaml
 from pydantic import ValidationError
 
 from agent_eval import __version__
+from agent_eval.context_compare import compare_context
 from agent_eval.engine import run_config, validate_task
 from agent_eval.report import ReportFormat, render_report
 from agent_eval.results import load_attempts, summarize
@@ -58,6 +60,14 @@ def parser() -> argparse.ArgumentParser:
         default=DEFAULT_RESAMPLES,
         help="bootstrap resamples (default: %(default)s)",
     )
+    compare = sub.add_parser(
+        "compare-context", help="offline paired comparison of two saved variants"
+    )
+    compare.add_argument("full", type=Path)
+    compare.add_argument("trimmed", type=Path)
+    compare.add_argument("--out", type=Path)
+    compare.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    compare.add_argument("--resamples", type=int, default=DEFAULT_RESAMPLES)
     listing = sub.add_parser("list-tasks", help="list matching task specs")
     listing.add_argument("patterns", nargs="*", default=["tasks/*/task.yaml"])
     validate = sub.add_parser("validate-task", help="grade a task's reference implementation")
@@ -130,6 +140,18 @@ def main(argv: list[str] | None = None) -> int:
                 args.out.write_text(report, encoding="utf-8")
             else:
                 print(report, end="")
+        elif args.command == "compare-context":
+            comparison = compare_context(
+                load_attempts(args.full),
+                load_attempts(args.trimmed),
+                seed=args.seed,
+                resamples=args.resamples,
+            )
+            text = json.dumps(comparison, indent=2) + "\n"
+            if args.out:
+                args.out.write_text(text, encoding="utf-8")
+            else:
+                print(text, end="")
         elif args.command == "list-tasks":
             for path, task in discover_tasks(args.patterns, Path.cwd()):
                 print(f"{task.id}\t{task.title}\t{path}")

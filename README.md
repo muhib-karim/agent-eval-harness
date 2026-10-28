@@ -435,6 +435,11 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 - Only the entrypoint is archived from a CLI agent's workdir, and captured output is capped at
   1 MB per process. Process-group cleanup is POSIX-only.
 
+## Applied engineering notes
+
+[Context engineering: offline comparison and experiment design](docs/context-engineering.md) records the design reasoning, current implementation,
+offline checks and experiments not yet run. No new live benchmark result is claimed.
+
 ## Roadmap
 
 - Measured runs of the agent-CLI presets against the real tools.
