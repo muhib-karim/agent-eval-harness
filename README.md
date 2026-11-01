@@ -97,6 +97,7 @@ pip install "agent-eval-harness[grade] @ https://github.com/muhib-karim/agent-ev
 ```sh
 agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--max-retries N]  # writes results.jsonl + report.html
 agent-eval report RESULTS.jsonl --format html|md|json [--k N ...] [--seed S] [--resamples R]
+agent-eval compare-context FULL.jsonl TRIMMED.jsonl [--out FILE] [--seed S] [--resamples R]  # offline, JSON
 agent-eval list-tasks                              # id, title and path of each bundled task
 agent-eval validate-task tasks/semver/task.yaml --reference tests/fixtures/reference/semver.py
 ```
@@ -306,6 +307,7 @@ flowchart LR
 | `results.py` | JSONL schema, loading, pass@k, per-model and per-category summaries, paired comparisons |
 | `stats.py` | Seeded task-level percentile bootstrap and paired bootstrap of differences |
 | `report.py` | Markdown, JSON, and the self-contained HTML report (Jinja2 template, inline SVG, no external assets) |
+| `context_compare.py` | Offline paired comparison of two saved result files (`compare-context`); no model calls |
 
 Runtime dependencies: pydantic, PyYAML, httpx, jinja2. pytest is the optional `grade` extra.
 
@@ -474,14 +476,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
 [CHANGELOG.md](CHANGELOG.md).
 
 ```text
-src/agent_eval/        package: cli, engine, grader, process, results, stats, report, specs
+src/agent_eval/        package: cli, engine, grader, isolation, retry, process, results, stats,
+                       report, context_compare, specs
   runners/             Runner protocol + registry, HTTP adapters, CLI runner + presets, mock
   templates/           self-contained HTML report template
 tasks/<id>/            task.yaml, hidden_tests.py (+ starter.py for bug-fix tasks)
 tests/                 pytest suite (no network); fixtures/reference/ holds task solutions
 examples/              mock demo, real-model, agent-CLI and measured-run configs
 results/               committed evidence for each measured run
-docs/                  reference.md, sample report, banner and screenshots
+docs/                  reference.md, context-engineering.md, sample report, banner and screenshots
 .github/               CI, CodeQL, Pages and release workflows; Dependabot
 ```
 
