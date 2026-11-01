@@ -97,6 +97,7 @@ pip install "agent-eval-harness[grade] @ https://github.com/muhib-karim/agent-ev
 ```sh
 agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--max-retries N]  # writes results.jsonl + report.html
 agent-eval report RESULTS.jsonl --format html|md|json [--k N ...] [--seed S] [--resamples R]
+agent-eval compare-context FULL.jsonl TRIMMED.jsonl [--out FILE] [--seed S] [--resamples R]  # offline, JSON
 agent-eval list-tasks                              # id, title and path of each bundled task
 agent-eval validate-task tasks/semver/task.yaml --reference tests/fixtures/reference/semver.py
 ```
@@ -306,6 +307,7 @@ flowchart LR
 | `results.py` | JSONL schema, loading, pass@k, per-model and per-category summaries, paired comparisons |
 | `stats.py` | Seeded task-level percentile bootstrap and paired bootstrap of differences |
 | `report.py` | Markdown, JSON, and the self-contained HTML report (Jinja2 template, inline SVG, no external assets) |
+| `context_compare.py` | Offline paired comparison of two saved result files (`compare-context`); no model calls |
 
 Runtime dependencies: pydantic, PyYAML, httpx, jinja2. pytest is the optional `grade` extra.
 
@@ -351,8 +353,9 @@ What the run shows:
   alone would not show this.
 - **claude-sonnet-5 ran out of output budget.** Six of its attempts used the full 8,192-token
   `max_tokens`: four returned no text at all and two were graded on truncated code. It produced
-  129,892 output tokens, about 1.7 times the next-highest model (claude-fable-5-1, 74,638). The budget was the same for every
-  Messages-API model and as in the 17 October run, and it was not raised after the fact.
+  129,892 output tokens, about 1.7 times the next-highest model (claude-fable-5-1, 74,638). The
+  budget was the same for every Messages-API model and the same as in the 17 October run, and it
+  was not raised after the fact.
 - **The full-width digit still separates models on `arithmetic`.** claude-sonnet-5 and
   claude-haiku-4-5 failed all six attempts on the same single test (30/31): `"\uff12"` must be
   rejected, but `str.isdigit()` and `float()` accept it. The 17 October run found the same failure.
@@ -437,8 +440,9 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 
 ## Applied engineering notes
 
-[Context engineering: offline comparison and experiment design](docs/context-engineering.md) records the design reasoning, current implementation,
-offline checks and experiments not yet run. No new live benchmark result is claimed.
+[Context engineering: offline comparison and experiment design](docs/context-engineering.md)
+records the design reasoning, current implementation, offline checks and experiments not yet run.
+No new live benchmark result is claimed.
 
 ## Roadmap
 
@@ -452,7 +456,7 @@ offline checks and experiments not yet run. No new live benchmark result is clai
 python -m pip install -e '.[dev]'
 ruff check . && ruff format --check .   # lint + formatting
 mypy --strict                           # type-check src/ and tests/
-pytest                                  # 229 tests, branch coverage gate 85%
+pytest                                  # 381 tests, branch coverage gate 85%
 python -m build                         # sdist + wheel
 agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
 ```
@@ -472,14 +476,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
 [CHANGELOG.md](CHANGELOG.md).
 
 ```text
-src/agent_eval/        package: cli, engine, grader, process, results, stats, report, specs
+src/agent_eval/        package: cli, engine, grader, isolation, retry, process, results, stats,
+                       report, context_compare, specs
   runners/             Runner protocol + registry, HTTP adapters, CLI runner + presets, mock
   templates/           self-contained HTML report template
 tasks/<id>/            task.yaml, hidden_tests.py (+ starter.py for bug-fix tasks)
 tests/                 pytest suite (no network); fixtures/reference/ holds task solutions
 examples/              mock demo, real-model, agent-CLI and measured-run configs
 results/               committed evidence for each measured run
-docs/                  reference.md, sample report, banner and screenshots
+docs/                  reference.md, context-engineering.md, sample report, banner and screenshots
 .github/               CI, CodeQL, Pages and release workflows; Dependabot
 ```
 

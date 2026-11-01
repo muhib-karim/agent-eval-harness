@@ -136,6 +136,8 @@ def test_document_outline_snapshot() -> None:
 def test_self_contained_with_dark_mode_and_mobile_rules() -> None:
     html = render_report(summary(), "html")
     assert '<meta name="viewport" content="width=device-width, initial-scale=1">' in html
+    assert '<meta name="description" content="Pass@k leaderboard' in html
+    assert '<meta property="og:title" content="Coding task comparison">' in html
     assert "default-src 'none'" in html
     assert "@media (prefers-color-scheme: dark)" in html
     assert "@media (max-width: 640px)" in html
