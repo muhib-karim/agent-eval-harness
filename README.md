@@ -452,7 +452,7 @@ offline checks and experiments not yet run. No new live benchmark result is clai
 python -m pip install -e '.[dev]'
 ruff check . && ruff format --check .   # lint + formatting
 mypy --strict                           # type-check src/ and tests/
-pytest                                  # 229 tests, branch coverage gate 85%
+pytest                                  # 381 tests, branch coverage gate 85%
 python -m build                         # sdist + wheel
 agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
 ```
