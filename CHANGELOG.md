@@ -36,6 +36,10 @@ All notable changes are recorded here. The format follows
   retry and backoff wait.
 - Isolation `memory` must be at least `6m` (docker's minimum), counted in whole bytes the way docker
   does: `0` (docker's "no limit") and values such as `0.5b`, which docker truncates to 0, are rejected.
+- `agent-eval compare-context FULL TRIMMED`: an offline paired comparison of two saved result
+  files (trimmed minus full pass@1 with a paired task-level bootstrap interval, wall-time and
+  reported-token differences), written as JSON. It makes no model calls. See
+  [docs/context-engineering.md](docs/context-engineering.md).
 
 ### Changed
 
