@@ -351,8 +351,9 @@ What the run shows:
   alone would not show this.
 - **claude-sonnet-5 ran out of output budget.** Six of its attempts used the full 8,192-token
   `max_tokens`: four returned no text at all and two were graded on truncated code. It produced
-  129,892 output tokens, about 1.7 times the next-highest model (claude-fable-5-1, 74,638). The budget was the same for every
-  Messages-API model and as in the 17 October run, and it was not raised after the fact.
+  129,892 output tokens, about 1.7 times the next-highest model (claude-fable-5-1, 74,638). The
+  budget was the same for every Messages-API model and the same as in the 17 October run, and it
+  was not raised after the fact.
 - **The full-width digit still separates models on `arithmetic`.** claude-sonnet-5 and
   claude-haiku-4-5 failed all six attempts on the same single test (30/31): `"\uff12"` must be
   rejected, but `str.isdigit()` and `float()` accept it. The 17 October run found the same failure.
@@ -437,8 +438,9 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 
 ## Applied engineering notes
 
-[Context engineering: offline comparison and experiment design](docs/context-engineering.md) records the design reasoning, current implementation,
-offline checks and experiments not yet run. No new live benchmark result is claimed.
+[Context engineering: offline comparison and experiment design](docs/context-engineering.md)
+records the design reasoning, current implementation, offline checks and experiments not yet run.
+No new live benchmark result is claimed.
 
 ## Roadmap
 
