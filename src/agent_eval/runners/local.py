@@ -114,7 +114,13 @@ class CLIRunner:
             home = None
             # A container's HOME is already a private tmpfs.
             if self.options.isolate_home and self.sandbox is None:
-                home = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="agent-home-")))
+                home = Path(
+                    stack.enter_context(
+                        tempfile.TemporaryDirectory(
+                            prefix="agent-home-", ignore_cleanup_errors=True
+                        )
+                    )
+                )
             env = self.options.environment(home)
             try:
                 if self.sandbox is None:

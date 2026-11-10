@@ -24,8 +24,22 @@ All notable changes are recorded here. The format follows
   noted in the attempt's output and on stderr; one the daemon creates after the sweep can be found
   with `docker ps -a --filter label=agent-eval.run`. Grading uses the image's `python`,
   which needs pytest (the default `python:3.12-slim` does not have it; the harness image does).
-- If docker is missing or its daemon is unreachable, the run falls back to the local runner, prints
-  one warning and records it on every attempt.
+- If docker isolation is requested but docker is missing or its daemon is unreachable, the run
+  stops with exit code 2 before anything is generated or written: isolation is asked for to
+  contain untrusted code, so it is not silently replaced by running that code on the host.
+  `agent-eval run --allow-local-fallback` (or `isolation: {fallback: local}`) opts into the local
+  runner instead; the run then prints one warning and records it on every attempt. The permission
+  is not stored in `config.resolved.yaml`, so a resume may add or drop it.
+- A pytest preflight: before anything is generated, the run checks that the grading interpreter
+  (the host's `python -I`, or the image's `python` with docker isolation) can import pytest, and
+  stops with exit code 2 if not. Previously a missing `grade` extra, pytest installed only in the
+  user site, or the default `python:3.12-slim` image turned every attempt into an `error` after
+  its generation had been paid for, and the run still exited 0.
+- `metadata.json` of a resumed run gains a `resumes` list: each resume's time, config hash,
+  harness and Python versions and platform. The top-level fields keep describing the first
+  invocation.
+- `tests/test_committed_results.py` checks the measured runs under `results/`: every recorded
+  attempt has its evidence, and the newest run's task hashes and config hash still match the tree.
 - Retry with backoff for transient provider errors in the `openai` and `anthropic` runners: HTTP
   408, 409, 425, 429, 500, 502, 503, 504, 529 and connection errors are retried with full-jitter
   exponential backoff (3 retries, 1 s base, ×2, 30 s cap by default). A `Retry-After` header in
@@ -54,6 +68,48 @@ All notable changes are recorded here. The format follows
   `local`).
 - `config.resolved.yaml` records a `--max-retries` override as `max_retries_override`, and
   `--resume` refuses a run whose override differs (a run without the entry had none).
+- `main` now carries a development version, `1.4.0.dev0`, and the version is written in one
+  place (`src/agent_eval/__init__.py`; the build reads it). Every run records it in
+  `metadata.json`, where code past the 1.3.0 tag was still stamped `1.3.0`.
+- Dependency floors: pydantic 2.14.2, pytest 9.2.0 (also for the `grade` extra), mypy 2.4.1,
+  ruff 0.17.3, types-PyYAML 6.0.12.20261030, hatchling 1.33.0. No upper bound changed.
+- The coverage gate is 95% (was 85%) and warnings raised during the tests are errors.
+- The sdist no longer ships `results/`, `docs/assets/` and `.github/` (770 KB to 140 KB).
+- CI: Python 3.13 and 3.14 join the matrix; a `pip-audit` job; both demo jobs assert the pass
+  rates instead of trusting the exit code; pushes run on `main` only, plus pull requests, a
+  weekly schedule and manual dispatch.
+
+### Fixed
+
+- `--resume` no longer corrupts `results.jsonl` when the interrupted run lost only the final
+  newline: the next record used to be appended to the same line, the resume exited 0, and the
+  file could no longer be loaded. A half-written final line is now truncated in place instead of
+  rewriting the whole file.
+- A workdir that cannot be removed (for example because a detached child of an agent is still
+  writing into it) no longer aborts the whole run or loses the attempt; the attempt keeps its
+  outcome and a warning names the directory. The same holds for the hidden-test directory.
+- Pass@1 is exact. It went through the log form used for pass@k, so 1/3 became
+  0.33333333333333337; models with equal pass rates could then rank in the wrong order instead
+  of by wall time, and a point estimate could fall outside its own interval.
+- Resuming a run whose `config.resolved.yaml` or `metadata.json` is empty or not a mapping is
+  reported as a damaged run (exit code 2) instead of a traceback.
+- A cancellation that arrives while a command's output pipe is being connected now kills the
+  command; it used to be left running.
+- README: the 17 October run's recorded harness version (1.1.0), what `--resume` compares, and
+  which sections describe unreleased features.
+
+### Security
+
+- The Markdown report escapes Markdown syntax in model, task and category labels, so a label
+  such as `[text](url)` or `![](url)` from a config or from someone else's `results.jsonl` is
+  shown as text rather than rendered as a link or a remote image. The HTML report was already
+  safe.
+- Workflows pin every action to a commit SHA, check out without persisting the token (including
+  the release job, whose token can write releases), and the Pages build job no longer holds the
+  deploy permissions. gitleaks is verified against its SHA-256 before it runs.
+- The Dockerfile's base image is pinned by digest and kept current by Dependabot.
+- The release workflow checks for the exact wheel filename, so a development build such as
+  `1.4.0.dev0` cannot be published under the tag `v1.4.0`.
 
 ## [1.3.0] - 2026-10-21
 

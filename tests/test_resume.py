@@ -1,12 +1,14 @@
 """Resuming an interrupted run fills in only the attempts it never recorded."""
 
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 import yaml
 
+from agent_eval import __version__
 from agent_eval.cli import main
 from agent_eval.engine import recover_attempts, run_config
 from agent_eval.results import load_attempts
@@ -92,3 +94,78 @@ def test_cli_resume(config_path: Path, tmp_path: Path, capsys: pytest.CaptureFix
     assert "Completed 4 attempts" in capsys.readouterr().out
     assert main(["run", str(config_path), "--resume"]) == 2
     assert "--resume needs --out" in capsys.readouterr().err
+
+
+def test_resume_repairs_a_final_line_without_newline(config_path: Path, tmp_path: Path) -> None:
+    """A kill can cut off only the newline of the last record; the next must not join it."""
+    out = tmp_path / "run"
+    asyncio.run(run_config(config_path, out))
+    lines = (out / "results.jsonl").read_text().splitlines(keepends=True)
+    (out / "results.jsonl").write_text("".join(lines[:2]).removesuffix("\n"))
+
+    resumed = asyncio.run(run_config(config_path, out, resume=True))
+
+    assert len(resumed) == 4
+    text = (out / "results.jsonl").read_text()
+    assert text.endswith("\n") and len(text.splitlines()) == 4
+    assert len(load_attempts(out / "results.jsonl")) == 4
+
+
+def test_recover_drops_a_partial_line_without_rewriting_the_file(
+    config_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rewriting the whole file to drop its tail would lose every record if killed midway."""
+    out = tmp_path / "run"
+    asyncio.run(run_config(config_path, out))
+    original = interrupt(out, 2, partial=True)
+
+    def rewritten(self: Path, data: bytes) -> int:
+        raise AssertionError(f"{self.name} was rewritten")
+
+    monkeypatch.setattr(Path, "write_bytes", rewritten)
+    assert len(recover_attempts(out / "results.jsonl")) == 2
+    assert (out / "results.jsonl").read_text() == "".join(original[:2])
+
+
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("config.resolved.yaml", ""),
+        ("config.resolved.yaml", "- not\n- a mapping\n"),
+        ("config.resolved.yaml", "isolation: docker\n"),
+        ("metadata.json", "[]"),
+    ],
+)
+def test_resume_rejects_damaged_run_files(
+    config_path: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    filename: str,
+    content: str,
+) -> None:
+    out = tmp_path / "run"
+    assert main(["run", str(config_path), "--out", str(out)]) == 0
+    (out / filename).write_text(content)
+    capsys.readouterr()
+    assert main(["run", str(config_path), "--out", str(out), "--resume"]) == 2
+    assert f"cannot resume: {filename} is damaged" in capsys.readouterr().err
+
+
+def test_resume_records_its_own_provenance(config_path: Path, tmp_path: Path) -> None:
+    out = tmp_path / "run"
+    asyncio.run(run_config(config_path, out))
+    before = json.loads((out / "metadata.json").read_text())
+    interrupt(out, 2, partial=False)
+    # A comment changes the file's hash but not the resolved config, so the resume goes ahead.
+    config_path.write_text(config_path.read_text() + "# reviewed\n")
+
+    asyncio.run(run_config(config_path, out, resume=True))
+
+    after = json.loads((out / "metadata.json").read_text())
+    assert after["config_sha256"] == before["config_sha256"]
+    [resume] = after["resumes"]
+    assert resume["config_sha256"] == hashlib.sha256(config_path.read_bytes()).hexdigest()
+    assert resume["config_sha256"] != before["config_sha256"]
+    assert resume["at"] == after["resumed_at"][0]
+    assert resume["harness_version"] == __version__
+    assert set(resume) == {"at", "config_sha256", "harness_version", "python_version", "platform"}

@@ -25,8 +25,13 @@ artifacts, writing outside the run directory, or hanging past its configured tim
 
 ## Running untrusted generations
 
-Run on a disposable host or in a container with no sensitive bind mounts. The supplied image
-runs as a non-root user. For the offline demo:
+Run on a disposable host or in a container with no sensitive bind mounts. `agent-eval run
+--isolation docker` puts each attempt in its own container without network access (see
+[Isolation](README.md#isolation)). If docker is unavailable such a run stops; it executes on the
+host only when you pass `--allow-local-fallback`, and then every attempt records that it did.
+
+To run the whole harness in one container instead: the supplied image runs as a non-root user.
+For the offline demo:
 
 ```sh
 docker build -t agent-eval-harness .
@@ -52,7 +57,9 @@ use short-lived keys with spending limits.
 ## Secrets in artifacts
 
 Configs name environment variables rather than containing keys. Before any text is written to a
-run directory, every configured `api_key_env` value is replaced with `[REDACTED]`. That is exact
+run directory, every configured `api_key_env` value is replaced with `[REDACTED]`, and so is
+every value of 8 or more characters forwarded to a CLI agent (a preset's credential variables
+and anything in `env_passthrough`). That is exact
 matching on known keys. It won't catch other secrets that appear in prompts, generated code or
 CLI output. HTTP errors are recorded as the status code only. Review a run directory before
 sharing it.

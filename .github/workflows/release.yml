@@ -15,13 +15,17 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.TAG }}
-      - uses: actions/setup-python@v7
+          # The job's token can write releases; keep it out of .git/config while the tests
+          # and the build run. The publish step gets it through GH_TOKEN.
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       - name: Test
@@ -34,7 +38,8 @@ jobs:
           python -m pip install build
           python -m build
           VERSION="${TAG#v}"
-          ls dist | grep -q "$VERSION" || { echo "dist does not match $TAG"; ls dist; exit 1; }
+          # The exact file: "1.4.0" is also a substring of a development build, 1.4.0.dev0.
+          test -f "dist/agent_eval_harness-${VERSION}-py3-none-any.whl" || { echo "dist does not match $TAG"; ls dist; exit 1; }
           cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Check the wheel installs
         run: |

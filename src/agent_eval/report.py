@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from importlib.resources import files
 from typing import Literal
 
@@ -11,8 +12,14 @@ from agent_eval.results import Summary, summary_json
 ReportFormat = Literal["md", "html", "json"]
 
 
+# Characters that start Markdown links, images, code, emphasis and strikethrough.
+_MD_MARKUP = re.compile(r"([\\`*\[\]~])")
+
+
 def _md(value: str) -> str:
-    return html.escape(value).replace("|", "&#124;").replace("\n", " ").replace("\r", " ")
+    """A label as literal text in a Markdown table cell: no markup, HTML or cell breaks."""
+    value = html.escape(_MD_MARKUP.sub(r"\\\1", value))
+    return value.replace("|", "&#124;").replace("\n", " ").replace("\r", " ")
 
 
 def _count(value: int | None) -> str:

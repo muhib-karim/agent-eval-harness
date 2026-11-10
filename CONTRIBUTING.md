@@ -8,7 +8,8 @@ make lint typecheck test      # ruff check + format check, mypy --strict, pytest
 make demo                     # offline end-to-end run
 ```
 
-CI runs the same checks on Python 3.11 and 3.12. Pull requests should pass all of them.
+CI runs the same checks on Python 3.11 to 3.14, plus a dependency audit (`pip-audit`), a secret
+scan and the offline demo. Pull requests should pass all of them.
 
 ## Code
 
@@ -16,7 +17,10 @@ CI runs the same checks on Python 3.11 and 3.12. Pull requests should pass all o
   there is a strong reason to add one.
 - `mypy --strict` covers `src/` and `tests/`.
 - Behaviour changes need tests, including the failure path. Coverage is measured with branches
-  and must stay at or above 85% (`pyproject.toml`).
+  and must stay at or above 95% (`pyproject.toml`). A warning raised during the tests is an
+  error.
+- The version is written once, in `src/agent_eval/__init__.py`. Between releases it is a
+  development version such as `1.4.0.dev0`, because every run records it in `metadata.json`.
 - Tests must not touch the network. Use `httpx.MockTransport` for HTTP runners and the `mock`
   runner or a registered fake for engine tests.
 - Never save response bodies, request URLs or headers from HTTP errors. They can contain
@@ -51,7 +55,9 @@ excludes evaluation data that is not project code:
 - `tasks/*/starter.py`: the deliberately buggy modules handed to the model in bug-fix tasks.
 
 Hidden test files are hashed into each measured run's `metadata.json`, so changing one breaks
-that run's integrity check and `--resume`. Fix an alert in a hidden test only together with a
+that run's integrity check and `--resume`. `tests/test_committed_results.py` enforces this for
+the newest run under `results/`: it fails if a task spec, hidden test or starter no longer
+matches the hash that run was graded with. Fix an alert in a hidden test only together with a
 new measured run, and only if the fix leaves what the tests check unchanged. Four alerts are
 currently left on purpose:
 

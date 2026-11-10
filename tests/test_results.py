@@ -107,3 +107,53 @@ def test_jsonl_validation(tmp_path: Path) -> None:
         path.write_text(content)
         with pytest.raises(ValueError, match=message):
             load_attempts(path)
+
+
+def test_pass_at_1_is_exactly_the_pass_rate() -> None:
+    """The log form used for k > 1 is one ulp off for rates such as 1/3."""
+    for n in range(1, 41):
+        for c in range(n + 1):
+            assert pass_at_k(n, c, 1) == c / n
+
+
+def ranked(model: str, start: int, passes: dict[str, int], wall_time_s: float) -> list[Attempt]:
+    """Three repeats per task, the first ``passes[task]`` of them passing."""
+    return [
+        attempt(start + 3 * position + repeat, task, model=model).model_copy(
+            update={
+                "repeat": repeat + 1,
+                "outcome": "pass" if repeat < passed else "fail",
+                "wall_time_s": wall_time_s,
+            }
+        )
+        for position, (task, passed) in enumerate(passes.items())
+        for repeat in range(3)
+    ]
+
+
+def test_equal_pass_rates_rank_by_wall_time() -> None:
+    """Both models average 2/3; rounding noise must not decide the order instead of time."""
+    rows = ranked("slow", 0, {"one": 1, "two": 3}, 9.0) + ranked(
+        "fast", 100, {"one": 2, "two": 2}, 1.0
+    )
+    summary = summarize(rows, (1,))
+    assert [model.model for model in summary.models] == ["fast", "slow"]
+    assert summary.models[0].pass_at_1 == summary.models[1].pass_at_1 == 2 / 3
+
+
+def test_point_estimate_lies_inside_a_degenerate_interval() -> None:
+    rows = ranked("model", 0, {"one": 1, "two": 1, "three": 1}, 1.0)
+    [model] = summarize(rows, (1,)).models
+    low, high = model.pass_at_1_ci
+    assert low == high == model.pass_at_1 == 1 / 3
+
+
+def test_markdown_report_neutralises_markdown_in_labels() -> None:
+    """Labels come from configs and from result files other people hand over."""
+    label = "[docs](https://example.test/x) ![pixel](https://example.test/p.png) *b* `c` ~~d~~ \\"
+    rendered = render_report(summarize([attempt(0, model=label)]), "md")
+    assert "[docs](" not in rendered and "![pixel](" not in rendered
+    assert (
+        r"\[docs\](https://example.test/x) !\[pixel\](https://example.test/p.png) "
+        r"\*b\* \`c\` \~\~d\~\~ \\ |"
+    ) in rendered

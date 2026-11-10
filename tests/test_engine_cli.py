@@ -1,8 +1,12 @@
 import asyncio
+import errno
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -241,3 +245,53 @@ def test_describe_error_branches() -> None:
     message = describe_error(caught.value)
     assert message.startswith("invalid RunConfig: ") and message.endswith("; and 4 more")
     assert "secret-value" not in message
+
+
+@pytest.mark.parametrize("prefix", ["agent-eval-", "_hidden_"])
+def test_a_directory_that_cannot_be_removed_does_not_fail_the_attempt_or_the_run(
+    config_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    prefix: str,
+) -> None:
+    """A detached child of an agent, or of the code under test, can keep writing into the
+    workdir while the harness removes it; the final rmdir then fails with ENOTEMPTY. That
+    must neither abort the other attempts (the workdir) nor change the outcome (the
+    hidden-test directory inside it)."""
+    scratch = tmp_path / "tmp"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    real_rmdir = os.rmdir
+    blocked: list[str] = []
+
+    def rmdir(path: Any, *args: Any, **kwargs: Any) -> None:
+        name = os.path.basename(os.fsdecode(path))
+        if name.startswith(prefix) and not blocked:
+            blocked.append(name)
+            raise OSError(errno.ENOTEMPTY, "Directory not empty", os.fsdecode(path))
+        real_rmdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "rmdir", rmdir)
+    out = tmp_path / "run"
+
+    attempts = asyncio.run(run_config(config_path, out))
+
+    assert blocked
+    assert len(attempts) == 4 == len(load_attempts(out / "results.jsonl"))
+    assert [row.outcome for row in attempts] == ["pass", "pass", "fail", "fail"]
+    warned = "could not remove workdir" in capsys.readouterr().err
+    assert warned == (prefix == "agent-eval-")
+
+
+def test_version_is_single_sourced(capsys: pytest.CaptureFixture[str]) -> None:
+    """metadata.json stamps every run with this version, so it is written in one place: the
+    build reads ``__version__`` instead of repeating it in pyproject.toml."""
+    root = Path(__file__).resolve().parents[1]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    assert "version" not in project["project"]
+    assert project["project"]["dynamic"] == ["version"]
+    assert project["tool"]["hatch"]["version"]["path"] == "src/agent_eval/__init__.py"
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out.strip() == __version__

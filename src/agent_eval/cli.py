@@ -40,6 +40,12 @@ def parser() -> argparse.ArgumentParser:
         help="run each attempt locally or in its own container; overrides isolation.mode",
     )
     run.add_argument(
+        "--allow-local-fallback",
+        action="store_true",
+        help="if docker isolation is requested but unavailable, run attempts on the host "
+        "instead of stopping",
+    )
+    run.add_argument(
         "--max-retries",
         type=int,
         metavar="N",
@@ -121,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                     resume=args.resume,
                     isolation=args.isolation,
                     max_retries=args.max_retries,
+                    allow_local_fallback=args.allow_local_fallback,
                 )
             )
             passed = sum(row.outcome == "pass" for row in attempts)

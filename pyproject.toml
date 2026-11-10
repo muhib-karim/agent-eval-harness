@@ -1,28 +1,50 @@
 [build-system]
-requires = ["hatchling>=1.32.4"]
+requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "agent-eval-harness"
-version = "1.3.0"
+dynamic = ["version"]
 description = "Reproducible coding-agent comparisons with withheld tests and offline fixtures"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{name = "Muhib Karim"}]
-dependencies = ["pydantic>=2.14.1,<3", "PyYAML>=6.0.3,<7", "httpx>=0.28.1,<1", "jinja2>=3.1.6,<4"]
+keywords = ["llm-evaluation", "code-generation", "regression-testing", "benchmarking", "pass-at-k"]
+# The Python versions in the CI matrix, and the one platform CI runs on.
+classifiers = [
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+dependencies = ["pydantic>=2.14.2,<3", "PyYAML>=6.0.3,<7", "httpx>=0.28.1,<1", "jinja2>=3.1.6,<4"]
 
 [project.optional-dependencies]
-grade = ["pytest>=9.1.1,<10"]
-dev = ["pytest>=9.1.1,<10", "pytest-cov>=7.1.0,<8", "mypy>=2.4.0,<3", "ruff>=0.17.1,<0.18", "types-PyYAML>=6.0.12.20260906", "build>=1.6.1,<2"]
+grade = ["pytest>=9.2.0,<10"]
+dev = ["pytest>=9.2.0,<10", "pytest-cov>=7.1.0,<8", "mypy>=2.4.1,<3", "ruff>=0.17.3,<0.18", "types-PyYAML>=6.0.12.20261030", "build>=1.6.1,<2"]
 
 [project.urls]
 Homepage = "https://muhib-karim.github.io/agent-eval-harness/"
 Repository = "https://github.com/muhib-karim/agent-eval-harness"
 Changelog = "https://github.com/muhib-karim/agent-eval-harness/blob/main/CHANGELOG.md"
+Issues = "https://github.com/muhib-karim/agent-eval-harness/issues"
 
 [project.scripts]
 agent-eval = "agent_eval.cli:main"
+
+# The one place the version is written; metadata.json records it for every run.
+[tool.hatch.version]
+path = "src/agent_eval/__init__.py"
+
+# Measured-run evidence, screenshots and CI config are not needed to build or test.
+[tool.hatch.build.targets.sdist]
+exclude = ["/results", "/docs/assets", "/.github"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_eval"]
@@ -46,11 +68,14 @@ exclude = ["^tests/fixtures/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --cov=agent_eval --cov-report=term-missing"
+# A deprecation or an unclosed resource fails the suite instead of scrolling past.
+filterwarnings = ["error"]
+xfail_strict = true
 
 [tool.coverage.run]
 source = ["agent_eval"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 95
 show_missing = true

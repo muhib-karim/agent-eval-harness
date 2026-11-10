@@ -8,6 +8,7 @@ import os
 import signal
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 MAX_OUTPUT_BYTES = 1_000_000
 # After the command exits, how long to wait for descendants outside its process group
@@ -44,6 +45,7 @@ async def run_process(
     """
     posix = os.name == "posix"
     transport: asyncio.BaseTransport | None = None
+    pipe: BinaryIO | None = None
     if posix:
         read_fd, write_fd = os.pipe()
         try:
@@ -61,10 +63,7 @@ async def run_process(
             raise
         finally:
             os.close(write_fd)
-        stream = asyncio.StreamReader()
-        transport, _ = await asyncio.get_running_loop().connect_read_pipe(
-            lambda: asyncio.StreamReaderProtocol(stream), os.fdopen(read_fd, "rb", buffering=0)
-        )
+        pipe = os.fdopen(read_fd, "rb", buffering=0)
     else:
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -74,8 +73,6 @@ async def run_process(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        assert process.stdout is not None
-        stream = process.stdout
 
     def kill() -> None:
         with contextlib.suppress(ProcessLookupError):
@@ -85,9 +82,20 @@ async def run_process(
                 process.kill()
 
     buffer = bytearray()
-    reader = asyncio.create_task(_drain(stream, buffer, max_output_bytes))
+    reader: asyncio.Task[None] | None = None
     timed_out = False
+    # The command is running from here on, so every await below is inside the block that
+    # kills it: connecting the pipe can be cancelled just like the wait itself.
     try:
+        if pipe is not None:
+            stream = asyncio.StreamReader()
+            transport, _ = await asyncio.get_running_loop().connect_read_pipe(
+                lambda: asyncio.StreamReaderProtocol(stream), pipe
+            )
+        else:
+            assert process.stdout is not None
+            stream = process.stdout
+        reader = asyncio.create_task(_drain(stream, buffer, max_output_bytes))
         try:
             await asyncio.wait_for(process.wait(), timeout_s)
         except TimeoutError:
@@ -102,9 +110,13 @@ async def run_process(
         raise
     finally:
         kill()
-        reader.cancel()
+        if reader is not None:
+            reader.cancel()
         if transport is not None:
             transport.close()
+        elif pipe is not None:
+            # The pipe never reached a transport, which would otherwise have closed it.
+            pipe.close()
     output = buffer[:max_output_bytes].decode("utf-8", "replace")
     if len(buffer) > max_output_bytes:
         output += f"\n[agent-eval: output truncated after {max_output_bytes} bytes]\n"

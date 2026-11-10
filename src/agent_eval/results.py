@@ -6,6 +6,7 @@ import json
 import math
 import statistics
 from collections import defaultdict
+from fractions import Fraction
 from pathlib import Path
 from typing import Literal
 
@@ -45,9 +46,9 @@ class Attempt(StrictModel):
     artifacts: str
     # Added in 1.3.0; absent in older result files, which load as uncategorized.
     category: str | None = None
-    # Added after 1.3.0; absent in older result files, which predate isolation.
+    # Added in 1.4.0; absent in older result files, which predate isolation.
     isolation: IsolationRecord | None = None
-    # Added after 1.3.0; older result files load as never retried.
+    # Added in 1.4.0; older result files load as never retried.
     retries: int = Field(default=0, ge=0)
     retry_reasons: list[str] = Field(default_factory=list)
 
@@ -132,6 +133,9 @@ def pass_at_k(n: int, c: int, k: int) -> float:
     """Unbiased estimator: 1 - choose(n-c, k) / choose(n, k)."""
     if not 0 <= c <= n or not 1 <= k <= n:
         raise ValueError("require 0 <= c <= n and 1 <= k <= n")
+    if k == 1:
+        # Exactly the pass rate; the log form below is one ulp off for rates such as 1/3.
+        return c / n
     if n - c < k:
         return 1.0
     # Stable when c/n is small; avoid subtracting nearly equal floating values.
@@ -203,6 +207,10 @@ def summarize(
             for k in sorted(set(ks) | {1})
             if all(s.attempts >= k for s in scores)
         }
+        # Pass@1 decides the ranking, so it is averaged exactly: models with the same rate
+        # get the same float and fall through to the wall-time tie-break.
+        exact = sum((Fraction(s.passed, s.attempts) for s in scores), Fraction(0)) / len(scores)
+        estimates[1] = float(exact)
         by_category: dict[str, list[TaskScore]] = defaultdict(list)
         for score in scores:
             by_category[categories[score.task_id]].append(score)
