@@ -8,6 +8,11 @@ updates:
     groups:
       python-dev:
         dependency-type: development
+  # The Dockerfile's base image is pinned by digest; this keeps the digest current.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -19,7 +19,7 @@ from typing import Any
 import yaml
 
 from agent_eval import __version__
-from agent_eval.grader import Grade, grade
+from agent_eval.grader import Grade, check_pytest, grade
 from agent_eval.isolation import IsolationMode, select_isolation
 from agent_eval.report import render_report
 from agent_eval.results import Attempt, summarize
@@ -35,7 +35,9 @@ async def validate_task(path: Path, reference: Path | None = None) -> Grade:
     """Grade a reference solution: the task's own ``reference`` file or an external one."""
     task = load_task(path, require_reference=reference is None)
     source = task_file(path, task.reference) if reference is None else reference
-    with tempfile.TemporaryDirectory(prefix="agent-eval-validate-") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix="agent-eval-validate-", ignore_cleanup_errors=True
+    ) as directory:
         workdir = Path(directory)
         (workdir / task.entrypoint).write_bytes(source.read_bytes())
         return await grade(task, path, workdir)
@@ -54,10 +56,12 @@ def _override_text(max_retries: int | None) -> str:
 
 
 def recover_attempts(path: Path) -> list[Attempt]:
-    """Recorded attempts of an interrupted run; drops only a half-written final line."""
+    """Recorded attempts of an interrupted run. Drops only a half-written final line, and
+    restores the newline of a final record that was cut off just before it."""
     data = path.read_bytes()
     lines = data.split(b"\n")
     attempts: list[Attempt] = []
+    kept = len(data)
     for index, line in enumerate(lines):
         if not line.strip():
             continue
@@ -65,8 +69,10 @@ def recover_attempts(path: Path) -> list[Attempt]:
             attempts.append(Attempt.model_validate_json(line))
         except ValueError:
             if index == len(lines) - 1:
-                # The process died mid-write; this attempt will run again.
-                path.write_bytes(data[: len(data) - len(line)])
+                # The process died mid-write; this attempt will run again. Truncating in
+                # place never rewrites the records that are already safe on disk.
+                kept = len(data) - len(line)
+                os.truncate(path, kept)
                 break
             raise ValueError(f"cannot resume: invalid attempt on line {index + 1}") from None
     identities = {(row.model, row.task_id, row.repeat) for row in attempts}
@@ -74,7 +80,18 @@ def recover_attempts(path: Path) -> list[Attempt]:
         attempts
     ):
         raise ValueError("cannot resume: duplicate attempts in results.jsonl")
+    if kept and not data[:kept].endswith(b"\n"):
+        # A complete record without its newline: the next append must start its own line.
+        with path.open("ab") as stream:
+            stream.write(b"\n")
     return attempts
+
+
+def _recorded_mapping(value: Any, filename: str) -> dict[str, Any]:
+    """A mapping read back from an interrupted run's directory, or a clear refusal."""
+    if not isinstance(value, dict):
+        raise ValueError(f"cannot resume: {filename} is damaged (expected a mapping)")
+    return value
 
 
 async def run_config(
@@ -84,11 +101,13 @@ async def run_config(
     resume: bool = False,
     isolation: IsolationMode | None = None,
     max_retries: int | None = None,
+    allow_local_fallback: bool = False,
 ) -> list[Attempt]:
     """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
     interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept.
     ``isolation`` overrides the config's ``isolation.mode`` and ``max_retries`` every HTTP
-    model's ``retry.max_retries``."""
+    model's ``retry.max_retries``. ``allow_local_fallback`` sets ``isolation.fallback`` to
+    ``local``: without it, docker isolation that is unavailable stops the run."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
@@ -109,10 +128,20 @@ async def run_config(
     isolation_options = config.isolation
     if isolation is not None:
         isolation_options = isolation_options.model_copy(update={"mode": isolation})
+    if allow_local_fallback:
+        isolation_options = isolation_options.model_copy(update={"fallback": "local"})
     # Labels this run's containers, so the sweep at the end finds any that were left over.
     sandbox, isolation_record = await select_isolation(isolation_options, uuid.uuid4().hex)
     if isolation_record.warning:
         print(f"agent-eval: warning: {isolation_record.warning}", file=sys.stderr)
+    # Before anything is generated or written: can the grading interpreter import pytest?
+    try:
+        await check_pytest(sandbox)
+    except BaseException:
+        # Also after Ctrl-C during an image pull: a preflight container created meanwhile.
+        if sandbox is not None:
+            await sandbox.sweep()
+        raise
     for job in jobs:
         if isinstance(job[5], CLIRunner):
             job[5].sandbox = sandbox
@@ -139,7 +168,10 @@ async def run_config(
     resolved["tasks"] = [str(path) for path, _ in tasks]
     # The effective mode, after --isolation. A local run of a config without an isolation
     # block records none, like runs from before isolation existed, which stay resumable.
-    resolved["isolation"] = isolation_options.model_dump(mode="json")
+    # ``fallback`` is left out: it is permission for one invocation, not part of what the
+    # run is, and each attempt records where it ran. A resume may add or drop it, and runs
+    # from before the setting existed still match.
+    resolved["isolation"] = isolation_options.model_dump(mode="json", exclude={"fallback"})
     if "isolation" not in config.model_fields_set and isolation_options.mode == "local":
         del resolved["isolation"]
     if "retry" not in config.model_fields_set:
@@ -181,9 +213,11 @@ async def run_config(
         if not (out / "results.jsonl").is_file():
             raise ValueError(f"cannot resume: no results.jsonl in {out}")
         previous_text = (out / "config.resolved.yaml").read_text(encoding="utf-8")
-        previous_config = yaml.safe_load(previous_text)
+        previous_config = _recorded_mapping(yaml.safe_load(previous_text), "config.resolved.yaml")
         # Runs recorded without an isolation entry ran locally.
-        recorded_isolation = previous_config.get("isolation") or {}
+        recorded_isolation = _recorded_mapping(
+            previous_config.get("isolation") or {}, "config.resolved.yaml"
+        )
         previous_mode = recorded_isolation.get("mode", "local")
         if previous_mode != isolation_options.mode:
             raise ValueError(
@@ -199,11 +233,24 @@ async def run_config(
             )
         if previous_text != config_text:
             raise ValueError("cannot resume: the config differs from the interrupted run")
-        previous = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
+        previous = _recorded_mapping(
+            json.loads((out / "metadata.json").read_text(encoding="utf-8")), "metadata.json"
+        )
         if previous.get("task_hashes") != json.loads(redact(json.dumps(hashes))):
             raise ValueError("cannot resume: task files changed since the interrupted run")
         done = recover_attempts(out / "results.jsonl")
         previous.setdefault("resumed_at", []).append(metadata["started_at"])
+        # The top-level fields describe the first invocation. A resume may use an edited but
+        # equivalent config file, or another harness or Python, so each one records its own.
+        previous.setdefault("resumes", []).append(
+            {
+                "at": metadata["started_at"],
+                **{
+                    name: metadata[name]
+                    for name in ("config_sha256", "harness_version", "python_version", "platform")
+                },
+            }
+        )
         metadata = previous
     else:
         out.mkdir(parents=True, exist_ok=False)
@@ -229,7 +276,11 @@ async def run_config(
                 generated = Generation("")
                 graded = Grade("error")
                 error: str | None = None
-                with tempfile.TemporaryDirectory(prefix="agent-eval-") as directory:
+                # A process that outlived the attempt can still be writing here, which makes
+                # the removal fail. That must not lose this attempt or abort the others.
+                with tempfile.TemporaryDirectory(
+                    prefix="agent-eval-", ignore_cleanup_errors=True
+                ) as directory:
                     workdir = Path(directory)
                     try:
                         if task.starter is not None:
@@ -254,6 +305,11 @@ async def run_config(
                             redact(entrypoint.read_text(encoding="utf-8", errors="replace")),
                             encoding="utf-8",
                         )
+                if workdir.exists():
+                    print(
+                        f"agent-eval: warning: could not remove workdir {workdir}",
+                        file=sys.stderr,
+                    )
                 (artifact_dir / "model-output.txt").write_text(
                     redact(generated.raw_output), encoding="utf-8"
                 )

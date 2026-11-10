@@ -17,7 +17,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from agent_eval import isolation, process
+from agent_eval import engine, isolation, process
 from agent_eval.cli import main
 from agent_eval.engine import run_config
 from agent_eval.grader import grade
@@ -46,7 +46,8 @@ RUN_ID = "run-under-test"
 # process registers the container once the client has been killed (and `_hold_create` is
 # gone), `_create_fails` fails it, `_stuck` makes `rm` fail, `_slow_rm`
 # makes `rm` take 0.5 s (writing `_rm_started` first and `_rm_saw_workdir` with whether the
-# mount still existed), `_ps_fails` fails `ps`.
+# mount still existed), `_ps_fails` fails `ps`, `_no_pytest` is an image whose python cannot
+# import pytest.
 # The daemon side of a slow create: announce it, wait until the client is gone and the test
 # releases the hold, register. Its pid file exists while it runs, for the leak check.
 REGISTER = (
@@ -110,6 +111,9 @@ if command == "start":
     spec = load(args[2])
     host = spec["mount"]["source"]
     inner = [re.sub(r"(?<![\\w/])/work(?=/|$)", lambda _: host, part) for part in spec["command"]]
+    if marker("_no_pytest") and inner[-1] == "import pytest":
+        print("ModuleNotFoundError: No module named 'pytest'")
+        raise SystemExit(1)
     if inner[0] == "python":
         inner[0] = sys.executable
     env = dict(spec["env"], PATH=os.environ["PATH"])
@@ -277,6 +281,7 @@ def test_defaults() -> None:
         "cpus": 2.0,
         "pids_limit": 256,
         "docker": "docker",
+        "fallback": "fail",
     }
 
 
@@ -417,6 +422,7 @@ def test_host_user(monkeypatch: pytest.MonkeyPatch) -> None:
         {"image": "--privileged"},
         {"image": ""},
         {"docker": ""},
+        {"fallback": "host"},
         {"privileged": True},
     ],
 )
@@ -491,15 +497,44 @@ def test_config_block_and_cli_flag_precedence(
     assert resolved["isolation"]["network"] == "bridge"
 
 
-def test_fallback_records_the_warning(
-    config_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("requested_by", ["flag", "config"])
+def test_unavailable_docker_fails_closed_by_default(
+    config_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], requested_by: str
+) -> None:
+    """Asking for isolation and quietly not getting it would run untrusted code on the host."""
+    data = yaml.safe_load(config_path.read_text())
+    data["isolation"] = {"docker": str(tmp_path / "missing" / "docker")}
+    argv = ["run", str(config_path), "--out", str(tmp_path / "run")]
+    if requested_by == "config":
+        data["isolation"]["mode"] = "docker"
+    else:
+        argv += ["--isolation", "docker"]
+    config_path.write_text(yaml.safe_dump(data))
+    assert main(argv) == 2
+    err = capsys.readouterr().err
+    assert "docker isolation unavailable (docker executable not found" in err
+    assert "--allow-local-fallback" in err
+    assert not (tmp_path / "run").exists()
+
+
+@pytest.mark.parametrize("allowed_by", ["flag", "config"])
+def test_allowed_fallback_records_the_warning(
+    config_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], allowed_by: str
 ) -> None:
     data = yaml.safe_load(config_path.read_text())
     data["isolation"] = {"docker": str(tmp_path / "missing" / "docker")}
-    config_path.write_text(yaml.safe_dump(data))
     out = tmp_path / "run"
-    code = main(["run", str(config_path), "--out", str(out), "--isolation", "docker"])
+    argv = ["run", str(config_path), "--out", str(out), "--isolation", "docker"]
+    if allowed_by == "config":
+        data["isolation"]["fallback"] = "local"
+    else:
+        argv.append("--allow-local-fallback")
+    config_path.write_text(yaml.safe_dump(data))
+    code = main(argv)
     assert code == 0
+    # The permission is not part of what the run is: each attempt records where it ran.
+    resolved = yaml.safe_load((out / "config.resolved.yaml").read_text())
+    assert resolved["isolation"]["mode"] == "docker" and "fallback" not in resolved["isolation"]
     err = capsys.readouterr().err
     assert err.count("warning: docker isolation unavailable") == 1
     assert "docker executable not found" in err
@@ -530,7 +565,9 @@ def test_probe_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(isolation, "PROBE_TIMEOUT_S", 0.3)
     reason = asyncio.run(probe_docker(options(slow)))
     assert reason == "docker daemon did not answer within 0.3 s"
-    sandbox, record = asyncio.run(select_isolation(options(failing), RUN_ID))
+    with pytest.raises(ValueError, match=r"unavailable \(docker daemon is unreachable\)"):
+        asyncio.run(select_isolation(options(failing), RUN_ID))
+    sandbox, record = asyncio.run(select_isolation(options(failing, fallback="local"), RUN_ID))
     assert sandbox is None and record.used == "local"
 
 
@@ -885,9 +922,11 @@ def test_engine_runs_attempts_in_containers(
     names = commands(log)
     assert names.count("version") == 1
     creates = [c for c in invocations if c[0] == "create"]
-    # Six gradings plus two agent generations, each in its own container.
-    assert len(creates) == names.count("start") == names.count("rm") == 8
-    assert len({value_of(c, "--name")[0] for c in creates}) == 8
+    # The pytest preflight, then six gradings plus two agent generations, each in its own
+    # container.
+    assert len(creates) == names.count("start") == names.count("rm") == 9
+    assert len({value_of(c, "--name")[0] for c in creates}) == 9
+    assert creates[0][-4:] == ["python", "-I", "-c", "import pytest"]
     run_labels = {label for c in creates for label in value_of(c, "--label")} - {
         f"agent-eval.attempt={value_of(c, '--name')[0]}" for c in creates
     }
@@ -897,15 +936,49 @@ def test_engine_runs_attempts_in_containers(
     assert containers(log) == []
 
 
+@pytest.mark.parametrize(
+    "marker,detail",
+    [("_no_pytest", "No module named 'pytest'"), ("_create_fails", "Unable to find image")],
+)
+def test_preflight_rejects_an_image_that_cannot_grade(
+    fake_docker: tuple[Path, Path],
+    config_path: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    marker: str,
+    detail: str,
+) -> None:
+    """Otherwise every attempt would be generated and then recorded as an error."""
+    docker, log = fake_docker
+    agent_config(config_path, docker)
+    daemon_marker(log, marker)
+    out = tmp_path / "run"
+    assert main(["run", str(config_path), "--out", str(out)]) == 2
+    err = capsys.readouterr().err
+    assert f"failed in the image {IMAGE}" in err and detail in err
+    assert not out.exists()
+    # Only the preflight ran: nothing was generated or graded, and nothing is left behind.
+    assert commands(log).count("create") == 1
+    assert containers(log) == []
+
+
+@pytest.mark.parametrize("interrupted_in", ["preflight", "attempt"])
 def test_engine_sweeps_after_cancellation(
     fake_docker: tuple[Path, Path],
     config_path: Path,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
+    interrupted_in: str,
 ) -> None:
     docker, log = fake_docker
     agent_config(config_path, docker)
+    if interrupted_in == "attempt":
+        # Skip the preflight, so the first create in flight belongs to an attempt.
+        async def checked(sandbox: Sandbox | None = None) -> None:
+            return None
+
+        monkeypatch.setattr(engine, "check_pytest", checked)
     # One attempt at a time, so the create in flight is the one the test has seen start.
     data = yaml.safe_load(config_path.read_text())
     data["concurrency"] = 1
@@ -1004,8 +1077,9 @@ def test_cli_isolation_flag_is_recorded_without_a_config_block(
 
     monkeypatch.setattr(isolation, "probe_docker", unavailable)
     out = tmp_path / "run"
+    docker_run = ["run", str(config_path), "--out", str(out), "--isolation", "docker"]
     # Docker is unavailable, so attempts fall back, but docker was what the run asked for.
-    code = main(["run", str(config_path), "--out", str(out), "--isolation", "docker"])
+    code = main([*docker_run, "--allow-local-fallback"])
     assert code == 0
     assert "isolation unavailable (docker daemon is unreachable)" in capsys.readouterr().err
     resolved = yaml.safe_load((out / "config.resolved.yaml").read_text())
@@ -1014,6 +1088,15 @@ def test_cli_isolation_flag_is_recorded_without_a_config_block(
     code = main(["run", str(config_path), "--out", str(out), "--resume"])
     assert code == 2
     assert "isolation docker, now local" in capsys.readouterr().err
+    # Resuming in the same mode still needs the permission: it is given per invocation ...
+    code = main([*docker_run, "--resume"])
+    assert code == 2
+    assert "--allow-local-fallback" in capsys.readouterr().err
+    # ... and is not recorded, so a run that fell back before the setting existed resumes too.
+    assert "fallback" not in resolved["isolation"]
+    code = main([*docker_run, "--resume", "--allow-local-fallback"])
+    assert code == 0
+    assert len(load_attempts(out / "results.jsonl")) == 4
 
 
 def test_legacy_run_without_isolation_entry_resumes_as_local(

@@ -28,7 +28,7 @@ concurrency: 2
 | `tasks` | Nonempty list of task YAML globs, resolved relative to the config file. `**` is supported. Every glob must match; duplicate matches are merged; task ids must be unique. |
 | `repeats` | Attempts per model × task. Default 1. |
 | `concurrency` | Maximum simultaneous attempts (generation plus grading). Default 1. |
-| `isolation` | Optional. `mode` (`local` or `docker`, default `local`; `run --isolation` overrides it), `image` (`python:3.12-slim`), `network` (`none` or `bridge`, default `none`), `memory` (`2g`, at least `6m`), `cpus` (2), `pids_limit` (256), `docker` (client binary, `docker`). See [Isolation](../README.md#isolation). |
+| `isolation` | Optional. `mode` (`local` or `docker`, default `local`; `run --isolation` overrides it), `image` (`python:3.12-slim`), `network` (`none` or `bridge`, default `none`), `memory` (`2g`, at least `6m`), `cpus` (2), `pids_limit` (256), `docker` (client binary, `docker`), `fallback` (`fail` or `local`, default `fail`: what to do when docker is requested but unavailable; `run --allow-local-fallback` sets `local`). See [Isolation](../README.md#isolation). |
 | `retry` | Optional; HTTP runners only. `max_retries` (3, 0 to 10; `run --max-retries` overrides it), `base_delay_s` (1.0), `multiplier` (2.0), `max_delay_s` (30.0, the cap on every wait), `jitter` (`full` or `none`, default `full`). See [Retries](../README.md#retries). |
 
 Unknown fields in the config and in built-in runner options are rejected.
@@ -200,16 +200,20 @@ attempts/attempt-000001/
 
 `metadata.json` hashes the config, each task spec, its hidden tests, its starter and reference
 (if present), and any mock fixtures or `reference_dir` solutions in use. A resumed run adds a
-`resumed_at` list of timestamps.
+`resumed_at` list of timestamps and a `resumes` list with, for each resume, its time (`at`),
+`config_sha256`, `harness_version`, `python_version` and `platform`. The top-level fields keep
+describing the first invocation; a resume may use a config file whose comments or layout
+changed, or another harness or Python version.
 
 Each JSONL line has: `attempt_id`, `model`, `runner`, `task_id`, `repeat`, `outcome`,
 `tests_passed`, `tests_total`, `wall_time_s`, `generation_time_s`, `grading_time_s`,
 `input_tokens`, `output_tokens`, `cost_usd` (the last three nullable), `error`, and `artifacts`
 (path relative to the run directory), plus the optional `category` (added in 1.3.0; older files
 without it load as `uncategorized`, and `schema_version` stays `"1.0"`) and the optional
-`isolation` object `{requested, used, warning}` (added after 1.3.0; `warning` is set when docker
-was requested but unavailable; older files without it still load and resume), and `retries`
-plus `retry_reasons` (added after 1.3.0; the transient provider errors retried for the attempt,
+`isolation` object `{requested, used, warning}` (added in 1.4.0, unreleased; `warning` is set
+when docker was requested but unavailable and the local fallback was allowed; older files
+without it still load and resume), and `retries`
+plus `retry_reasons` (added in 1.4.0, unreleased; the transient provider errors retried for the attempt,
 whether it then succeeded or not; older files load with `0` and `[]`). Lines are appended and flushed as attempts complete, so
 the file is in completion order. Attempt ids follow scheduling order and are deterministic for a
 given config.
@@ -222,9 +226,13 @@ Output directories must not already exist. The harness never overwrites a previo
 `agent-eval run CONFIG --out DIR --resume` continues an interrupted run in `DIR`. It refuses to
 start unless the resolved config and every task hash match the original run. It keeps every
 recorded attempt, including errors, so a resumed run never retries a failure away. It drops a
-half-written final JSONL line, replaces leftover artifacts of unrecorded attempts, and runs only
+half-written final JSONL line (truncating in place, never rewriting the recorded lines),
+restores a final newline that the interruption cut off, replaces leftover artifacts of
+unrecorded attempts, and runs only
 the missing model/task/repeat combinations under their original attempt ids. With `--resume` and
-no existing `DIR`, it starts a fresh run.
+no existing `DIR`, it starts a fresh run. A `config.resolved.yaml` or `metadata.json` that is
+empty or not a mapping is reported as damaged (exit code 2). `--allow-local-fallback` is not
+recorded, so it may be added or dropped on a resume.
 
 ## Outcomes and scoring
 
@@ -278,7 +286,7 @@ With `concurrency > 1`, attempts compete for CPU, so it is not a clean latency m
 | --- | --- |
 | 0 | Command completed. A `run` exits 0 even if every attempt failed. |
 | 1 | `validate-task`: the reference did not pass |
-| 2 | Invalid config, task, results file or arguments; I/O error |
+| 2 | Invalid config, task, results file or arguments; I/O error; docker isolation requested but unavailable (without `--allow-local-fallback`); a grading interpreter or image that cannot import pytest |
 | 130 | Interrupted. Lines already in `results.jsonl` remain valid. |
 
 ## Library use and custom runners
@@ -294,6 +302,11 @@ from agent_eval.results import summarize
 attempts = asyncio.run(run_config(Path("examples/mock-demo.yaml"), Path("runs/library-demo")))
 markdown = render_report(summarize(attempts), "md")
 ```
+
+`run_config` takes the `run` flags as keyword arguments: `resume`, `isolation`, `max_retries`
+and `allow_local_fallback`. Like the CLI, it raises `ValueError` before creating the run
+directory if docker isolation is requested but unavailable, or if the grading interpreter
+cannot import pytest.
 
 A runner implements the `agent_eval.runners.base.Runner` protocol:
 

@@ -1,4 +1,5 @@
-"""Container-per-attempt isolation: ``docker create`` argv, availability probe and fallback."""
+"""Container-per-attempt isolation: ``docker create`` argv, availability probe, and what to
+do when docker was asked for but is not there (stop, unless the local fallback is allowed)."""
 
 from __future__ import annotations
 
@@ -72,6 +73,8 @@ class IsolationOptions(_StrictModel):
     cpus: Annotated[float, Field(gt=0, allow_inf_nan=False)] = 2.0
     pids_limit: int = Field(default=256, ge=1, strict=True)
     docker: str = Field(default="docker", min_length=1)
+    # When docker is asked for but unavailable: stop ("fail") or run on the host ("local").
+    fallback: Literal["fail", "local"] = "fail"
 
     @field_validator("memory")
     @classmethod
@@ -345,11 +348,21 @@ async def select_isolation(
     options: IsolationOptions, run_id: str
 ) -> tuple[Sandbox | None, IsolationRecord]:
     """The sandbox to use, or None for the local runner, plus the record for each attempt.
-    ``run_id`` labels the run's containers; it must be unique per run."""
+    ``run_id`` labels the run's containers; it must be unique per run.
+
+    Docker that was asked for but is unavailable raises ValueError: isolation is requested
+    to contain untrusted code, so running it on the host instead must be opted into with
+    ``fallback: local``."""
     if options.mode == "local":
         return None, IsolationRecord(requested="local", used="local")
     reason = await probe_docker(options)
     if reason is None:
         return Sandbox(options, run_id), IsolationRecord(requested="docker", used="docker")
+    if options.fallback != "local":
+        raise ValueError(
+            f"docker isolation unavailable ({reason}); not running untrusted code on the "
+            "host instead. Start docker, or allow the local runner with "
+            "--allow-local-fallback (isolation.fallback: local)"
+        )
     warning = f"docker isolation unavailable ({reason}); attempts ran with the local runner"
     return None, IsolationRecord(requested="docker", used="local", warning=warning)

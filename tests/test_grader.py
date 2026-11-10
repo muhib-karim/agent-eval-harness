@@ -2,13 +2,17 @@ import asyncio
 import contextlib
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from agent_eval.grader import grade, parse_junit
+from agent_eval import grader
+from agent_eval.cli import main
+from agent_eval.grader import check_pytest, grade, parse_junit
 from agent_eval.process import run_process
 from agent_eval.specs import load_task
 
@@ -107,6 +111,48 @@ def test_cancellation_cleans_up(tmp_path: Path) -> None:
     asyncio.run(run())
 
 
+@pytest.mark.skipif(os.name != "posix", reason="the output pipe is connected only on POSIX")
+def test_cancellation_during_pipe_setup_kills_the_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Between spawning the command and waiting for it, connecting the output pipe is an
+    await. A cancellation delivered there must not leave the command running."""
+    spawned: list[asyncio.subprocess.Process] = []
+    spawn = asyncio.create_subprocess_exec
+
+    async def recording_spawn(*args: Any, **kwargs: Any) -> asyncio.subprocess.Process:
+        process = await spawn(*args, **kwargs)
+        spawned.append(process)
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", recording_spawn)
+
+    async def run() -> None:
+        loop = asyncio.get_running_loop()
+        connect = loop.connect_read_pipe
+        task = asyncio.current_task()
+        assert task is not None
+
+        async def cancelled_while_connecting(*args: Any, **kwargs: Any) -> Any:
+            # Delivered at the next suspension, inside the real connect_read_pipe.
+            task.cancel()
+            return await connect(*args, **kwargs)
+
+        monkeypatch.setattr(loop, "connect_read_pipe", cancelled_while_connecting)
+        with pytest.raises(asyncio.CancelledError):
+            await run_process([sys.executable, "-c", "import time; time.sleep(30)"], tmp_path, 30)
+        task.uncancel()
+        [process] = spawned
+        assert process.returncode is not None, "the command was left running"
+
+    try:
+        asyncio.run(run())
+    finally:
+        for process in spawned:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process-group semantics are POSIX-specific")
 def test_exit_is_not_delayed_by_background_children(tmp_path: Path) -> None:
     marker = tmp_path / "orphan.txt"
@@ -186,3 +232,46 @@ def test_output_is_capped_without_blocking_the_writer(tmp_path: Path) -> None:
 def test_missing_command_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         asyncio.run(run_process([str(tmp_path / "absent")], tmp_path, 1))
+
+
+def test_preflight_fails_fast_without_pytest(
+    config_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A grading interpreter without pytest would turn every attempt into an error after its
+    generation had been paid for, and the run would still exit 0."""
+    bare = tmp_path / "bare"
+    subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(bare)], check=True)
+    python = bare / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    monkeypatch.setattr(sys, "executable", str(python))
+    out = tmp_path / "run"
+    assert main(["run", str(config_path), "--out", str(out)]) == 2
+    err = capsys.readouterr().err
+    assert f"{python} cannot import pytest" in err
+    assert "No module named 'pytest'" in err and "agent-eval-harness[grade]" in err
+    assert not out.exists()
+
+
+def test_preflight_reports_an_interpreter_that_hangs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slow = tmp_path / "slow-python"
+    slow.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
+    slow.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(slow))
+    monkeypatch.setattr(grader, "PREFLIGHT_TIMEOUT_S", 0.3)
+    with pytest.raises(ValueError, match=r"cannot import pytest \(timed out after 0.3 s\)"):
+        asyncio.run(check_pytest())
+
+
+def test_preflight_runs_once_per_interpreter(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(grader, "_checked", set())
+    asyncio.run(check_pytest())
+
+    async def unexpected(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("the interpreter was checked again")
+
+    monkeypatch.setattr(grader, "run_process", unexpected)
+    asyncio.run(check_pytest())

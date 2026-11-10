@@ -2,21 +2,35 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  # Run it by hand on a branch that has no pull request yet.
+  workflow_dispatch:
+  schedule:
+    # Weekly, so a new advisory or dependency release shows up without waiting for a push.
+    - cron: "23 5 * * 1"
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  # A newer commit on a pull request replaces the run in progress; main always finishes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12']
+        python-version: ['3.11', '3.12', '3.13', '3.14']
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -28,13 +42,13 @@ jobs:
         run: ruff format --check .
       - name: Type check (strict)
         run: mypy --strict
-      - name: Tests with coverage gate (fail under 85%)
+      - name: Tests with coverage gate (fail under 95%, warnings are errors)
         run: pytest --cov-report=xml
       - name: Coverage summary
         if: always()
         run: |
           python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.python-version == '3.12'
         with:
           name: coverage-xml
@@ -42,18 +56,40 @@ jobs:
           if-no-files-found: error
       - run: python -m build
 
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          # 3.12 environments have no bundled setuptools, which would be audited too.
+          python-version: '3.12'
+      - name: Audit runtime and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' pip-audit==2.10.1
+          # The project itself is not on PyPI; everything it pulls in is audited.
+          pip-audit --skip-editable --progress-spinner off
+
   gitleaks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
-      GITLEAKS_VERSION: 8.21.2
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install gitleaks
         run: |
           curl -sSfL -o gitleaks.tgz \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum --check --strict
           tar -xzf gitleaks.tgz gitleaks
           rm gitleaks.tgz
       - name: Scan history and working tree
@@ -63,15 +99,30 @@ jobs:
 
   offline-demo:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
       - run: python -m pip install '.[grade]'
       - run: agent-eval run examples/mock-demo.yaml --out runs/ci-demo
+      - name: Check the demo's outcome
+        # `run` exits 0 even when every attempt errors, so a broken grader would stay green.
+        run: |
+          python - <<'PY'
+          import json
+
+          with open("runs/ci-demo/summary.json", encoding="utf-8") as stream:
+              summary = json.load(stream)
+          rates = {model["model"]: model["pass_at_1"] for model in summary["models"]}
+          assert summary["attempts"] > 0, summary["attempts"]
+          assert rates == {"mock-reference": 1.0, "mock-wrong": 0.0}, rates
+          PY
       - run: agent-eval report runs/ci-demo/results.jsonl --format md
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: offline-demo-report
           path: runs/ci-demo/report.html
@@ -79,7 +130,26 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: docker build --tag agent-eval-harness .
-      - run: docker run --rm --network none agent-eval-harness run examples/mock-demo.yaml --out /tmp/demo
+      - name: Run the offline demo in the image, without network
+        run: |
+          docker run --rm --network none agent-eval-harness run examples/mock-demo.yaml --out /tmp/demo > demo.log
+          cat demo.log
+      - name: Check the demo's outcome
+        # `run` exits 0 even when every attempt errors, e.g. in an image without pytest.
+        # The reference model passes everything and the wrong one nothing: half must pass.
+        run: |
+          python3 - <<'PY'
+          import re
+
+          with open("demo.log", encoding="utf-8") as stream:
+              found = re.search(r"Completed (\d+) attempts; (\d+) passed", stream.read())
+          assert found, "no completion line in the demo output"
+          attempts, passed = map(int, found.groups())
+          assert attempts > 0 and attempts == 2 * passed, (attempts, passed)
+          PY

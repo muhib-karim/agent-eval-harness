@@ -18,16 +18,17 @@ Sessions: Claude Code, model `claude-opus-5-5`, 2026-10-21, in slices.
 
 | Discipline | Where |
 | --- | --- |
-| Verification before claiming completion | Every slice ran ruff, `ruff format --check`, `mypy --strict` and the full pytest suite with the coverage gate before committing, and recorded the outputs in `HANDOFF.md`. |
+| Verification before claiming completion | Every slice ran ruff, `ruff format --check`, `mypy --strict` and the full pytest suite with the coverage gate before committing, and recorded the outputs in the session's handoff notes (not kept in this repository). |
 | Tests that prove the tests | `tests/test_task_suite.py` grades every task's hidden tests against an empty module and a `None`-returning stub. This found two vacuous tests (`fix_memoize`, `undo_buffer`) during authoring; both were fixed. Each bug-fix starter is checked to fail some tests and pass others. |
 | Systematic debugging | A wrong expected value in the `fix_running_stats` issue text (24.8; the sample variance is 25.1) was found by grading the reference, checked by hand, and fixed in both the prompt and the test. |
 | Systematic debugging (slice 4) | Before the live run, every Messages-API model returned HTTP 404 on a probe, including models that should exist. That pointed to the request path, not the models: the base URL lacked the API version path, so the fix went into the run environment and no code changed. During the run, `model returned empty code` errors were traced to 0-byte replies whose reported output tokens equal the 8192 budget. Four other errors were traced to multi-block replies meeting the documented join-all-blocks extraction rule. Both are reported, not patched after the fact. |
 | Verification before completion (slice 4) | Every README finding was checked against `results.jsonl` before commit. This caught one false claim ("more than twice any other model's output tokens"; the real ratio is 1.7×), which was corrected. Task and config hashes in the committed `metadata.json` were re-verified against the repository, and the scrubbed results were scanned for machine paths, endpoint hosts and credentials. |
-| Self review of the diff | Done before each handoff; one finding (a bug-fix attempt that errors keeps the untouched starter as its `solution.py` artifact) is recorded in `HANDOFF.md` as an open note. |
+| Self review of the diff | Done before each handoff; one finding (a bug-fix attempt that errors keeps the untouched starter as its `solution.py` artifact) is recorded in the session's handoff notes (not kept in this repository) as an open note. |
 
 ### Named in the task but not used (so far)
 
-- `brainstorming`, `writing-plans`: the plan was written directly into `TASKS.md`.
+- `brainstorming`, `writing-plans`: the plan was written directly into the session's task list (not kept in this
+  repository).
 - `test-driven-development`: tests were written alongside or right after the code, not strictly
   red-green-refactor first.
 - `requesting-code-review`: no separate reviewer pass yet; only self review.

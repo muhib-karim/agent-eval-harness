@@ -5,10 +5,10 @@
 <p align="center">
   <a href="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml"><img src="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/codeql.yml"><img src="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
-  <img src="https://img.shields.io/badge/coverage-98.9%25-brightgreen.svg" alt="Coverage 98.9% (CI gate 85%)">
+  <a href="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/coverage%20gate-95%25-brightgreen.svg" alt="Coverage gate: CI fails under 95% branch coverage"></a>
   <a href="https://github.com/muhib-karim/agent-eval-harness/releases"><img src="https://img.shields.io/github/v/release/muhib-karim/agent-eval-harness" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/muhib-karim/agent-eval-harness" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
+  <a href="https://github.com/muhib-karim/agent-eval-harness/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg" alt="Python 3.11 | 3.12 | 3.13 | 3.14"></a>
   <a href="https://muhib-karim.github.io/agent-eval-harness/"><img src="https://img.shields.io/badge/results-measured%2021%20Oct%202026-brightgreen.svg" alt="Measured results, 21 Oct 2026"></a>
 </p>
 
@@ -84,21 +84,27 @@ and `mock-wrong` submits a module that returns `None` for everything, so the run
 harness, not a model. Open `runs/demo/report.html` in a browser; a Markdown rendering of the same
 kind of run is in [docs/sample-report.md](docs/sample-report.md).
 
-The `grade` extra installs pytest, which the grader needs. To install a tagged release build
-instead of a checkout (each release carries a wheel, an sdist and `SHA256SUMS.txt`, built by the
+The `grade` extra installs pytest, which the grader needs; a run stops before it starts if the
+grading interpreter cannot import it. To install a tagged release build instead of a checkout
+(each release carries a wheel, an sdist and `SHA256SUMS.txt`, built by the
 [release workflow](.github/workflows/release.yml)):
 
 ```sh
 pip install "agent-eval-harness[grade] @ https://github.com/muhib-karim/agent-eval-harness/releases/download/v1.3.0/agent_eval_harness-1.3.0-py3-none-any.whl"
 ```
 
+The wheel holds only the `agent_eval` package. The bundled tasks and the example configs are in
+the repository, so the demo and `agent-eval list-tasks` need a checkout. `main` is
+`1.4.0.dev0`: `--isolation`, `--max-retries`, `--allow-local-fallback` and `compare-context`
+below are on `main` and not in the v1.3.0 wheel.
+
 ## Usage
 
 ```sh
-agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--max-retries N]  # writes results.jsonl + report.html
+agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--allow-local-fallback] [--max-retries N]  # writes results.jsonl + report.html
 agent-eval report RESULTS.jsonl --format html|md|json [--k N ...] [--seed S] [--resamples R]
 agent-eval compare-context FULL.jsonl TRIMMED.jsonl [--out FILE] [--seed S] [--resamples R]  # offline, JSON
-agent-eval list-tasks                              # id, title and path of each bundled task
+agent-eval list-tasks                              # id, title and path of each bundled task (run in a checkout)
 agent-eval validate-task tasks/semver/task.yaml --reference tests/fixtures/reference/semver.py
 ```
 
@@ -127,6 +133,8 @@ in [docs/reference.md](docs/reference.md).
 
 ## Isolation
 
+> Unreleased: on `main` (1.4.0.dev0), not in the v1.3.0 wheel.
+
 `--isolation docker` (or `isolation: {mode: docker}` in the run config; the flag wins) runs each
 attempt's untrusted code in its own throwaway container: the `cli` runner's agent command and the
 hidden-test grading. HTTP and mock runners start no process during generation, so only their
@@ -140,6 +148,7 @@ grading is containerised. Every container gets:
 | Processes | `--pids-limit 256` | `pids_limit` |
 | Image | `python:3.12-slim` | `image` |
 | Docker client | `docker` on `PATH` | `docker` |
+| If docker is unavailable | stop the run | `fallback` (`fail`, or `local` to opt in; `--allow-local-fallback`) |
 
 Fixed hardening: read-only root filesystem, the attempt workdir bind-mounted read-write at
 `/work`, a 256 MB `/tmp` tmpfs (also `HOME` and `TMPDIR`), `--cap-drop ALL`,
@@ -180,17 +189,23 @@ isolation:
 ```
 
 - **The image must have pytest** for grading, which runs the image's `python`. `python:3.12-slim`
-  alone does not; the harness's own `Dockerfile` image does (its entrypoint is bypassed). For
-  `cli` runs the agent CLI must also be installed in the image; host paths to it do not exist
-  there.
-- Pull or build the image before the run; a pull during an attempt counts against its timeout.
-- **Fallback.** Before the run the harness asks the daemon for its version (10 s timeout). If
-  `docker` is missing or the daemon is unreachable, the run uses the local runner, prints one
+  alone does not; the harness's own `Dockerfile` image does (its entrypoint is bypassed). The
+  run checks this first: it starts one container that imports pytest, and if that fails it
+  exits with code 2 before anything is generated or written. For `cli` runs the agent CLI must
+  also be installed in the image; host paths to it do not exist there.
+- Pull or build the image before the run. The check above waits up to 10 minutes for a pull; a
+  pull during an attempt counts against that attempt's timeout.
+- **If docker is unavailable, the run stops.** Before the run the harness asks the daemon for
+  its version (10 s timeout). If `docker` is missing or the daemon is unreachable, the run exits
+  with code 2 and writes nothing. Isolation is requested to contain untrusted code, so it is
+  never silently replaced by running that code on the host. To accept the local runner instead,
+  pass `--allow-local-fallback` (or set `isolation: {fallback: local}`): the run then prints one
   warning to stderr and records it on every attempt.
 - Custom runners that start their own processes are not containerised.
 - **Resume** requires the same isolation mode as the interrupted run, after `--isolation`: a run
   started with `--isolation docker` must be resumed with it. Runs recorded before isolation
-  existed count as `local`.
+  existed count as `local`. The fallback permission is not recorded: give it again on
+  `--resume` if docker is still unavailable.
 
 **Schema change.** `results.jsonl` lines gain an optional `isolation` object, e.g.
 `{"requested": "docker", "used": "local", "warning": "docker isolation unavailable (...)"}`, or
@@ -198,6 +213,8 @@ isolation:
 older files without it still load, resume and report, and `schema_version` stays `"1.0"`.
 
 ## Retries
+
+> Unreleased: on `main` (1.4.0.dev0), not in the v1.3.0 wheel.
 
 The `openai` and `anthropic` runners retry a request that failed for a transient reason, with
 jittered exponential backoff. Every retry is recorded on the attempt, so a run that needed
@@ -381,7 +398,9 @@ a general ranking of the models.
 ### Earlier run (17 October 2026)
 
 The first measured run used six models on the original six tasks, three repeats each (108
-attempts) with harness 1.2.0. Its evidence and regenerated report are in
+attempts). It was made with the tree that was released as 1.2.0 ten minutes later, so its
+`metadata.json` records `harness_version` 1.1.0: the version number was bumped only in the
+release commit. Its evidence and regenerated report are in
 [`results/2026-10-17-measured/`](results/2026-10-17-measured/) and on the
 [history page](https://muhib-karim.github.io/agent-eval-harness/history/2026-10-17/).
 
@@ -419,15 +438,18 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
 - **Agents get least privilege by default.** CLI agents see an environment allow-list, and
   forwarded credential values are redacted from saved artifacts.
 - **Every run gets its own directory with provenance**: SHA-256 hashes of the config, task specs,
-  tests, starters and references; JSONL flushed after each attempt; resume refuses to continue
-  if any of them changed.
+  tests, starters and references; JSONL flushed after each attempt. Resume refuses to continue
+  if the resolved config or any hashed task file changed, and records its own config hash and
+  harness and Python versions next to the original ones. Between releases `main` carries a
+  development version (`1.4.0.dev0`), so a run's `harness_version` tells a release from `main`.
 
 ## Limitations
 
-- **No sandbox by default.** Without `--isolation docker` (or when it falls back), generated code
-  runs as your user with full filesystem and network access. Run untrusted generations only in
-  a container: per attempt with [`--isolation docker`](#isolation), or the whole harness as in
-  [SECURITY.md](SECURITY.md). A container shares the host kernel; it is not a VM.
+- **No sandbox by default.** Without `--isolation docker` (or with `--allow-local-fallback` when
+  docker is unavailable), generated code runs as your user with full filesystem and network
+  access. Run untrusted generations only in a container: per attempt with
+  [`--isolation docker`](#isolation), or the whole harness as in [SECURITY.md](SECURITY.md). A
+  container shares the host kernel; it is not a VM.
 - Python only; each task is a single standalone module and no dependencies are installed.
 - The tasks are small and public. Models may have memorized similar problems, and the tests
   check only the stated contract, not code quality.
@@ -437,6 +459,7 @@ the unchanged 17 October results with the 1.3.0 bootstrap.
   in CI, not against the real tools; flags can change between CLI releases.
 - Only the entrypoint is archived from a CLI agent's workdir, and captured output is capped at
   1 MB per process. Process-group cleanup is POSIX-only.
+- CI runs on Linux only. The Windows code paths and macOS are not exercised by any test run.
 
 ## Applied engineering notes
 
@@ -456,7 +479,7 @@ No new live benchmark result is claimed.
 python -m pip install -e '.[dev]'
 ruff check . && ruff format --check .   # lint + formatting
 mypy --strict                           # type-check src/ and tests/
-pytest                                  # 381 tests, branch coverage gate 85%
+pytest                                  # branch coverage gate 95%, warnings are errors
 python -m build                         # sdist + wheel
 agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
 ```
@@ -464,12 +487,15 @@ agent-eval run examples/mock-demo.yaml  # end-to-end offline demo
 The Makefile wraps the same steps: `make install`, `make lint typecheck test`, `make demo`.
 
 [CI](.github/workflows/ci.yml) runs lint, format, strict mypy and the tests with the coverage
-gate on Python 3.11 and 3.12, builds the sdist and wheel, runs the offline demo from a
-non-editable install, builds the Docker image and runs the demo inside it with
-`--network none`, and scans the history with gitleaks. [CodeQL](.github/workflows/codeql.yml)
+gate on Python 3.11 to 3.14, builds the sdist and wheel, audits the installed dependencies with
+pip-audit, runs the offline demo from a non-editable install, builds the Docker image and runs
+the demo inside it with `--network none`, and scans the history with a checksum-verified
+gitleaks. Both demo jobs check the pass rates, because `run` exits 0 even when every attempt
+fails. CI also runs weekly, so a new advisory surfaces without a push. Every action is pinned to
+a commit SHA. [CodeQL](.github/workflows/codeql.yml)
 runs on pushes, pull requests and weekly; recorded model outputs under `results/` are evaluation
 data and are excluded from scanning ([why](CONTRIBUTING.md#code-scanning)). Dependabot keeps pip
-and Actions dependencies current.
+and Actions dependencies and the Docker base image current.
 [`pages.yml`](.github/workflows/pages.yml) publishes the project site from `main`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
