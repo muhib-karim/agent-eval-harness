@@ -383,7 +383,8 @@ def test_max_retries_flag_overrides_config_and_model(
     path.write_text(yaml.safe_dump(config))
     statuses.extend([429] * 10)
     out = tmp_path / "run"
-    assert main(["run", str(path), "--out", str(out), "--max-retries", "0"]) == 0
+    # The only attempt errors, so the run itself is a failure; the retry count is the subject.
+    assert main(["run", str(path), "--out", str(out), "--max-retries", "0"]) == 1
     [attempt] = load_attempts(out / "results.jsonl")
     assert attempt.outcome == "error" and attempt.retries == 0 and len(requests) == 1
     capsys.readouterr()
