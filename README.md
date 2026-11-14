@@ -101,7 +101,7 @@ below are on `main` and not in the v1.3.0 wheel.
 ## Usage
 
 ```sh
-agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--allow-local-fallback] [--max-retries N]  # writes results.jsonl + report.html
+agent-eval run CONFIG [--out DIR] [--resume] [--isolation local|docker] [--allow-local-fallback] [--force] [--max-retries N]  # writes results.jsonl + report.html
 agent-eval report RESULTS.jsonl --format html|md|json [--k N ...] [--seed S] [--resamples R]
 agent-eval compare-context FULL.jsonl TRIMMED.jsonl [--out FILE] [--seed S] [--resamples R]  # offline, JSON
 agent-eval list-tasks                              # id, title and path of each bundled task (run in a checkout)
@@ -200,7 +200,9 @@ isolation:
   with code 2 and writes nothing. Isolation is requested to contain untrusted code, so it is
   never silently replaced by running that code on the host. To accept the local runner instead,
   pass `--allow-local-fallback` (or set `isolation: {fallback: local}`): the run then prints one
-  warning to stderr and records it on every attempt.
+  warning to stderr and records it on every attempt. With `network: bridge` the fallback also
+  needs `--force`; a downgraded run is flagged in `summary.json` (`models[].isolation`),
+  `report.html` and the Markdown report.
 - Custom runners that start their own processes are not containerised.
 - **Resume** requires the same isolation mode as the interrupted run, after `--isolation`: a run
   started with `--isolation docker` must be resumed with it. Runs recorded before isolation

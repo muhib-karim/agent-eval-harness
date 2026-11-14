@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from agent_eval.grader import Outcome
+from agent_eval.isolation import IsolationRecord
 from agent_eval.report import ReportFormat, render_report
 from agent_eval.results import Attempt, load_attempts, pass_at_k, summarize
 
@@ -157,3 +158,26 @@ def test_markdown_report_neutralises_markdown_in_labels() -> None:
         r"\[docs\](https://example.test/x) !\[pixel\](https://example.test/p.png) "
         r"\*b\* \`c\` \~\~d\~\~ \\ |"
     ) in rendered
+
+
+def test_summary_counts_isolation_per_model_and_skips_unrecorded_rows() -> None:
+    docker = IsolationRecord(requested="docker", used="docker")
+    fell_back = IsolationRecord(requested="docker", used="local", warning="docker unavailable")
+    rows = [
+        attempt(0).model_copy(update={"isolation": docker}),
+        attempt(1).model_copy(update={"isolation": fell_back}),
+        attempt(2).model_copy(update={"isolation": fell_back}),
+        attempt(3),  # recorded before isolation existed: not counted, not assumed local
+    ]
+    summary = summarize(rows)
+    assert [usage.model_dump() for usage in summary.models[0].isolation] == [
+        {"requested": "docker", "used": "docker", "attempts": 1},
+        {"requested": "docker", "used": "local", "attempts": 2},
+    ]
+    markdown = render_report(summary, "md")
+    assert "Isolation downgraded (docker requested, ran on the host): model 2 of 4." in markdown
+    # Nothing downgraded: reports are unchanged.
+    plain = summarize([attempt(0)])
+    assert plain.models[0].isolation == []
+    assert "Isolation downgraded" not in render_report(plain, "md")
+    assert "Isolation downgraded" not in render_report(plain, "html")

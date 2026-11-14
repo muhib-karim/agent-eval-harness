@@ -286,7 +286,7 @@ With `concurrency > 1`, attempts compete for CPU, so it is not a clean latency m
 | --- | --- |
 | 0 | Command completed. A `run` exits 0 even if every attempt failed. |
 | 1 | `validate-task`: the reference did not pass |
-| 2 | Invalid config, task, results file or arguments; I/O error; docker isolation requested but unavailable (without `--allow-local-fallback`); a grading interpreter or image that cannot import pytest |
+| 2 | Invalid config, task, results file or arguments; I/O error; docker isolation requested but unavailable (without `--allow-local-fallback`); the local fallback with `network: bridge` and no `--force`; a grading interpreter or image that cannot import pytest |
 | 130 | Interrupted. Lines already in `results.jsonl` remain valid. |
 
 ## Library use and custom runners
@@ -303,8 +303,8 @@ attempts = asyncio.run(run_config(Path("examples/mock-demo.yaml"), Path("runs/li
 markdown = render_report(summarize(attempts), "md")
 ```
 
-`run_config` takes the `run` flags as keyword arguments: `resume`, `isolation`, `max_retries`
-and `allow_local_fallback`. Like the CLI, it raises `ValueError` before creating the run
+`run_config` takes the `run` flags as keyword arguments: `resume`, `isolation`, `max_retries`,
+`allow_local_fallback` and `force`. Like the CLI, it raises `ValueError` before creating the run
 directory if docker isolation is requested but unavailable, or if the grading interpreter
 cannot import pytest.
 

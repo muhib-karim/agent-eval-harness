@@ -345,14 +345,15 @@ async def probe_docker(options: IsolationOptions) -> str | None:
 
 
 async def select_isolation(
-    options: IsolationOptions, run_id: str
+    options: IsolationOptions, run_id: str, *, force: bool = False
 ) -> tuple[Sandbox | None, IsolationRecord]:
     """The sandbox to use, or None for the local runner, plus the record for each attempt.
     ``run_id`` labels the run's containers; it must be unique per run.
 
     Docker that was asked for but is unavailable raises ValueError: isolation is requested
     to contain untrusted code, so running it on the host instead must be opted into with
-    ``fallback: local``."""
+    ``fallback: local``. With ``network: bridge`` that also needs ``force``: the config
+    expects networked attempts, typically agent CLIs, to run contained."""
     if options.mode == "local":
         return None, IsolationRecord(requested="local", used="local")
     reason = await probe_docker(options)
@@ -363,6 +364,12 @@ async def select_isolation(
             f"docker isolation unavailable ({reason}); not running untrusted code on the "
             "host instead. Start docker, or allow the local runner with "
             "--allow-local-fallback (isolation.fallback: local)"
+        )
+    if options.network == "bridge" and not force:
+        raise ValueError(
+            f"docker isolation unavailable ({reason}); not falling back to the local runner "
+            "because isolation.network is bridge: the config expects networked attempts to "
+            "run contained. Start docker, or pass --force to run them on the host anyway"
         )
     warning = f"docker isolation unavailable ({reason}); attempts ran with the local runner"
     return None, IsolationRecord(requested="docker", used="local", warning=warning)

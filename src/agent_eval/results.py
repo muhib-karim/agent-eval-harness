@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from fractions import Fraction
 from pathlib import Path
 from typing import Literal
@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from agent_eval.grader import Outcome
-from agent_eval.isolation import IsolationRecord
+from agent_eval.isolation import IsolationMode, IsolationRecord
 from agent_eval.specs import StrictModel
 from agent_eval.stats import (
     DEFAULT_CONFIDENCE,
@@ -76,6 +76,14 @@ class CategoryScore(StrictModel):
     pass_at_1: float
 
 
+class IsolationUsage(StrictModel):
+    """How many of a model's attempts asked for one isolation mode and ran under another."""
+
+    requested: IsolationMode
+    used: IsolationMode
+    attempts: int
+
+
 class BootstrapInfo(StrictModel):
     method: Literal["task-level percentile bootstrap"] = "task-level percentile bootstrap"
     seed: int
@@ -115,6 +123,9 @@ class ModelSummary(StrictModel):
     cost_reported: int
     # Transient provider errors retried with backoff, summed over attempts.
     retries: int = 0
+    # Added in 1.4.0: where attempts actually ran. Attempts recorded before isolation
+    # existed are not counted, so an older run has an empty list.
+    isolation: list[IsolationUsage] = Field(default_factory=list)
     tasks: list[TaskScore]
     categories: list[CategoryScore]
 
@@ -253,6 +264,16 @@ def summarize(
                 output_tokens_reported=len(outs),
                 cost_reported=len(costs),
                 retries=sum(row.retries for row in items),
+                isolation=[
+                    IsolationUsage(requested=requested, used=used, attempts=count)
+                    for (requested, used), count in sorted(
+                        Counter(
+                            (row.isolation.requested, row.isolation.used)
+                            for row in items
+                            if row.isolation is not None
+                        ).items()
+                    )
+                ],
                 tasks=scores,
                 categories=category_scores,
             )
