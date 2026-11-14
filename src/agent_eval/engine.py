@@ -102,12 +102,14 @@ async def run_config(
     isolation: IsolationMode | None = None,
     max_retries: int | None = None,
     allow_local_fallback: bool = False,
+    force: bool = False,
 ) -> list[Attempt]:
     """Run every model x task x repeat. With ``resume``, fill in only the attempts that an
     interrupted run in ``out`` never recorded; recorded attempts, errors included, are kept.
     ``isolation`` overrides the config's ``isolation.mode`` and ``max_retries`` every HTTP
     model's ``retry.max_retries``. ``allow_local_fallback`` sets ``isolation.fallback`` to
-    ``local``: without it, docker isolation that is unavailable stops the run."""
+    ``local``: without it, docker isolation that is unavailable stops the run.
+    ``force`` lets that fallback run when ``isolation.network`` is ``bridge``."""
     config_path = config_path.resolve()
     config = load_config(config_path)
     tasks = discover_tasks(config.tasks, config_path.parent)
@@ -131,7 +133,9 @@ async def run_config(
     if allow_local_fallback:
         isolation_options = isolation_options.model_copy(update={"fallback": "local"})
     # Labels this run's containers, so the sweep at the end finds any that were left over.
-    sandbox, isolation_record = await select_isolation(isolation_options, uuid.uuid4().hex)
+    sandbox, isolation_record = await select_isolation(
+        isolation_options, uuid.uuid4().hex, force=force
+    )
     if isolation_record.warning:
         print(f"agent-eval: warning: {isolation_record.warning}", file=sys.stderr)
     # Before anything is generated or written: can the grading interpreter import pytest?

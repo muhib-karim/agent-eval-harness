@@ -1118,3 +1118,47 @@ def test_legacy_run_without_isolation_entry_resumes_as_local(
     docker_config(config_path, docker)
     with pytest.raises(ValueError, match=r"isolation local, now docker"):
         asyncio.run(run_config(config_path, out, resume=True, isolation="docker"))
+
+
+def test_summary_and_report_show_a_downgraded_run(config_path: Path, tmp_path: Path) -> None:
+    """A run that fell back to the host must say so in its artifacts, not only on stderr."""
+    data = yaml.safe_load(config_path.read_text())
+    data["isolation"] = {"mode": "docker", "docker": str(tmp_path / "missing" / "docker")}
+    config_path.write_text(yaml.safe_dump(data))
+    out = tmp_path / "run"
+    assert main(["run", str(config_path), "--out", str(out), "--allow-local-fallback"]) == 0
+    summary = json.loads((out / "summary.json").read_text())
+    assert [model["model"] for model in summary["models"]] == ["correct", "wrong"]
+    for model in summary["models"]:
+        assert model["isolation"] == [{"requested": "docker", "used": "local", "attempts": 2}]
+    html = (out / "report.html").read_text()
+    assert "Isolation downgraded:" in html
+    assert "correct 2 of 2" in html and "wrong 2 of 2" in html
+
+
+def test_fallback_with_bridge_network_needs_force(
+    config_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Bridge marks configs whose agents need the network; falling back runs them on the host."""
+    data = yaml.safe_load(config_path.read_text())
+    data["isolation"] = {
+        "mode": "docker",
+        "network": "bridge",
+        "docker": str(tmp_path / "missing" / "docker"),
+    }
+    config_path.write_text(yaml.safe_dump(data))
+    out = tmp_path / "run"
+    argv = ["run", str(config_path), "--out", str(out), "--allow-local-fallback"]
+    assert main(argv) == 2
+    err = capsys.readouterr().err
+    assert "docker isolation unavailable (docker executable not found" in err
+    assert "isolation.network is bridge" in err and "--force" in err
+    assert not out.exists()
+    assert main([*argv, "--force"]) == 0
+    assert capsys.readouterr().err.count("warning: docker isolation unavailable") == 1
+    rows = load_attempts(out / "results.jsonl")
+    assert {(r.isolation.requested, r.isolation.used) for r in rows if r.isolation} == {
+        ("docker", "local")
+    }
+    # Like the fallback permission, --force is not part of what the run is.
+    assert "force" not in (out / "config.resolved.yaml").read_text()

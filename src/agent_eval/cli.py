@@ -46,6 +46,12 @@ def parser() -> argparse.ArgumentParser:
         "instead of stopping",
     )
     run.add_argument(
+        "--force",
+        action="store_true",
+        help="with the local fallback, run attempts on the host even when isolation.network "
+        "is bridge",
+    )
+    run.add_argument(
         "--max-retries",
         type=int,
         metavar="N",
@@ -128,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
                     isolation=args.isolation,
                     max_retries=args.max_retries,
                     allow_local_fallback=args.allow_local_fallback,
+                    force=args.force,
                 )
             )
             passed = sum(row.outcome == "pass" for row in attempts)
