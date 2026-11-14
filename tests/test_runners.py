@@ -75,6 +75,20 @@ def test_code_that_does_not_parse_is_an_extraction_failure(reply: str) -> None:
     assert caught.value.raw_output == reply
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # Parses, but a module-level return is not a compilable module.
+        "return 42",
+        "```python\nbreak\n```",
+        "```\ncontinue\n```",
+    ],
+)
+def test_extract_code_rejects_uncompilable_source(reply):
+    with pytest.raises(RunnerError):
+        extract_code(reply)
+
+
 def test_a_null_byte_is_an_extraction_failure_on_every_supported_python() -> None:
     """``ast.parse`` rejects a null byte as ValueError on 3.11 and SyntaxError on 3.12+;
     both are extraction failures, so the 3.11 matrix entry cannot crash the attempt."""

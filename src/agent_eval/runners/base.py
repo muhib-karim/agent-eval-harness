@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import re
 import textwrap
 from collections.abc import Sequence
@@ -90,7 +89,11 @@ def extract_code(reply: str) -> str:
 def _parsed(code: str, reply: str) -> str:
     """``code`` if it is Python, else an extraction failure carrying the raw reply."""
     try:
-        ast.parse(code)
+        # compile(), not ast.parse(): the same grammar check, but it also rejects source
+        # that cannot be a module (a bare `return` or `break` parses fine). The grading
+        # image may run a newer Python than this host, so source valid only there is
+        # still rejected here; the host must run a Python at least as new as the image.
+        compile(code, "<solution>", "exec")
     except SyntaxError as exc:
         # The reason is a position, not the offending source, which may hold secrets.
         raise RunnerError(
