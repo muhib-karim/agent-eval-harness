@@ -231,7 +231,11 @@ async def run_config(
                 f"(--max-retries {_override_text(previous_override)}, "
                 f"now {_override_text(max_retries)})"
             )
-        if previous_text != config_text:
+        # Compare what the config means, not how it was written. ``yaml.safe_dump`` keeps
+        # the insertion order of ``options``, a free-form mapping, so two identical configs
+        # whose keys were written in a different order serialize differently. Parsed
+        # mappings compare by value: comments, blank lines and key order are not a change.
+        if previous_config != yaml.safe_load(config_text):
             raise ValueError("cannot resume: the config differs from the interrupted run")
         previous = _recorded_mapping(
             json.loads((out / "metadata.json").read_text(encoding="utf-8")), "metadata.json"
