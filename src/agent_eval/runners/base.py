@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import textwrap
 from collections.abc import Sequence
@@ -59,7 +60,12 @@ class RunnerFactory(Protocol):
 
 
 def extract_code(reply: str) -> str:
-    """Prefer Python fences, then unlabeled fences; preserve unfenced source."""
+    """Prefer Python fences, then unlabeled fences; preserve unfenced source.
+
+    Whatever is returned is written to the entrypoint as the model's solution, so it must
+    parse as Python. A transcript, a diff or prose in an unlabeled fence is an extraction
+    failure, not a solution: accepting it would record misleading evidence and spend the
+    attempt on a file that cannot be told apart from a wrong answer."""
     blocks = re.findall(r"^[ \t]*(`{3,}|~{3,})([^\n]*)\n(.*?)^\s*\1\s*$", reply, re.M | re.S)
     for labels in ({"python", "py", "python3"}, {""}):
         # The language is the info string's first word, e.g. "python title=solution.py".
@@ -68,7 +74,9 @@ def extract_code(reply: str) -> str:
             if not any(body.strip() for body in selected):
                 raise RunnerError("model returned empty code", raw_output=reply)
             # Fences nested in Markdown lists are indented along with their contents.
-            return "\n\n".join(textwrap.dedent(body).strip("\n") for body in selected) + "\n"
+            return _parsed(
+                "\n\n".join(textwrap.dedent(body).strip("\n") for body in selected) + "\n", reply
+            )
     if blocks:
         raise RunnerError("reply contains no Python or unlabeled code block", raw_output=reply)
     # Some endpoints truncate the final closing fence.
@@ -76,7 +84,26 @@ def extract_code(reply: str) -> str:
     code = reply[opening.end() :] if opening else reply
     if not code.strip():
         raise RunnerError("model returned empty code", raw_output=reply)
-    return code.strip("\n") + "\n"
+    return _parsed(code.strip("\n") + "\n", reply)
+
+
+def _parsed(code: str, reply: str) -> str:
+    """``code`` if it is Python, else an extraction failure carrying the raw reply."""
+    try:
+        ast.parse(code)
+    except SyntaxError as exc:
+        # The reason is a position, not the offending source, which may hold secrets.
+        raise RunnerError(
+            f"model reply does not parse as Python (line {exc.lineno}: {exc.msg})",
+            raw_output=reply,
+        ) from None
+    except ValueError as exc:
+        # e.g. a source file with a null byte; ast.parse refuses it rather than raising
+        # SyntaxError. Still an extraction failure, never a solution.
+        raise RunnerError(
+            f"model reply does not parse as Python ({type(exc).__name__})", raw_output=reply
+        ) from None
+    return code
 
 
 def _language(info: str) -> str:

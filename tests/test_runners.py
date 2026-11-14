@@ -47,6 +47,59 @@ def test_invalid_code(reply: str) -> None:
         extract_code(reply)
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        # An unlabeled fence holding a shell transcript rather than Python.
+        "```\n$ pytest -q\n1 passed\n```",
+        # A unified diff in a plain fence.
+        "```\n--- a/solution.py\n+++ b/solution.py\n@@ -1 +1 @@\n"
+        "-def answer(): return 0\n+def answer(): return 42\n```",
+        # Python, then prose that escaped the fence (an endpoint cut the closing fence).
+        "Here you go:\n```python\ndef answer():\n    return 42\nThat should do it.",
+        # A traceback pasted in a plain fence: not source, despite the ``File "..."`` lines.
+        '```\nTraceback (most recent call last):\n  File "solution.py", line 1\n'
+        "NameError: answer\n```",
+        # Indented prose block, common in explanations.
+        "```\n    Run the tests with pytest.\n```",
+    ],
+)
+def test_code_that_does_not_parse_is_an_extraction_failure(reply: str) -> None:
+    """The harness must not write a diff, a transcript or prose to the entrypoint and
+    record it as the model's solution: that is misleading evidence and a paid attempt
+    whose failure cannot be told apart from a wrong answer."""
+    with pytest.raises(RunnerError) as caught:
+        extract_code(reply)
+    # Same idiom as the other extraction failures: a short reason, raw reply attached.
+    assert "parse" in str(caught.value).lower()
+    assert caught.value.raw_output == reply
+
+
+def test_a_null_byte_is_an_extraction_failure_on_every_supported_python() -> None:
+    """``ast.parse`` rejects a null byte as ValueError on 3.11 and SyntaxError on 3.12+;
+    both are extraction failures, so the 3.11 matrix entry cannot crash the attempt."""
+    reply = "```python\nx = 1\x00\n```"
+    with pytest.raises(RunnerError, match="parse") as caught:
+        extract_code(reply)
+    assert caught.value.raw_output == reply
+
+
+def test_a_non_syntax_parser_error_is_also_an_extraction_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """3.11's ast.parse raises ValueError for some inputs, 3.12's SyntaxError. Pin the
+    ValueError branch directly so the 3.11 matrix entry stays covered from any interpreter."""
+    import ast
+
+    def refuse(source: str) -> ast.AST:
+        raise ValueError("source code string cannot contain null bytes")
+
+    monkeypatch.setattr(ast, "parse", refuse)
+    with pytest.raises(RunnerError, match="parse") as caught:
+        extract_code("```python\nx = 1\n```")
+    assert caught.value.raw_output == "```python\nx = 1\n```"
+
+
 @pytest.mark.parametrize("anthropic", [False, True])
 def test_http_success(
     anthropic: bool, task_path: Path, workdir: Path, monkeypatch: pytest.MonkeyPatch
@@ -155,6 +208,28 @@ def test_http_error_and_unknown_usage(
             assert caught.value.retry_reasons == ("http_429",) * 3
         if mode == "timeout":
             assert caught.value.retry_reasons == ("ReadTimeout",) * 3
+
+
+def test_unparseable_reply_is_recorded_as_an_extraction_failure(
+    task_path: Path, workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transcript in a plain fence must not reach the entrypoint. The attempt is an
+    ``error`` with the extraction reason, no solution.py artifact, and the raw reply kept
+    in model-output.txt so the evidence shows what the model actually said."""
+    monkeypatch.setenv("TEST_KEY", "secret-value")
+    monkeypatch.setenv("TEST_BASE", BASE)
+    reply = "```\n$ pytest -q\n1 passed\n```"
+    runner = HTTPRunner(
+        {"model": "test", "base_url_env": "TEST_BASE", "api_key_env": "TEST_KEY"},
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"choices": [{"message": {"content": reply}}]})
+        ),
+        sleep=no_sleep,
+    )
+    with pytest.raises(RunnerError, match="parse") as caught:
+        asyncio.run(runner.generate(load_task(task_path), workdir))
+    assert caught.value.generation.raw_output == reply
+    assert not (workdir / "solution.py").exists()
 
 
 def test_http_transport_error_names_the_failure(
