@@ -307,6 +307,7 @@ markdown = render_report(summarize(attempts), "md")
 and `allow_local_fallback`. Like the CLI, it raises `ValueError` before creating the run
 directory if docker isolation is requested but unavailable, or if the grading interpreter
 cannot import pytest.
+The host preflight runs once per interpreter per process; a long-lived embedding can call `agent_eval.grader.reset_preflight_cache()` to check again.
 
 A runner implements the `agent_eval.runners.base.Runner` protocol:
 

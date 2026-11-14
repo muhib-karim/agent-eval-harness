@@ -275,3 +275,22 @@ def test_preflight_runs_once_per_interpreter(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(grader, "run_process", unexpected)
     asyncio.run(check_pytest())
+
+
+def test_preflight_cache_can_be_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A long-lived embedding can make the next run check the interpreter again."""
+    monkeypatch.setattr(grader, "_checked", set())
+    calls: list[list[str]] = []
+    real = grader.run_process
+
+    async def counting(command: list[str], *args: Any, **kwargs: Any) -> Any:
+        calls.append(command)
+        return await real(command, *args, **kwargs)
+
+    monkeypatch.setattr(grader, "run_process", counting)
+    asyncio.run(check_pytest())
+    asyncio.run(check_pytest())
+    assert len(calls) == 1
+    grader.reset_preflight_cache()
+    asyncio.run(check_pytest())
+    assert len(calls) == 2

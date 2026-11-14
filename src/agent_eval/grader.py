@@ -32,6 +32,12 @@ _PREFLIGHT = ["-I", "-c", "import pytest"]
 _checked: set[str] = set()
 
 
+def reset_preflight_cache() -> None:
+    """Forget which interpreters passed the pytest preflight, so the next run checks again;
+    for long-lived processes whose interpreter environment may have changed."""
+    _checked.clear()
+
+
 @dataclass(frozen=True)
 class Grade:
     outcome: Outcome
