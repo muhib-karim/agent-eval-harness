@@ -2,6 +2,7 @@
 
 import re
 from html.parser import HTMLParser
+from importlib.resources import files
 
 import pytest
 
@@ -272,3 +273,15 @@ def test_missing_cells_are_marked_for_screen_readers() -> None:
     rows = [attempt("a", "p1", 1, True), attempt("b", "a1", 1, True)]
     html = render_report(summarize(rows, (1,)), "html")
     assert html.count('—<span class="visually-hidden">not run</span>') == 4
+
+
+def test_no_escaping_escape_hatches_under_an_inline_script_csp() -> None:
+    """The CSP allows inline script, so autoescape is the only XSS barrier: keep it whole."""
+    template = files("agent_eval").joinpath("templates/report.html").read_text(encoding="utf-8")
+    for hatch in ("|safe", "| safe", "autoescape false", "Markup", "innerHTML", "outerHTML"):
+        assert hatch not in template, hatch
+    payload = '"><script>alert(1)</script>'
+    html = render_report(summarize([attempt(payload, "p1", 1, True)], (1,)), "html")
+    assert "<script>alert" not in html
+    assert html.count("<script>") == 1
+    assert "&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" in html
