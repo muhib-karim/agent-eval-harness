@@ -59,6 +59,58 @@ def test_resume_refuses_a_changed_config(config_path: Path, tmp_path: Path) -> N
         asyncio.run(run_config(config_path, out, resume=True))
 
 
+def test_resume_allows_a_comment_only_edit(config_path: Path, tmp_path: Path) -> None:
+    """A comment changes the file's bytes, not the run. Refusing would make ``--resume``
+    unusable after an editor or formatter touched the config."""
+    out = tmp_path / "run"
+    asyncio.run(run_config(config_path, out))
+    config_path.write_text("# reviewed after the interruption\n" + config_path.read_text())
+    assert len(asyncio.run(run_config(config_path, out, resume=True))) == 4
+
+
+def test_resume_allows_a_whitespace_only_edit(config_path: Path, tmp_path: Path) -> None:
+    out = tmp_path / "run"
+    asyncio.run(run_config(config_path, out))
+    original = config_path.read_text()
+    config_path.write_text(original.replace("\n", "\n\n").rstrip() + "\n")
+    assert len(asyncio.run(run_config(config_path, out, resume=True))) == 4
+
+
+def test_resume_allows_reordered_keys(config_path: Path, tmp_path: Path) -> None:
+    """Top-level key order is normalised by the model. ``options`` is a free-form mapping
+    whose insertion order survives into the resolved config, so it is the case that
+    actually distinguishes a byte comparison from a semantic one."""
+    out = tmp_path / "run"
+    # A two-key ``options`` mapping exists from the first run, so the resolved config
+    # records it and the comparison is genuinely exercised below.
+    config = yaml.safe_load(config_path.read_text())
+    config["models"][1]["options"] = {"variant": "wrong", "reference_dir": "fixtures"}
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+    asyncio.run(run_config(config_path, out))
+    reordered = {key: config[key] for key in reversed(list(config))}
+    reordered["models"] = [
+        {**model, "options": dict(reversed(list(model["options"].items())))}
+        if model.get("options")
+        else model
+        for model in config["models"]
+    ]
+    assert len(reordered["models"][1]["options"]) > 1
+    config_path.write_text(yaml.safe_dump(reordered, sort_keys=False))
+    assert len(asyncio.run(run_config(config_path, out, resume=True))) == 4
+
+
+def test_resume_refuses_a_changed_option_value(config_path: Path, tmp_path: Path) -> None:
+    """Reordering ``options`` is harmless; changing a value inside it is not. A run must not
+    mix attempts generated under two different model configurations."""
+    out = tmp_path / "run"
+    asyncio.run(run_config(config_path, out))
+    config = yaml.safe_load(config_path.read_text())
+    config["models"][1]["options"]["variant"] = "reference"
+    config_path.write_text(yaml.safe_dump(config))
+    with pytest.raises(ValueError, match="config differs"):
+        asyncio.run(run_config(config_path, out, resume=True))
+
+
 def test_resume_refuses_changed_tasks(config_path: Path, task_path: Path, tmp_path: Path) -> None:
     out = tmp_path / "run"
     asyncio.run(run_config(config_path, out))
