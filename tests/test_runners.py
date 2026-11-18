@@ -84,7 +84,7 @@ def test_code_that_does_not_parse_is_an_extraction_failure(reply: str) -> None:
         "```\ncontinue\n```",
     ],
 )
-def test_extract_code_rejects_uncompilable_source(reply):
+def test_extract_code_rejects_uncompilable_source(reply: str) -> None:
     with pytest.raises(RunnerError):
         extract_code(reply)
 
