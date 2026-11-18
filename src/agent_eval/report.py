@@ -33,6 +33,16 @@ def format_usd(value: float | None) -> str:
     return f"{value:.6f}".rstrip("0").rstrip(".")
 
 
+def _downgraded(summary: Summary) -> list[tuple[str, int, int]]:
+    """(model, attempts that asked for docker but ran on the host, attempts), where any did."""
+    rows = []
+    for model in summary.models:
+        count = sum(u.attempts for u in model.isolation if u.requested != u.used)
+        if count:
+            rows.append((model.model, count, model.attempts))
+    return rows
+
+
 def render_report(summary: Summary, fmt: ReportFormat) -> str:
     if fmt == "json":
         return summary_json(summary)
@@ -111,6 +121,18 @@ def render_report(summary: Summary, fmt: ReportFormat) -> str:
                 + ".",
             ]
         )
+        downgraded = _downgraded(summary)
+        if downgraded:
+            lines.extend(
+                [
+                    "",
+                    "Isolation downgraded (docker requested, ran on the host): "
+                    + ", ".join(
+                        f"{_md(name)} {count} of {total}" for name, count, total in downgraded
+                    )
+                    + ".",
+                ]
+            )
         return "\n".join(lines) + "\n"
     if fmt != "html":
         raise ValueError(f"unsupported report format: {fmt}")
@@ -130,6 +152,7 @@ def render_report(summary: Summary, fmt: ReportFormat) -> str:
             name: sum(c == name for c in summary.task_categories.values()) for name in categories
         },
         level=f"{summary.bootstrap.confidence:.0%}",
+        downgraded=_downgraded(summary),
     )
 
 

@@ -50,6 +50,12 @@ All notable changes are recorded here. The format follows
   retry and backoff wait.
 - Isolation `memory` must be at least `6m` (docker's minimum), counted in whole bytes the way docker
   does: `0` (docker's "no limit") and values such as `0.5b`, which docker truncates to 0, are rejected.
+- A per-model `isolation` list in the `summary.json` of reports (`requested`, `used`,
+  `attempts`), counting how many attempts asked for one isolation mode and ran under another.
+  Attempts recorded before isolation existed are not counted, so an older run has an empty
+  list. When any attempts were downgraded (docker requested, run on the host), `report.html` and
+  the Markdown report gain a note naming each model and how many of its attempts ran with the
+  local runner.
 - `agent-eval compare-context FULL TRIMMED`: an offline paired comparison of two saved result
   files (trimmed minus full pass@1 with a paired task-level bootstrap interval, wall-time and
   reported-token differences), written as JSON. It makes no model calls. See
@@ -63,6 +69,10 @@ All notable changes are recorded here. The format follows
 - The results JSONL gains `retries` and `retry_reasons` (e.g. `["http_429", "http_503"]`) on every
   attempt, including attempts that failed after exhausting their retries. Reports show a retries
   total per model. Older files without these fields load with `0` and `[]`, resume and report.
+- `fallback: local` with `network: bridge` now needs `--force` (keyword-only `force` on
+  `run_config`). When docker is unavailable, the run no longer falls back to the host for a
+  config whose attempts are expected to be networked: it exits with code 2 unless `--force` is
+  passed. Without `network: bridge` the fallback is unchanged.
 - `config.resolved.yaml` records the effective isolation mode, including an `--isolation`
   override, and `--resume` refuses a run whose mode differs (a run without the entry counts as
   `local`).
