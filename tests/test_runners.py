@@ -101,14 +101,18 @@ def test_a_null_byte_is_an_extraction_failure_on_every_supported_python() -> Non
 def test_a_non_syntax_parser_error_is_also_an_extraction_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """3.11's ast.parse raises ValueError for some inputs, 3.12's SyntaxError. Pin the
+    """3.11's compile raises ValueError for some inputs, 3.12's SyntaxError. Pin the
     ValueError branch directly so the 3.11 matrix entry stays covered from any interpreter."""
-    import ast
+    import builtins
 
-    def refuse(source: str) -> ast.AST:
-        raise ValueError("source code string cannot contain null bytes")
+    real_compile = builtins.compile
 
-    monkeypatch.setattr(ast, "parse", refuse)
+    def refuse(src: Any, filename: Any, mode: Any, *args: Any, **kwargs: Any) -> Any:
+        if filename == "<solution>":
+            raise ValueError("source code string cannot contain null bytes")
+        return real_compile(src, filename, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "compile", refuse)
     with pytest.raises(RunnerError, match="parse") as caught:
         extract_code("```python\nx = 1\n```")
     assert caught.value.raw_output == "```python\nx = 1\n```"
