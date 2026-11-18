@@ -66,6 +66,45 @@ def test_cli_end_to_end(
     assert f"agent-eval: File exists: {out}" in capsys.readouterr().err
 
 
+def test_run_exits_nonzero_only_when_no_attempt_passes(
+    task_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A run with at least one passing attempt is a success, even when other models fail.
+    A run where no attempt passed (every model wrong, erroring or timing out) has nothing
+    to report: CI and cron must see a failure instead of publishing a 0% leaderboard as
+    green. The code is not 2, which means invalid input rather than a failed run."""
+
+    def config(name: str, models: list[dict[str, Any]]) -> Path:
+        path = tmp_path / f"{name}.yaml"
+        path.write_text(yaml.safe_dump({"models": models, "tasks": [str(task_path)], "repeats": 1}))
+        return path
+
+    correct = {"name": "correct", "runner": "mock"}
+    wrong = {"name": "wrong", "runner": "mock", "options": {"variant": "wrong"}}
+
+    # Partial failure keeps today's behaviour: one model solves the task, one does not.
+    partial = config("partial", [correct, wrong])
+    assert main(["run", str(partial), "--out", str(tmp_path / "partial-out")]) == 0
+    assert "2 attempts; 1 passed" in capsys.readouterr().out
+
+    # Every attempt ran and failed its hidden tests.
+    all_wrong = config("all-wrong", [wrong])
+    code = main(["run", str(all_wrong), "--out", str(tmp_path / "all-wrong-out")])
+    assert code != 0, "a run with no passing attempt must not exit successfully"
+    assert code != 2, "the config is valid; 2 is for invalid input"
+
+    # Every attempt errored before grading: same contract, no passing attempt.
+    class AlwaysError:
+        async def generate(self, task: TaskSpec, workdir: Path) -> Generation:
+            raise RunnerError("upstream unavailable")
+
+    register_runner("always-error", lambda options, *, task_path: AlwaysError())
+    all_error = config("all-error", [{"name": "broken", "runner": "always-error"}])
+    code = main(["run", str(all_error), "--out", str(tmp_path / "all-error-out")])
+    assert code != 0, "a run where every attempt errored must not exit successfully"
+    assert code != 2, "the config is valid; 2 is for invalid input"
+
+
 def test_cli_listing_validation_and_errors(
     task_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

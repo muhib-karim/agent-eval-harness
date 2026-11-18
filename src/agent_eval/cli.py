@@ -135,6 +135,15 @@ def main(argv: list[str] | None = None) -> int:
                 f"Completed {len(attempts)} attempts; {passed} passed. "
                 f"Report: {out / 'report.html'}"
             )
+            if not passed:
+                # A run where nothing passed is a failed run, not a 0% result to publish.
+                # Partial failures still exit 0: some evidence is better than none.
+                print(
+                    "agent-eval: no attempt passed; treating the run as failed "
+                    f"(artifacts kept in {out})",
+                    file=sys.stderr,
+                )
+                return 1
         elif args.command == "report":
             summary = summarize(
                 load_attempts(args.results),
