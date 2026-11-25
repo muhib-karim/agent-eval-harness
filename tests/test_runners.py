@@ -54,12 +54,12 @@ def test_invalid_code(reply: str) -> None:
         "```\n$ pytest -q\n1 passed\n```",
         # A unified diff in a plain fence.
         "```\n--- a/solution.py\n+++ b/solution.py\n@@ -1 +1 @@\n"
-        "-def answer(): return 0\n+def answer(): return 42\n```",
+        + "-def answer(): return 0\n+def answer(): return 42\n```",
         # Python, then prose that escaped the fence (an endpoint cut the closing fence).
         "Here you go:\n```python\ndef answer():\n    return 42\nThat should do it.",
         # A traceback pasted in a plain fence: not source, despite the ``File "..."`` lines.
         '```\nTraceback (most recent call last):\n  File "solution.py", line 1\n'
-        "NameError: answer\n```",
+        + "NameError: answer\n```",
         # Indented prose block, common in explanations.
         "```\n    Run the tests with pytest.\n```",
     ],
